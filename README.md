@@ -60,4 +60,4 @@ Open [http://localhost:3000](http://localhost:3000) to launch XPedition.
 
 ## 🛡️ Database Setup
 
-Run the SQL migration script located in [`supabase/schema.sql`](file:///c:/Users/VIJAYA%20RAGAVAN/XPedition/supabase/schema.sql) in your Supabase SQL Editor to enable Row-Level Security (RLS) and create all required tables.
+Run the SQL migration script located in `supabase/schema.sql` in your Supabase SQL Editor to enable Row-Level Security (RLS) and create all required tables.
