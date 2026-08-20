@@ -66,12 +66,47 @@ export async function POST(req: NextRequest) {
       console.warn("Notice checking module cache:", e);
     }
 
-    // 2. Fetch grounded Web Search results via Tavily
+    // 2. Fetch grounded Web Search results via Tavily (with NPTEL & SWAYAM domain preference for academic topics)
     let searchContent = "";
     let extractedSources: SourceCitation[] = [];
 
+    const academicKeywords = [
+      "computer", "science", "algorithm", "data structure", "database", "sql",
+      "python", "java", "c++", "engineering", "electronics", "math", "physics",
+      "machine learning", "ai", "operating system", "network", "compiler", "software"
+    ];
+
+    const isAcademicTopic = academicKeywords.some(kw => 
+      skillName.toLowerCase().includes(kw) || goal.toLowerCase().includes(kw)
+    );
+
     if (tavilyKey && tavilyKey.trim() !== "") {
       try {
+        let academicResults: any[] = [];
+        if (isAcademicTopic) {
+          try {
+            const nptelRes = await fetch("https://api.tavily.com/search", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                api_key: tavilyKey,
+                query: `${skillName} course syllabus nptel swayam`,
+                include_domains: ["nptel.ac.in", "swayam.gov.in"],
+                search_depth: "basic",
+                max_results: 3,
+              }),
+            });
+            if (nptelRes.ok) {
+              const nptelData = await nptelRes.json();
+              if (nptelData.results && Array.isArray(nptelData.results)) {
+                academicResults = nptelData.results;
+              }
+            }
+          } catch (e) {
+            console.warn("Notice fetching NPTEL/SWAYAM search:", e);
+          }
+        }
+
         const queryStr = `learn ${skillName} ${levelDesc} tutorial guide code examples`;
         const tavilyRes = await fetch("https://api.tavily.com/search", {
           method: "POST",
@@ -84,18 +119,24 @@ export async function POST(req: NextRequest) {
           }),
         });
 
+        let generalResults: any[] = [];
         if (tavilyRes.ok) {
           const tavilyData = await tavilyRes.json();
           if (tavilyData.results && Array.isArray(tavilyData.results)) {
-            extractedSources = tavilyData.results.slice(0, 4).map((r: any) => ({
-              title: r.title || skillName,
-              url: r.url || "https://docs.python.org",
-            }));
-
-            searchContent = tavilyData.results
-              .map((r: any) => `Source: ${r.title}\nContent: ${r.content || ""}`)
-              .join("\n\n");
+            generalResults = tavilyData.results;
           }
+        }
+
+        const combinedResults = [...academicResults, ...generalResults];
+        if (combinedResults.length > 0) {
+          extractedSources = combinedResults.slice(0, 6).map((r: any) => ({
+            title: r.title || skillName,
+            url: r.url || "https://nptel.ac.in",
+          }));
+
+          searchContent = combinedResults
+            .map((r: any) => `Source: ${r.title} (${r.url})\nContent: ${r.content || ""}`)
+            .join("\n\n");
         }
       } catch (err) {
         console.warn("Tavily search notice during module generation:", err);

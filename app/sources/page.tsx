@@ -145,54 +145,166 @@ export default function PersonalReadingListSourcesPage() {
           <span className="text-[#34D399] font-bold">Updated Live</span>
         </div>
 
-        {/* Sources Grouped by Goal */}
+        {/* Sources Grouped by Category & Goal */}
         <div className="space-y-6">
-          {sourceGroups.map((group, gIdx) => (
-            <div
-              key={gIdx}
-              className="bg-[#1B1B3A] border border-white/10 rounded-3xl p-6 shadow-xl space-y-4 glow-box-cyan"
-            >
-              <div className="flex items-start justify-between gap-3 border-b border-white/10 pb-3">
-                <div>
-                  <h2 className="text-lg font-bold text-white font-heading">{group.goalTitle}</h2>
-                  <p className="text-xs text-[#94A3B8] font-mono mt-0.5">
-                    Goal: <span className="text-slate-200">"{group.goalText}"</span>
-                  </p>
-                </div>
-                <span className="text-[10px] font-mono text-slate-400 shrink-0">{group.createdAt}</span>
-              </div>
+          {sourceGroups.map((group, gIdx) => {
+            const officialCourses = group.sources.filter((s) => {
+              const u = (s.url || "").toLowerCase();
+              return u.includes("nptel.ac.in") || u.includes("swayam.gov.in");
+            });
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {group.sources.map((src, sIdx) => (
-                  <a
-                    key={sIdx}
-                    href={src.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="bg-[#0A0A1A] border border-white/10 hover:border-[#22D3EE]/60 p-3.5 rounded-2xl transition-all flex items-center gap-3 text-xs group cursor-pointer shadow-md"
-                  >
-                    <img
-                      src={`https://www.google.com/s2/favicons?domain=${src.domain}&sz=32`}
-                      alt={src.domain}
-                      className="w-6 h-6 rounded shrink-0 bg-white/10 p-0.5"
-                      onError={(e) => {
-                        (e.target as HTMLElement).style.display = "none";
-                      }}
-                    />
-                    <div className="overflow-hidden space-y-0.5">
-                      <p className="font-bold text-white text-xs truncate group-hover:text-[#22D3EE] transition-colors">
-                        {src.title}
-                      </p>
-                      <span className="text-[10px] font-mono text-[#34D399] block truncate flex items-center gap-1">
-                        <span>{src.domain}</span>
-                        <ExternalLink className="w-3 h-3 text-slate-400 group-hover:text-[#22D3EE]" />
-                      </span>
+            const documentationSources = group.sources.filter((s) => {
+              const u = (s.url || "").toLowerCase();
+              return (
+                !u.includes("nptel.ac.in") &&
+                !u.includes("swayam.gov.in") &&
+                (u.includes("docs") || u.includes("mozilla") || u.includes("python.org") || u.includes("microsoft") || u.includes("w3.org"))
+              );
+            });
+
+            const communitySources = group.sources.filter((s) => {
+              const u = (s.url || "").toLowerCase();
+              return (
+                !u.includes("nptel.ac.in") &&
+                !u.includes("swayam.gov.in") &&
+                !u.includes("docs") &&
+                !u.includes("mozilla") &&
+                !u.includes("python.org") &&
+                !u.includes("microsoft") &&
+                !u.includes("w3.org")
+              );
+            });
+
+            return (
+              <div
+                key={gIdx}
+                className="bg-[#0D0D1A] border border-[#00F0FF]/30 rounded-3xl p-6 shadow-xl space-y-5 glow-cyan"
+              >
+                <div className="flex items-start justify-between gap-3 border-b border-white/10 pb-3">
+                  <div>
+                    <h2 className="text-lg font-bold text-white font-heading">{group.goalTitle}</h2>
+                    <p className="text-xs text-[#94A3B8] font-mono mt-0.5">
+                      Goal: <span className="text-slate-200">"{group.goalText}"</span>
+                    </p>
+                  </div>
+                  <span className="text-[10px] font-mono text-slate-400 shrink-0">{group.createdAt}</span>
+                </div>
+
+                {/* 1. Official Courses (NPTEL & SWAYAM) */}
+                {officialCourses.length > 0 && (
+                  <div className="space-y-2.5">
+                    <div className="flex items-center gap-2 text-xs font-mono font-bold text-[#00F0FF]">
+                      <GraduationCap className="w-4 h-4 text-[#FFB800]" />
+                      <span>🎓 OFFICIAL COURSES (NPTEL & SWAYAM)</span>
                     </div>
-                  </a>
-                ))}
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {officialCourses.map((src, sIdx) => (
+                        <a
+                          key={sIdx}
+                          href={src.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="bg-[#000000] border border-[#00F0FF]/40 hover:border-[#00F0FF] p-3.5 rounded-2xl transition-all flex items-center gap-3 text-xs group cursor-pointer shadow-md"
+                        >
+                          <span className="text-lg shrink-0">🎓</span>
+                          <div className="overflow-hidden space-y-0.5">
+                            <p className="font-bold text-white text-xs truncate group-hover:text-[#00F0FF] transition-colors">
+                              {src.title}
+                            </p>
+                            <span className="text-[10px] font-mono text-[#00FF87] block truncate flex items-center gap-1">
+                              <span>{src.domain}</span>
+                              <ExternalLink className="w-3 h-3 text-[#00F0FF]" />
+                            </span>
+                          </div>
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* 2. Official Documentation */}
+                {documentationSources.length > 0 && (
+                  <div className="space-y-2.5">
+                    <div className="flex items-center gap-2 text-xs font-mono font-bold text-[#A855F7]">
+                      <BookOpen className="w-4 h-4 text-[#00FF87]" />
+                      <span>📖 DOCUMENTATION & OFFICIAL GUIDES</span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {documentationSources.map((src, sIdx) => (
+                        <a
+                          key={sIdx}
+                          href={src.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="bg-[#000000] border border-white/10 hover:border-[#A855F7] p-3.5 rounded-2xl transition-all flex items-center gap-3 text-xs group cursor-pointer shadow-md"
+                        >
+                          <img
+                            src={`https://www.google.com/s2/favicons?domain=${src.domain}&sz=32`}
+                            alt={src.domain}
+                            className="w-6 h-6 rounded shrink-0 bg-white/10 p-0.5"
+                            onError={(e) => {
+                              (e.target as HTMLElement).style.display = "none";
+                            }}
+                          />
+                          <div className="overflow-hidden space-y-0.5">
+                            <p className="font-bold text-white text-xs truncate group-hover:text-[#A855F7] transition-colors">
+                              {src.title}
+                            </p>
+                            <span className="text-[10px] font-mono text-[#00F0FF] block truncate flex items-center gap-1">
+                              <span>{src.domain}</span>
+                              <ExternalLink className="w-3 h-3 text-slate-400" />
+                            </span>
+                          </div>
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* 3. Community & Practice */}
+                {communitySources.length > 0 && (
+                  <div className="space-y-2.5">
+                    <div className="flex items-center gap-2 text-xs font-mono font-bold text-slate-300">
+                      <Sparkles className="w-4 h-4 text-[#FFB800]" />
+                      <span>🌐 COMMUNITY & PRACTICE SOURCES</span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {communitySources.map((src, sIdx) => (
+                        <a
+                          key={sIdx}
+                          href={src.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="bg-[#000000] border border-white/10 hover:border-white/30 p-3.5 rounded-2xl transition-all flex items-center gap-3 text-xs group cursor-pointer shadow-md"
+                        >
+                          <img
+                            src={`https://www.google.com/s2/favicons?domain=${src.domain}&sz=32`}
+                            alt={src.domain}
+                            className="w-6 h-6 rounded shrink-0 bg-white/10 p-0.5"
+                            onError={(e) => {
+                              (e.target as HTMLElement).style.display = "none";
+                            }}
+                          />
+                          <div className="overflow-hidden space-y-0.5">
+                            <p className="font-bold text-white text-xs truncate group-hover:text-[#00F0FF] transition-colors">
+                              {src.title}
+                            </p>
+                            <span className="text-[10px] font-mono text-slate-400 block truncate flex items-center gap-1">
+                              <span>{src.domain}</span>
+                              <ExternalLink className="w-3 h-3 text-slate-400" />
+                            </span>
+                          </div>
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 

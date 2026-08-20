@@ -107,6 +107,42 @@ Return STRICT JSON ONLY:
     let extractedSources: { title: string; url: string; domain: string }[] = [];
     let isWebGrounded = false;
 
+    const academicKeywords = [
+      "computer", "science", "algorithm", "data structure", "database", "sql",
+      "python", "java", "c++", "engineering", "electronics", "math", "physics",
+      "machine learning", "ai", "operating system", "network", "compiler", "software"
+    ];
+
+    const isAcademic = academicKeywords.some(kw => normalizedTopic.toLowerCase().includes(kw));
+
+    // Helper for Tavily API Academic Search (NPTEL & SWAYAM)
+    const fetchAcademicSources = async (queryStr: string) => {
+      if (!tavilyKey || tavilyKey.trim() === "" || !isAcademic) return [];
+      try {
+        const tavilyRes = await fetch("https://api.tavily.com/search", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            api_key: tavilyKey,
+            query: `${queryStr} course syllabus nptel swayam`,
+            include_domains: ["nptel.ac.in", "swayam.gov.in"],
+            search_depth: "basic",
+            max_results: 3,
+          }),
+        });
+
+        if (tavilyRes.ok) {
+          const tavilyData = await tavilyRes.json();
+          if (tavilyData.results && Array.isArray(tavilyData.results)) {
+            return tavilyData.results;
+          }
+        }
+      } catch (err) {
+        console.warn("Tavily academic search warning:", err);
+      }
+      return [];
+    };
+
     // Helper for Tavily API Search
     const fetchTavilySources = async (queryStr: string) => {
       if (!tavilyKey || tavilyKey.trim() === "") return [];
@@ -135,7 +171,9 @@ Return STRICT JSON ONLY:
     };
 
     // 2. Tavily Search & Fallback Chain
+    const academicResults = await fetchAcademicSources(normalizedTopic);
     let tavilyResults = await fetchTavilySources(normalizedTopic);
+    tavilyResults = [...academicResults, ...tavilyResults];
 
     // Fallback: If Tavily returns < 2 results, try broader query (dropping extra words)
     if (tavilyResults.length < 2) {

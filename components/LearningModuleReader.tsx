@@ -89,6 +89,10 @@ export default function LearningModuleReader({
     return () => clearTimeout(timer);
   }, [moduleData]);
 
+  const academicSources = moduleData.sources?.filter(
+    (src) => src.url?.includes("nptel.ac.in") || src.url?.includes("swayam.gov.in")
+  ) || [];
+
   return (
     <div className="w-full max-w-2xl mx-auto space-y-4 animate-fadeIn">
       {/* Top Header Card */}
@@ -109,6 +113,27 @@ export default function LearningModuleReader({
         <h1 className="text-2xl sm:text-3xl font-black text-white font-heading leading-tight">
           {moduleData.title || `Learning Module: ${skillName}`}
         </h1>
+
+        {/* PROMINENT NPTEL / SWAYAM GROUNDING BANNER */}
+        {academicSources.length > 0 && (
+          <div className="p-3 rounded-2xl bg-[#00F0FF]/10 border border-[#00F0FF]/50 flex items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-2">
+              <span className="text-base">🎓</span>
+              <span className="text-white font-semibold">
+                This module is grounded in official NPTEL / SWAYAM course material
+              </span>
+            </div>
+            <a
+              href={academicSources[0].url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-3 py-1 rounded-xl bg-[#00F0FF] text-black font-bold font-mono text-[11px] shrink-0 hover:brightness-110 flex items-center gap-1 transition-all"
+            >
+              <span>View Course</span>
+              <ExternalLink className="w-3 h-3" />
+            </a>
+          </div>
+        )}
 
         {/* Scroll Progress Bar */}
         <div className="space-y-1 pt-1">
@@ -186,6 +211,42 @@ export default function LearningModuleReader({
                 </li>
               ))}
             </ul>
+          </div>
+        )}
+
+        {/* OFFICIAL COURSES SECTION (NPTEL & SWAYAM) */}
+        {academicSources.length > 0 && (
+          <div className="p-5 rounded-2xl bg-[#000000] border border-[#00F0FF]/40 space-y-3 shadow-xl">
+            <div className="flex items-center justify-between text-xs font-mono font-bold text-[#00F0FF]">
+              <div className="flex items-center gap-2">
+                <span>🎓 OFFICIAL ACADEMIC COURSES (NPTEL & SWAYAM)</span>
+              </div>
+              <span className="text-slate-400 text-[10px]">Deep Dive</span>
+            </div>
+            <p className="text-xs text-slate-300">
+              Go deeper with official course curricula and syllabi from top institutions:
+            </p>
+            <div className="space-y-2">
+              {academicSources.map((src, aIdx) => (
+                <a
+                  key={aIdx}
+                  href={src.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="p-3 rounded-xl bg-[#0D0D1A] border border-white/10 hover:border-[#00F0FF] text-white flex items-center justify-between transition-all group"
+                >
+                  <div className="truncate pr-2">
+                    <span className="text-xs font-bold font-heading group-hover:text-[#00F0FF] transition-colors truncate block">
+                      {src.title}
+                    </span>
+                    <span className="text-[10px] font-mono text-slate-400 block truncate">
+                      {src.url}
+                    </span>
+                  </div>
+                  <ExternalLink className="w-4 h-4 text-[#00F0FF] shrink-0" />
+                </a>
+              ))}
+            </div>
           </div>
         )}
 
