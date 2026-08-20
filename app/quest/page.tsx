@@ -16,6 +16,11 @@ import {
   RewardArm,
   BANDIT_ARMS,
 } from "@/lib/bandit";
+import {
+  getOrStartSession,
+  updateSessionProgress,
+  closeSession,
+} from "@/lib/studySessions";
 import Link from "next/link";
 import {
   Zap,
@@ -82,6 +87,7 @@ export default function QuestPage() {
   const [recentPrompts, setRecentPrompts] = useState<string[]>([]);
   const [conceptIntroText, setConceptIntroText] = useState<string | null>(null);
   const [showConceptIntro, setShowConceptIntro] = useState<boolean>(true);
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
 
   useEffect(() => {
     setRenderTimestamp(Date.now());
@@ -124,6 +130,42 @@ export default function QuestPage() {
     }
     fetchConceptPrimer();
   }, [activeSkillIndex, user.learningStyle]);
+
+  // Init / Resume Study Session for current quest
+  useEffect(() => {
+    let sessId: string | null = null;
+    async function initSession() {
+      if (!user?.id || !currentSkill?.id) return;
+      const sess = await getOrStartSession(
+        user.id,
+        goalText || "goal-default",
+        course?.title || "Python Mastery",
+        currentSkill.id,
+        currentSkill.name
+      );
+      if (sess?.id) {
+        setCurrentSessionId(sess.id);
+        sessId = sess.id;
+      }
+    }
+
+    initSession();
+
+    const handleBeforeUnload = () => {
+      if (sessId) {
+        closeSession(sessId, "abandoned");
+      }
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+      if (sessId) {
+        closeSession(sessId, "abandoned");
+      }
+    };
+  }, [user.id, activeSkillIndex, course]);
 
   const fetchUserArms = async () => {
     if (isSupabaseConfigured() && user?.id) {
@@ -231,6 +273,16 @@ export default function QuestPage() {
 
     const isCorrect = index === question.correctIndex;
     answerQuestion(isCorrect, latencyMs, hintsUsedCount);
+
+    if (currentSessionId && currentSkill) {
+      updateSessionProgress(
+        currentSessionId,
+        currentSkill.id,
+        currentSkill.name,
+        isCorrect,
+        isCorrect ? 30 : 0
+      );
+    }
 
     // If user previously claimed a reward drop and answered another question, record bandit return success!
     if (lastClaimedArm && user?.id) {

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Zap, Compass, User, Shield, BookOpen } from "lucide-react";
+import { Home, Zap, Compass, User, Shield, History } from "lucide-react";
 
 export default function BottomNav() {
   const pathname = usePathname();
@@ -10,7 +10,7 @@ export default function BottomNav() {
   const navItems = [
     { label: "Home", href: "/home", icon: Home },
     { label: "Quests", href: "/quest", icon: Zap },
-    { label: "Squad", href: "/guild", icon: Shield },
+    { label: "History", href: "/history", icon: History },
     { label: "Passport", href: "/passport", icon: Compass },
     { label: "Profile", href: "/profile", icon: User },
   ];

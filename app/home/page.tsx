@@ -21,7 +21,9 @@ import {
   Swords,
   ShieldAlert,
   Loader2,
+  RotateCcw,
 } from "lucide-react";
+import { getResumeSession, StudySession } from "@/lib/studySessions";
 
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 
@@ -29,6 +31,7 @@ export default function HomePage() {
   const { user, isAuthLoading, course, activeSkillIndex } = useQuest();
   const [dueCount, setDueCount] = useState<number>(0);
   const [courseProgressPct, setCourseProgressPct] = useState<number>(0);
+  const [resumeSession, setResumeSession] = useState<StudySession | null>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -45,6 +48,11 @@ export default function HomePage() {
     async function checkDueSkills() {
       const skills = await getDueSkills(user?.id);
       setDueCount(skills.length);
+    }
+
+    async function checkResumeSession() {
+      const resume = await getResumeSession(user?.id || "demo-user-1");
+      setResumeSession(resume);
     }
 
     async function computeCourseProgress() {
@@ -81,7 +89,8 @@ export default function HomePage() {
 
     checkDueSkills();
     computeCourseProgress();
-  }, [user, course, router]);
+    checkResumeSession();
+  }, [user, isAuthLoading, course, router]);
 
   const currentSkill = course?.skills[activeSkillIndex] || {
     id: "s1",
@@ -144,6 +153,33 @@ export default function HomePage() {
             </div>
           </div>
         </header>
+
+        {/* Resume Banner Prompt */}
+        {resumeSession && resumeSession.last_skill_name && (
+          <div className="bg-[#1B1B3A] border border-[#22D3EE]/50 rounded-2xl p-4 shadow-xl flex items-center justify-between gap-3 animate-fadeIn">
+            <div className="flex items-center gap-3 truncate">
+              <div className="w-10 h-10 rounded-full bg-[#22D3EE]/20 border border-[#22D3EE]/40 flex items-center justify-center shrink-0">
+                <RotateCcw className="w-5 h-5 text-[#22D3EE]" />
+              </div>
+              <div className="truncate">
+                <span className="text-[10px] font-mono text-[#22D3EE] font-bold uppercase tracking-wider block">
+                  Pick up where you left off
+                </span>
+                <p className="text-xs font-bold text-white font-heading truncate">
+                  {resumeSession.goal_title || course?.title || "Python Mastery"} • {resumeSession.last_skill_name}
+                </p>
+              </div>
+            </div>
+
+            <Link
+              href="/history"
+              className="px-3.5 py-2 min-h-[44px] rounded-xl bg-[#22D3EE] hover:bg-[#06B6D4] text-black font-bold text-xs font-heading shrink-0 flex items-center gap-1 cursor-pointer transition-all"
+            >
+              <span>Resume</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+        )}
 
         {/* 2. ONE Primary "Continue Your Quest" Hero Card (Sole Primary Focal Point) */}
         <section className="bg-[#1B1B3A] border border-[#7C3AED]/50 rounded-3xl p-5 shadow-2xl glow-box-violet relative overflow-hidden space-y-4">

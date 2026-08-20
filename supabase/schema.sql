@@ -219,3 +219,24 @@ CREATE POLICY "Allow full access for raid_sessions" ON public.raid_sessions FOR 
 CREATE POLICY "Allow full access for experiment_assignments" ON public.experiment_assignments FOR ALL USING (true);
 CREATE POLICY "Allow full access for assessments" ON public.assessments FOR ALL USING (true);
 
+-- 12. Study Sessions Table
+CREATE TABLE IF NOT EXISTS public.study_sessions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES public.users(id) ON DELETE CASCADE,
+  goal_id TEXT,
+  goal_title TEXT,
+  started_at TIMESTAMPTZ DEFAULT NOW(),
+  ended_at TIMESTAMPTZ,
+  questions_answered INT DEFAULT 0,
+  correct_count INT DEFAULT 0,
+  skills_touched JSONB DEFAULT '[]'::jsonb,
+  last_skill_id TEXT,
+  last_skill_name TEXT,
+  xp_earned INT DEFAULT 0,
+  ended_reason TEXT DEFAULT 'completed'
+);
+
+ALTER TABLE public.study_sessions ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow full access for study_sessions" ON public.study_sessions FOR ALL USING (true);
+
+
