@@ -397,9 +397,13 @@ export default function QuestPage() {
 
   if (isAuthLoading) {
     return (
-      <div className="min-h-screen bg-[#0A0A1A] flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-[#22D3EE] animate-spin" />
-      </div>
+      <main className="min-h-screen bg-[#0A0A1A] bg-grid-pattern p-4 sm:p-6 space-y-4">
+        <div className="w-full max-w-2xl mx-auto space-y-4">
+          <div className="h-14 bg-[#1B1B3A] border border-white/10 rounded-2xl animate-pulse" />
+          <div className="h-20 bg-[#1B1B3A] border border-white/10 rounded-3xl animate-pulse" />
+          <div className="h-80 bg-[#1B1B3A] border border-white/10 rounded-3xl animate-pulse" />
+        </div>
+      </main>
     );
   }
 
