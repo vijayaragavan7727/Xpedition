@@ -52,7 +52,7 @@ export default function SquidAsset({
   const src = ASSET_PATHS[name];
 
   return (
-    <div className={`relative inline-flex items-center justify-center shrink-0 ${className}`}>
+    <div className={`relative inline-flex items-center justify-center shrink-0 max-w-full ${className}`}>
       <Image
         src={src}
         alt={alt}
@@ -60,6 +60,7 @@ export default function SquidAsset({
         height={height}
         priority={priority}
         className="w-full h-full object-contain filter drop-shadow-md transition-transform duration-300 hover:scale-105"
+        style={{ maxWidth: "100%", height: "auto" }}
       />
     </div>
   );
