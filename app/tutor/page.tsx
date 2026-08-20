@@ -184,12 +184,12 @@ export default function TutorPage() {
           subtitle="Real-Time Speech & Concept Assistance"
         />
         {/* Top Header */}
-        <header className="bg-[#1B1B3A] border border-[#22D3EE]/40 rounded-3xl p-6 shadow-xl text-center space-y-2 glow-box-cyan">
+        <header className="bg-[#1B1B3A] border border-white/10 rounded-3xl p-5 shadow-lg text-center space-y-2">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#22D3EE]/20 border border-[#22D3EE]/40 text-[#22D3EE] text-xs font-mono font-bold">
             <Sparkles className="w-3.5 h-3.5 text-[#FBBF24]" />
             VOICE AI TUTOR ACTIVE
           </div>
-          <h1 className="text-2xl sm:text-3xl font-black text-white font-heading">
+          <h1 className="text-xl sm:text-2xl font-bold text-white font-heading">
             {isListening ? "Listening to your voice..." : "Ask me anything"}
           </h1>
           <p className="text-xs text-[#94A3B8]">

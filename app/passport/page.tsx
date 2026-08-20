@@ -217,12 +217,12 @@ export default function PassportPage() {
           subtitle="Verifiable BKT Mastery Vector & Credentials"
         />
         {/* Header */}
-        <header className="bg-[#1B1B3A] border border-[#7C3AED]/40 rounded-3xl p-6 shadow-xl glow-box-violet text-center space-y-2">
+        <header className="bg-[#1B1B3A] border border-white/10 rounded-3xl p-5 shadow-lg text-center space-y-2">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#7C3AED]/20 border border-[#7C3AED]/40 text-[#22D3EE] text-xs font-mono font-bold">
             <Compass className="w-3.5 h-3.5" />
             PORTABLE VERIFIED CREDENTIALS
           </div>
-          <h1 className="text-2xl sm:text-3xl font-black text-white font-heading">
+          <h1 className="text-xl sm:text-2xl font-bold text-white font-heading">
             Your Skill Passport
           </h1>
           <p className="text-xs text-[#94A3B8]">

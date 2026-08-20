@@ -137,15 +137,15 @@ export default function ProfilePage() {
           subtitle="Profile, Learning Style & Accessibility Controls"
         />
         {/* Header Profile Card */}
-        <header className="bg-[#1B1B3A] border border-[#7C3AED]/40 rounded-3xl p-6 shadow-xl glow-box-violet flex items-center gap-4">
-          <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[#7C3AED] to-[#22D3EE] flex items-center justify-center text-white font-black text-2xl font-heading shadow-lg ring-4 ring-[#7C3AED]/30 shrink-0">
+        <header className="bg-[#1B1B3A] border border-white/10 rounded-3xl p-5 shadow-lg flex items-center gap-4">
+          <div className="w-14 h-14 min-w-[56px] min-h-[56px] rounded-full bg-gradient-to-br from-[#7C3AED] to-[#22D3EE] flex items-center justify-center text-white font-bold text-xl font-heading shadow-md ring-2 ring-[#22D3EE]/30 shrink-0">
             {user.name.charAt(0).toUpperCase()}
           </div>
 
-          <div>
-            <h1 className="text-2xl font-black text-white font-heading">{user.name}</h1>
-            <p className="text-xs text-[#94A3B8]">{user.email}</p>
-            <div className="inline-flex items-center gap-2 mt-2 px-3 py-1 rounded-full bg-[#7C3AED]/20 border border-[#7C3AED]/40 text-[#22D3EE] text-xs font-mono font-bold">
+          <div className="truncate">
+            <h1 className="text-xl font-bold text-white font-heading truncate">{user.name}</h1>
+            <p className="text-xs text-[#94A3B8] truncate">{user.email}</p>
+            <div className="inline-flex items-center gap-2 mt-1.5 px-3 py-0.5 rounded-full bg-[#7C3AED]/20 border border-[#7C3AED]/40 text-[#22D3EE] text-xs font-mono font-bold">
               <Zap className="w-3.5 h-3.5 text-[#FBBF24]" />
               Level {progress.level} Adventurer
             </div>

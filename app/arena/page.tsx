@@ -242,8 +242,8 @@ export default function EliminationArenaPage() {
           )}
         </div>
 
-        {/* Enter Arena CTA */}
-        <button className="w-full py-4 rounded-2xl bg-gradient-to-r from-[#FB7185] to-[#D6425A] hover:opacity-95 text-white font-black text-sm transition-all shadow-xl shadow-[#FB7185]/30 cursor-pointer font-heading tracking-wide">
+        {/* Enter Arena CTA (Primary Focal Point with Glow) */}
+        <button className="w-full py-3.5 min-h-[44px] rounded-2xl bg-gradient-to-r from-[#FB7185] to-[#D6425A] hover:opacity-95 text-white font-bold text-sm transition-all shadow-xl shadow-[#FB7185]/30 cursor-pointer font-heading tracking-wide flex items-center justify-center">
           Enter Elimination Arena
         </button>
       </div>

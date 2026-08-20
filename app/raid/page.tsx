@@ -163,22 +163,22 @@ export default function RaidPage() {
           subtitle="Spaced Repetition Boss Battle"
         />
         {/* Header */}
-        <header className="bg-[#1B1B3A] border border-red-500/40 rounded-3xl p-6 shadow-xl text-center space-y-2 glow-box-violet">
+        <header className="bg-[#1B1B3A] border border-red-500/30 rounded-3xl p-5 shadow-lg text-center space-y-2">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-500/20 border border-red-500/40 text-red-400 text-xs font-mono font-bold">
             <Swords className="w-3.5 h-3.5" />
-            MEMORY RAID • SPACED REPETITION BOSS BATTLE
+            SPACED REPETITION BOSS BATTLE
           </div>
-          <h1 className="text-2xl sm:text-3xl font-black text-white font-heading">
+          <h1 className="text-xl sm:text-2xl font-bold text-white font-heading">
             {dueSkills.length > 0 ? `${dueSkills.length} Concepts Due for Review` : "No Concepts Currently Overdue!"}
           </h1>
           <p className="text-xs text-[#94A3B8]">
             Answer overdue concept questions to drain the boss health bar and extend your memory half-life.
           </p>
 
-          <div className="pt-1">
+          <div className="pt-2">
             <Link
               href="/raid-coop"
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-[#7C3AED] via-[#22D3EE] to-[#34D399] text-black font-bold text-xs shadow-md cursor-pointer font-heading hover:opacity-95 transition-all"
+              className="inline-flex items-center justify-center gap-2 px-4 py-2.5 min-h-[44px] rounded-xl bg-gradient-to-r from-[#7C3AED] via-[#22D3EE] to-[#34D399] text-black font-bold text-xs shadow-md cursor-pointer font-heading hover:opacity-95 transition-all"
             >
               <Swords className="w-4 h-4" />
               <span>Launch Matchmade Co-op Raid</span>
@@ -187,8 +187,8 @@ export default function RaidPage() {
           </div>
         </header>
 
-        {/* Boss Health Bar Card */}
-        <div className="bg-[#1B1B3A] border border-red-500/30 rounded-3xl p-6 shadow-xl space-y-3 glow-box-violet">
+        {/* Boss Health Bar Card (Single Primary Focal Point) */}
+        <div className="bg-[#1B1B3A] border border-red-500/50 rounded-3xl p-5 shadow-2xl space-y-3 glow-box-violet">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 text-xs font-bold text-white font-heading">
               <ShieldAlert className="w-4 h-4 text-red-400" />

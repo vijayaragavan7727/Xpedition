@@ -45,11 +45,11 @@ export default function TopBar({
   }, [router]);
 
   return (
-    <header className="w-full max-w-2xl mx-auto mb-6 bg-[#1B1B3A] border border-white/10 rounded-2xl p-3.5 shadow-xl flex items-center justify-between gap-3 glow-box-violet z-20">
-      {/* Left Back Arrow Button */}
+    <header className="w-full max-w-xl mx-auto mb-4 bg-[#1B1B3A]/95 border border-white/10 rounded-2xl p-3 shadow-md flex items-center justify-between gap-3 z-20">
+      {/* Left Back Arrow Button (44x44px tap target) */}
       <button
         onClick={handleBack}
-        className="w-10 h-10 rounded-xl bg-[#0A0A1A] border border-white/10 hover:border-[#22D3EE] text-slate-300 hover:text-[#22D3EE] flex items-center justify-center transition-all cursor-pointer shrink-0 shadow-md active:scale-95"
+        className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-xl bg-[#0A0A1A] border border-white/10 hover:border-[#22D3EE] text-slate-300 hover:text-[#22D3EE] flex items-center justify-center transition-all cursor-pointer shrink-0 active:scale-95"
         aria-label="Go Back to Previous Screen"
       >
         <ArrowLeft className="w-5 h-5" />
@@ -65,8 +65,8 @@ export default function TopBar({
         )}
       </div>
 
-      {/* Right Action Placeholder */}
-      <div className="w-10 h-10 flex items-center justify-end shrink-0">
+      {/* Right Action Placeholder (44x44px container) */}
+      <div className="w-11 h-11 min-w-[44px] min-h-[44px] flex items-center justify-end shrink-0">
         {rightAction || <div className="w-8 h-8" />}
       </div>
     </header>

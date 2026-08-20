@@ -210,12 +210,12 @@ export default function GuildPage() {
           subtitle="Co-op Alliances & Team XP Pools"
         />
         {/* Top Header */}
-        <header className="bg-[#1B1B3A] border border-[#7C3AED]/40 rounded-3xl p-6 shadow-xl text-center space-y-2 glow-box-violet">
+        <header className="bg-[#1B1B3A] border border-white/10 rounded-3xl p-5 shadow-lg text-center space-y-2">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#7C3AED]/20 border border-[#7C3AED]/40 text-[#22D3EE] text-xs font-mono font-bold">
             <Shield className="w-3.5 h-3.5" />
             GUILD CITADEL & CO-OP ALLIANCE
           </div>
-          <h1 className="text-2xl sm:text-3xl font-black text-white font-heading">
+          <h1 className="text-xl sm:text-2xl font-bold text-white font-heading">
             {activeGuild ? activeGuild.name : "Join or Create a Guild"}
           </h1>
           <p className="text-xs text-[#94A3B8]">
@@ -223,11 +223,11 @@ export default function GuildPage() {
           </p>
         </header>
 
-        {/* Guild Mode Actions */}
+        {/* Guild Mode Actions (min 44px tap targets) */}
         <div className="flex gap-2">
           <button
             onClick={() => setMode("view")}
-            className={`flex-1 py-2.5 rounded-2xl text-xs font-mono font-bold transition-all cursor-pointer ${
+            className={`flex-1 py-3 min-h-[44px] rounded-2xl text-xs font-mono font-bold transition-all cursor-pointer flex items-center justify-center ${
               mode === "view"
                 ? "bg-[#7C3AED] text-white shadow-lg shadow-[#7C3AED]/30"
                 : "bg-[#1B1B3A] text-slate-400 hover:text-white border border-white/10"
@@ -237,23 +237,23 @@ export default function GuildPage() {
           </button>
           <button
             onClick={() => setMode("create")}
-            className={`flex-1 py-2.5 rounded-2xl text-xs font-mono font-bold transition-all cursor-pointer ${
+            className={`flex-1 py-3 min-h-[44px] rounded-2xl text-xs font-mono font-bold transition-all cursor-pointer flex items-center justify-center ${
               mode === "create"
-                ? "bg-[#22D3EE] text-[#0A0A1A] font-black shadow-lg shadow-[#22D3EE]/30"
+                ? "bg-[#7C3AED] text-white shadow-lg shadow-[#7C3AED]/30"
                 : "bg-[#1B1B3A] text-slate-400 hover:text-white border border-white/10"
             }`}
           >
-            + Create Guild
+            Create Squad
           </button>
           <button
             onClick={() => setMode("join")}
-            className={`flex-1 py-2.5 rounded-2xl text-xs font-mono font-bold transition-all cursor-pointer ${
+            className={`flex-1 py-3 min-h-[44px] rounded-2xl text-xs font-mono font-bold transition-all cursor-pointer flex items-center justify-center ${
               mode === "join"
-                ? "bg-[#34D399] text-[#0A0A1A] font-black shadow-lg shadow-[#34D399]/30"
+                ? "bg-[#7C3AED] text-white shadow-lg shadow-[#7C3AED]/30"
                 : "bg-[#1B1B3A] text-slate-400 hover:text-white border border-white/10"
             }`}
           >
-            Join by Code
+            Join Code
           </button>
         </div>
 
