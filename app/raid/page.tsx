@@ -25,6 +25,7 @@ import {
 
 import SquidAsset from "@/components/SquidAsset";
 import XpAsset from "@/components/XpAsset";
+import CyberSilhouette from "@/components/CyberSilhouette";
 
 export default function RaidPage() {
   const { user, isAuthLoading, claimReward, goalText } = useQuest();
@@ -191,10 +192,10 @@ export default function RaidPage() {
         </header>
 
         {/* Boss Health Bar Card (Single Primary Focal Point) */}
-        <div className="bg-[#1B1B3A] border border-red-500/50 rounded-3xl p-5 shadow-2xl space-y-3 glow-box-violet">
+        <div className="bg-[#0D0D1A] border border-[#FF0055]/50 rounded-3xl p-5 shadow-2xl space-y-3 glow-magenta">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 text-xs font-bold text-white font-heading">
-              <XpAsset name="crown" alt="Boss Raid Crown" width={32} height={32} className="text-[#FF0055]" />
+              <CyberSilhouette color="red" width={32} height={32} />
               <span>MEMORY RAID BOSS HEALTH</span>
             </div>
             <span className="text-xs font-mono font-bold text-red-400">{bossHealth}% HP</span>
