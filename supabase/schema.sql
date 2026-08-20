@@ -110,6 +110,20 @@ CREATE TABLE IF NOT EXISTS public.peer_quests (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- 10b. Served Questions Table (Anti-Repetition Engine)
+CREATE TABLE IF NOT EXISTS public.served_questions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id TEXT NOT NULL,
+  question_hash TEXT NOT NULL,
+  prompt TEXT NOT NULL,
+  skill_id TEXT,
+  skill_name TEXT,
+  served_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_served_questions_user_hash ON public.served_questions(user_id, question_hash);
+CREATE INDEX IF NOT EXISTS idx_served_questions_user_skill ON public.served_questions(user_id, skill_name, served_at DESC);
+
 -- 11. Matchmaking Queue Table
 CREATE TABLE IF NOT EXISTS public.matchmaking_queue (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

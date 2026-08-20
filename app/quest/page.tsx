@@ -353,6 +353,7 @@ export default function QuestPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          userId: user?.id || user?.email || "anonymous-learner",
           skillId: currentSkill.id,
           skillName: currentSkill.name,
           difficulty: flowDifficulty,

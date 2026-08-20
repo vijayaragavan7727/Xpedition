@@ -1,7 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Question, QuestionType } from "@/lib/types";
+import crypto from "crypto";
 
 const ALL_TYPES: QuestionType[] = ["concept", "code_output", "debug", "scenario", "compare"];
+
+// Local in-memory set fallback if Supabase table is loading
+const localServedHashes = new Set<string>();
+
+function hashPrompt(prompt: string): string {
+  const normalized = prompt.toLowerCase().replace(/[^a-z0-9]/g, "").trim();
+  return crypto.createHash("sha256").update(normalized).digest("hex");
+}
 
 function calculateSimilarity(str1: string, str2: string): number {
   if (!str1 || !str2) return 0;
@@ -17,15 +26,24 @@ function calculateSimilarity(str1: string, str2: string): number {
   return intersection / union;
 }
 
-function isDuplicatePrompt(prompt: string, recentPrompts: string[] = []): boolean {
-  if (!recentPrompts || recentPrompts.length === 0) return false;
-  return recentPrompts.some((prev) => calculateSimilarity(prompt, prev) > 0.60);
+function isDuplicatePrompt(
+  prompt: string,
+  userServedHashes: Set<string>,
+  recentPrompts: string[] = []
+): boolean {
+  if (!prompt) return true;
+  const qHash = hashPrompt(prompt);
+  if (userServedHashes.has(qHash)) return true;
+  if (recentPrompts.some((prev) => calculateSimilarity(prompt, prev) > 0.50)) return true;
+  return false;
 }
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const {
+      userId = "anonymous-learner",
+      skillId = "s1",
       skillName = "General Skill",
       difficulty = 2,
       wasCorrect,
@@ -39,13 +57,68 @@ export async function POST(req: NextRequest) {
     const last3Types: QuestionType[] = Array.isArray(recentTypes) ? recentTypes.slice(-3) : [];
     const promptHistory: string[] = Array.isArray(recentPrompts) ? recentPrompts.slice(-20) : [];
 
-    // Filter candidate question types to rotate away from last 3 served
+    // 1. Fetch user's last 50 served question hashes from Supabase or local set
+    const userServedHashes = new Set<string>();
+    let dbPrompts: string[] = [];
+
+    try {
+      const { supabase, isSupabaseConfigured } = await import("@/lib/supabase");
+      if (isSupabaseConfigured()) {
+        const { data: servedRows } = await supabase
+          .from("served_questions")
+          .select("question_hash, prompt")
+          .eq("user_id", userId)
+          .order("served_at", { ascending: false })
+          .limit(50);
+
+        if (servedRows && servedRows.length > 0) {
+          servedRows.forEach((r) => {
+            if (r.question_hash) userServedHashes.add(r.question_hash);
+            if (r.prompt) dbPrompts.push(r.prompt);
+          });
+        }
+      }
+    } catch (e) {
+      console.warn("Notice reading served_questions table:", e);
+    }
+
+    // Merge in-memory local hashes
+    localServedHashes.forEach((h) => {
+      if (h.startsWith(`${userId}:`)) {
+        userServedHashes.add(h.split(":")[1]);
+      }
+    });
+
+    const combinedHistory = Array.from(new Set([...promptHistory, ...dbPrompts])).slice(-25);
+
+    // 2. Select target question type (rotate away from last 3 served)
     let candidateTypes = ALL_TYPES.filter((t) => !last3Types.includes(t));
     if (candidateTypes.length === 0) candidateTypes = ALL_TYPES;
-    const targetType = candidateTypes[Math.floor(Math.random() * candidateTypes.length)];
+    let targetType = candidateTypes[Math.floor(Math.random() * candidateTypes.length)];
 
-    // Check for approved Peer Quests in Supabase with ~35% probability
-    if (Math.random() < 0.35) {
+    // Helper to persist served question hash to DB and local memory
+    const recordServedQuestion = async (qPrompt: string) => {
+      const qHash = hashPrompt(qPrompt);
+      localServedHashes.add(`${userId}:${qHash}`);
+      try {
+        const { supabase, isSupabaseConfigured } = await import("@/lib/supabase");
+        if (isSupabaseConfigured()) {
+          await supabase.from("served_questions").insert({
+            user_id: userId,
+            question_hash: qHash,
+            prompt: qPrompt,
+            skill_id: skillId,
+            skill_name: skillName,
+            served_at: new Date().toISOString(),
+          });
+        }
+      } catch (err) {
+        console.warn("Notice inserting served_questions:", err);
+      }
+    };
+
+    // 3. Optional Peer Quest lookup with anti-repetition check for this specific user
+    if (Math.random() < 0.25) {
       try {
         const { supabase, isSupabaseConfigured } = await import("@/lib/supabase");
         if (isSupabaseConfigured()) {
@@ -54,35 +127,37 @@ export async function POST(req: NextRequest) {
             .select("*")
             .eq("approved", true)
             .ilike("skill_name", `%${skillName.split(" ")[0]}%`)
-            .limit(5);
+            .limit(10);
 
           if (peerData && peerData.length > 0) {
-            // Pick one that is not duplicate
-            const nonDup = peerData.find((p) => !isDuplicatePrompt(p.prompt, promptHistory));
-            const picked = nonDup || peerData[0];
+            const freshPeer = peerData.find((p) => !isDuplicatePrompt(p.prompt, userServedHashes, combinedHistory));
+            if (freshPeer) {
+              await supabase
+                .from("peer_quests")
+                .update({ plays: (freshPeer.plays || 0) + 1 })
+                .eq("id", freshPeer.id);
 
-            // Increment plays count
-            await supabase
-              .from("peer_quests")
-              .update({ plays: (picked.plays || 0) + 1 })
-              .eq("id", picked.id);
+              await recordServedQuestion(freshPeer.prompt);
 
-            return NextResponse.json({
-              questionType: "scenario" as QuestionType,
-              prompt: picked.prompt,
-              options: Array.isArray(picked.options) ? picked.options : [],
-              correctIndex: picked.correct_index,
-              explanations: [
-                "Option A evaluation from peer quest author.",
-                "Option B evaluation from peer quest author.",
-                "Option C evaluation from peer quest author.",
-                "Option D evaluation from peer quest author."
-              ],
-              explanation: "Peer quest created by an XPedition learner & verified by Groq AI!",
-              conceptSummary: "This question was authored by a fellow learner who has already mastered this concept.",
-              isPeerQuest: true,
-              authorName: "Learner Contributor",
-            });
+              console.log(`[PEER QUEST SERVED] User: ${userId} | Prompt: ${freshPeer.prompt}`);
+
+              return NextResponse.json({
+                questionType: "scenario" as QuestionType,
+                prompt: freshPeer.prompt,
+                options: Array.isArray(freshPeer.options) ? freshPeer.options : [],
+                correctIndex: freshPeer.correct_index,
+                explanations: [
+                  "Option A evaluation from peer quest author.",
+                  "Option B evaluation from peer quest author.",
+                  "Option C evaluation from peer quest author.",
+                  "Option D evaluation from peer quest author."
+                ],
+                explanation: "Peer quest created by an XPedition learner & verified by Groq AI!",
+                conceptSummary: "This question was authored by a fellow learner who has already mastered this concept.",
+                isPeerQuest: true,
+                authorName: "Learner Contributor",
+              });
+            }
           }
         }
       } catch (err) {
@@ -90,6 +165,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // 4. Groq AI Question Generation with High Temperature (0.85) & Anti-Repetition Prompting
     if (groqKey && groqKey.trim() !== "") {
       try {
         const difficultyDesc = [
@@ -108,27 +184,41 @@ export async function POST(req: NextRequest) {
         };
 
         const styleDirective = stylePromptDirectives[learningStyle] || stylePromptDirectives.story;
+        const historyText = combinedHistory.slice(-5).map((p, i) => `${i + 1}. "${p}"`).join("\n");
 
         const generateQuestionWithGroq = async (typeToUse: QuestionType, extraDirective?: string) => {
           const promptText = `You are XPedition's Adaptive Quest Generator.
-Generate ONE single multiple-choice question for the skill: "${skillName}" (Goal: "${goal}").
+CRITICAL OVERALL GOAL CONTEXT: "${goal}"
+SPECIFIC SKILL MODULE TO TEST: "${skillName}"
 Target difficulty level: Level ${difficulty} out of 5 (${difficultyDesc}).
-Previous answer was: ${wasCorrect !== undefined ? (wasCorrect ? "CORRECT" : "INCORRECT") : "N/A"}.
+Previous learner answer was: ${wasCorrect !== undefined ? (wasCorrect ? "CORRECT" : "INCORRECT") : "N/A"}.
 
-CRITICAL LEARNING STYLE REQUIREMENT: "${learningStyle}"
-${styleDirective}
+CRITICAL DOMAIN RULES:
+- All syntax, terminology, questions, and code snippets MUST strictly belong to the goal "${goal}" and skill "${skillName}".
+- If the Goal is "SQL Basics", all code snippets MUST be valid SQL queries (e.g. SELECT, JOIN, GROUP BY, WHERE).
+- If the Goal is "Python Basics", all code snippets MUST be valid Python code.
+- If the Goal is "System Design", questions MUST cover caching, load balancing, sharding, or CAP theorem.
 
-CRITICAL QUESTION TYPE REQUIREMENT:
-You MUST set "questionType" to "${typeToUse}".
-Do NOT use any of these recently served questionTypes: ${last3Types.join(", ") || "none"}.
+CRITICAL ANTI-REPETITION REQUIREMENT:
+The learner "${userId}" has ALREADY answered the following questions:
+${historyText || "None so far"}
+
+You MUST generate a COMPLETELY NEW, UNIQUE question testing a DIFFERENT subtopic, function, or scenario than the questions above.
 ${extraDirective || ""}
 
+LEARNING STYLE REQUIREMENT: "${learningStyle}"
+${styleDirective}
+
+QUESTION TYPE REQUIREMENT:
+Set "questionType" to "${typeToUse}".
+Do NOT use any of these recently served questionTypes: ${last3Types.join(", ") || "none"}.
+
 Framing instructions for questionType "${typeToUse}":
-- "concept": Direct definition or conceptual understanding. Keep prompt clear. Set scenarioSetup=null, codeSnippet=null.
+- "concept": Direct definition or conceptual understanding for "${skillName}". Set scenarioSetup=null, codeSnippet=null.
 - "code_output": "What does this code snippet output or evaluate to?". Provide a clean 3-6 line code block in "codeSnippet". Set scenarioSetup=null.
 - "debug": "Find the error or bug in this snippet". Provide a code block containing a subtle error in "codeSnippet". Set scenarioSetup=null.
-- "scenario": Realistic practical problem setup. Provide a 2-3 sentence context scenario in "scenarioSetup". Set codeSnippet=null.
-- "compare": Tradeoff or distinction between two related concepts (e.g., List vs Tuple, BFS vs DFS). Set scenarioSetup=null, codeSnippet=null.
+- "scenario": Realistic practical problem setup for "${skillName}". Provide a 2-3 sentence context scenario in "scenarioSetup". Set codeSnippet=null.
+- "compare": Tradeoff or distinction between two related concepts in "${skillName}". Set scenarioSetup=null, codeSnippet=null.
 
 Return STRICT JSON ONLY matching this format:
 {
@@ -164,7 +254,7 @@ Return STRICT JSON ONLY matching this format:
             body: JSON.stringify({
               model: "llama-3.3-70b-versatile",
               messages: [{ role: "user", content: promptText }],
-              temperature: 0.7,
+              temperature: 0.85,
               response_format: { type: "json_object" },
             }),
           });
@@ -179,23 +269,27 @@ Return STRICT JSON ONLY matching this format:
           return null;
         };
 
-        // First attempt with target type
+        // Retry Loop (max 2 retries on collision)
         let parsed = await generateQuestionWithGroq(targetType);
+        let retries = 0;
 
-        // Anti-repetition check: if too similar to any of recent 20 prompts, regenerate ONCE
-        if (parsed && parsed.prompt && isDuplicatePrompt(parsed.prompt, promptHistory)) {
-          const alternateType = candidateTypes.find((t) => t !== targetType) || targetType;
-          const regenerated = await generateQuestionWithGroq(
+        while (parsed && parsed.prompt && isDuplicatePrompt(parsed.prompt, userServedHashes, combinedHistory) && retries < 2) {
+          retries++;
+          const alternateType = candidateTypes[(candidateTypes.indexOf(targetType) + retries) % candidateTypes.length] || targetType;
+          console.log(`[GROQ COLLISION RETRY ${retries}] User: ${userId} | Previous: "${parsed.prompt}". Retrying with type: ${alternateType}`);
+          parsed = await generateQuestionWithGroq(
             alternateType,
-            `Do NOT use prompt similar to "${parsed.prompt}". Generate a completely new question on a different subtopic.`
+            `DO NOT generate a question about "${parsed.prompt}". Focus on a completely different sub-concept or function.`
           );
-          if (regenerated && regenerated.prompt) {
-            parsed = regenerated;
-          }
         }
 
         if (parsed && parsed.prompt && Array.isArray(parsed.options) && typeof parsed.correctIndex === "number") {
           if (!parsed.questionType) parsed.questionType = targetType;
+          await recordServedQuestion(parsed.prompt);
+
+          // RAW LOGGING for verification
+          console.log(`[GROQ RAW RESPONSE SUCCESS] User: ${userId} | Goal: "${goal}" | Skill: "${skillName}" | Type: ${parsed.questionType} | Prompt: "${parsed.prompt}"`);
+
           return NextResponse.json(parsed);
         }
       } catch (err) {
@@ -203,13 +297,20 @@ Return STRICT JSON ONLY matching this format:
       }
     }
 
-    // Dynamic fallback question generator if API key is missing or call fails
+    // 5. Dynamic Topic-Aware Fallback Question Generator
     const fallbackQuestion = generateAdaptiveFallbackQuestion(
+      userId,
+      goal,
       skillName,
       difficulty,
-      last3Types,
-      promptHistory
+      userServedHashes,
+      combinedHistory
     );
+
+    await recordServedQuestion(fallbackQuestion.prompt);
+
+    console.log(`[FALLBACK QUESTION SERVED] User: ${userId} | Goal: "${goal}" | Skill: "${skillName}" | Prompt: "${fallbackQuestion.prompt}"`);
+
     return NextResponse.json(fallbackQuestion);
   } catch (error) {
     console.error("Next Question API error:", error);
@@ -232,459 +333,217 @@ interface FallbackQ {
 }
 
 function generateAdaptiveFallbackQuestion(
+  userId: string,
+  goal: string,
   skillName: string,
   difficulty: number,
-  avoidTypes: QuestionType[] = [],
+  userServedHashes: Set<string>,
   promptHistory: string[] = []
 ): Question {
-  const diffLevel = Math.min(5, Math.max(1, difficulty));
+  const isSql = goal.toLowerCase().includes("sql") || skillName.toLowerCase().includes("sql") || skillName.toLowerCase().includes("database");
+  const isPython = goal.toLowerCase().includes("python") || skillName.toLowerCase().includes("python") || skillName.toLowerCase().includes("data structures");
+  const isSystemDesign = goal.toLowerCase().includes("system") || skillName.toLowerCase().includes("system") || skillName.toLowerCase().includes("architecture");
 
-  const fallbackPool: Record<number, FallbackQ[]> = {
-    1: [
+  let pool: FallbackQ[] = [];
+
+  if (isSql) {
+    pool = [
       {
         questionType: "concept",
-        prompt: `Which keyword in Python is used to define a reusable function block for ${skillName}?`,
-        options: ["function", "def", "func", "declare"],
+        prompt: `Which SQL clause is used to filter records after aggregation in ${skillName}?`,
+        options: ["WHERE", "HAVING", "GROUP BY", "FILTER"],
         correctIndex: 1,
         explanations: [
-          "'function' is JavaScript syntax, not Python.",
-          "✓ 'def' is Python's keyword used to define functions.",
-          "'func' is used in languages like Go, not Python.",
-          "'declare' is used in SQL or procedural languages, not Python."
+          "WHERE filters rows BEFORE aggregation occurs.",
+          "✓ HAVING filters aggregated group results after GROUP BY.",
+          "GROUP BY groups rows, but doesn't filter aggregate conditions.",
+          "FILTER is not a standard SQL filtering clause."
         ],
-        conceptSummary: "In Python, 'def' defines functions followed by parentheses and a colon."
+        conceptSummary: "Use WHERE for filtering rows prior to grouping, and HAVING for filtering grouped aggregates."
       },
       {
         questionType: "code_output",
-        prompt: "What does the following Python code output?",
-        codeSnippet: `x = [1, 2, 3]\nx.append(4)\nprint(len(x))`,
-        options: ["3", "4", "5", "TypeError"],
+        prompt: `What is the result of the following SQL query for ${skillName}?`,
+        codeSnippet: `SELECT COUNT(*)\nFROM users\nWHERE status = 'active';`,
+        options: [
+          "Returns all columns for active users",
+          "Returns the total count of active user records",
+          "Deletes all inactive users",
+          "Syntax Error"
+        ],
         correctIndex: 1,
         explanations: [
-          "3 was the initial length before append(4).",
-          "✓ append(4) adds one element, increasing the list length from 3 to 4.",
-          "5 would require appending two elements.",
-          "TypeError is incorrect — append() is a valid method on lists."
+          "COUNT(*) returns a numeric scalar count, not individual row columns.",
+          "✓ COUNT(*) with WHERE returns the integer count of rows matching status='active'.",
+          "This is a SELECT query, not a DELETE query.",
+          "This is completely valid standard SQL."
         ],
-        conceptSummary: "append() adds a single element to the end of a list in-place and increases len(x) by 1."
+        conceptSummary: "COUNT(*) aggregates the total row count matching specified WHERE conditions."
       },
       {
-        questionType: "debug",
-        prompt: "Identify the syntax error in this Python function definition:",
-        codeSnippet: `def greet(name)\n    print("Hello " + name)`,
+        questionType: "compare",
+        prompt: `What is the primary difference between INNER JOIN and LEFT JOIN in SQL for ${skillName}?`,
         options: [
-          "Missing colon (:) after def greet(name)",
-          "Incorrect indentation on print",
-          "Should use function instead of def",
-          "String concatenation with + is invalid"
+          "INNER JOIN returns matching rows; LEFT JOIN returns all left table rows plus matches",
+          "LEFT JOIN is faster than INNER JOIN in all databases",
+          "INNER JOIN supports string comparison; LEFT JOIN only supports integer keys",
+          "There is no functional difference"
         ],
         correctIndex: 0,
         explanations: [
-          "✓ In Python, header lines ending function/class/loop definitions MUST end with a colon (:).",
-          "Indentation of 4 spaces is correct Python syntax.",
-          "Python uses 'def', not 'function'.",
-          "String concatenation with + is completely valid in Python."
+          "✓ INNER JOIN requires matches in both tables; LEFT JOIN preserves all left table records even without right matches.",
+          "Join speed depends on index availability, not join type name.",
+          "Both joins support any comparable data types.",
+          "They return fundamentally different result sets when unmatched rows exist."
         ],
-        conceptSummary: "Python block headers (def, if, for, while, class) require a trailing colon (:) before the indented body block."
+        conceptSummary: "LEFT JOIN preserves all rows from the left table, filling unmatched right table columns with NULL."
       },
       {
+        questionType: "debug",
+        prompt: `Identify the SQL syntax error in this query for ${skillName}:`,
+        codeSnippet: `SELECT department, AVG(salary)\nFROM employees\nWHERE AVG(salary) > 50000\nGROUP BY department;`,
+        options: [
+          "Aggregate functions like AVG() cannot be used in a WHERE clause",
+          "GROUP BY must appear before FROM",
+          "AVG(salary) requires an alias",
+          "SELECT cannot contain multiple expressions"
+        ],
+        correctIndex: 0,
+        explanations: [
+          "✓ Aggregate functions cannot be evaluated in WHERE; use HAVING AVG(salary) > 50000 instead.",
+          "FROM always precedes GROUP BY in standard SQL execution order.",
+          "Aliases are optional for aggregate expressions.",
+          "SELECT commonly includes multiple comma-separated expressions."
+        ],
+        conceptSummary: "Aggregates belong in the HAVING clause because WHERE executes before row groups are computed."
+      }
+    ];
+  } else if (isSystemDesign) {
+    pool = [
+      {
         questionType: "scenario",
-        prompt: "Which data structure should you select to eliminate duplicates?",
-        scenarioSetup: `You are building a user registration system for ${skillName}. You need to process a stream of incoming email addresses and immediately filter out duplicate entries while preserving fast O(1) lookup.`,
-        options: ["List", "Tuple", "Set", "Dictionary Keys Only"],
+        prompt: `Which strategy should you deploy to handle high read traffic in ${skillName}?`,
+        scenarioSetup: `Your web service is experiencing 100,000 read requests per second on user profiles while writes are under 100 per second. Database CPU utilization has hit 98%.`,
+        options: [
+          "Implement an in-memory caching layer (e.g., Redis / Memcached)",
+          "Increase database connection timeout limits",
+          "Replace all indexes with full table scans",
+          "Convert all HTTP GET endpoints to POST endpoints"
+        ],
+        correctIndex: 0,
+        explanations: [
+          "✓ In-memory caches offload frequent read requests from the primary database.",
+          "Increasing timeout limits will cause request queuing and worse latency.",
+          "Full table scans destroy database performance.",
+          "Changing HTTP verbs does not reduce database workload."
+        ],
+        conceptSummary: "In-memory caching is the primary pattern for offloading heavy read traffic from persistent databases."
+      },
+      {
+        questionType: "compare",
+        prompt: `According to the CAP Theorem in ${skillName}, what trade-off occurs during a network partition?`,
+        options: [
+          "You must choose between Consistency or Availability",
+          "You must choose between Speed or Security",
+          "You lose both Consistency and Partition Tolerance",
+          "No trade-off is required if using SSD storage"
+        ],
+        correctIndex: 0,
+        explanations: [
+          "✓ In a distributed system network partition (P), you can guarantee Consistency (CP) or Availability (AP), but not both.",
+          "Speed and Security are not the core parameters of CAP theorem.",
+          "Partition tolerance (P) is mandatory in distributed networks.",
+          "Storage hardware does not prevent network partitioning."
+        ],
+        conceptSummary: "CAP Theorem states a distributed system cannot simultaneously guarantee Consistency, Availability, and Partition Tolerance."
+      }
+    ];
+  } else {
+    // Default Python & General Programming Pool
+    pool = [
+      {
+        questionType: "concept",
+        prompt: `Which built-in Python function returns the number of items in a list or container for ${skillName}?`,
+        options: ["size()", "len()", "count()", "length()"],
+        correctIndex: 1,
+        explanations: [
+          "size() is used in C++ or NumPy, not standard Python built-ins.",
+          "✓ len() returns the total item count of any Python sequence or collection.",
+          "count() counts occurrences of a specific value, not total length.",
+          "length() is used in JavaScript, not Python."
+        ],
+        conceptSummary: "The built-in function len(sequence) returns the number of elements in dynamic containers."
+      },
+      {
+        questionType: "code_output",
+        prompt: `What is the output of the following code snippet for ${skillName}?`,
+        codeSnippet: `items = [10, 20, 30]\nitems.append(40)\nprint(items[-1])`,
+        options: ["10", "30", "40", "IndexError"],
         correctIndex: 2,
         explanations: [
-          "Lists allow duplicate elements.",
-          "Tuples allow duplicates and are immutable.",
-          "✓ Sets automatically enforce uniqueness and provide O(1) membership testing.",
-          "Dictionary keys also enforce uniqueness, but a Set is the dedicated data structure for unique collections."
+          "10 is items[0] (first element).",
+          "30 was the last element before appending 40.",
+          "✓ append(40) adds 40 to the end, and items[-1] accesses the last element.",
+          "IndexError does not occur because items[-1] is valid in Python."
         ],
-        conceptSummary: "Python Sets are unordered collections of unique elements backed by hash tables, ideal for deduplication."
-      },
-      {
-        questionType: "compare",
-        prompt: "What is the primary operational difference between a Python List and a Tuple?",
-        options: [
-          "Lists are mutable (modifiable); Tuples are immutable (read-only)",
-          "Tuples allow string keys; Lists only allow numeric indices",
-          "Lists have O(1) search; Tuples have O(n) search",
-          "Tuples consume more memory than Lists"
-        ],
-        correctIndex: 0,
-        explanations: [
-          "✓ Lists can be changed after creation (append, pop), while Tuples cannot be modified once defined.",
-          "Dictionaries allow string keys, not Tuples.",
-          "Both List and Tuple linear search takes O(n) time.",
-          "Tuples actually consume LESS memory than Lists because they don't over-allocate buffer space."
-        ],
-        conceptSummary: "Mutability is the core distinction: Lists are mutable dynamic arrays; Tuples are immutable fixed sequences."
-      }
-    ],
-    2: [
-      {
-        questionType: "concept",
-        prompt: "In exception handling for ${skillName}, which block ALWAYS runs regardless of whether an exception occurred?",
-        options: ["try", "except", "finally", "else"],
-        correctIndex: 2,
-        explanations: [
-          "try contains code that might raise an exception.",
-          "except only runs if a matching exception is raised.",
-          "✓ finally always executes before leaving the try-except structure, ideal for resource cleanup.",
-          "else only runs if NO exception was raised in the try block."
-        ],
-        conceptSummary: "The 'finally' block guarantees execution for cleanup (closing files, releasing database connections)."
-      },
-      {
-        questionType: "code_output",
-        prompt: "What is the output of this Python slice operation?",
-        codeSnippet: `text = "XPedition"\nprint(text[1:4])`,
-        options: ["Ped", "XPe", "Pedi", "xpe"],
-        correctIndex: 0,
-        explanations: [
-          "✓ Slice [1:4] extracts characters from index 1 up to (excluding) index 4: 'P', 'e', 'd'.",
-          "XPe starts at index 0.",
-          "Pedi goes up to index 5.",
-          "xpe is lowercase."
-        ],
-        conceptSummary: "Python slice notation [start:stop] is half-open: it includes 'start' and excludes 'stop'."
+        conceptSummary: "In Python, negative indexing [-1] retrieves the last item in a sequence."
       },
       {
         questionType: "debug",
-        prompt: "Why does this dictionary lookup crash at runtime?",
-        codeSnippet: `scores = {"alice": 95, "bob": 88}\nprint(scores["charlie"])`,
+        prompt: `Find the bug in this function definition for ${skillName}:`,
+        codeSnippet: `def calculate_total(prices):\n    total = 0\n    for p in prices\n        total += p\n    return total`,
         options: [
-          "KeyError: 'charlie' does not exist in the dictionary",
-          "TypeError: dictionary keys must be integers",
-          "ValueError: string cannot be converted to score",
-          "IndexError: index out of bounds"
+          "Missing colon (:) at the end of the for loop statement",
+          "total += p is invalid syntax",
+          "Function must return total as a string",
+          "for loop variable p is undefined"
         ],
         correctIndex: 0,
         explanations: [
-          "✓ Direct square-bracket lookup [] on a missing key raises a KeyError. Use scores.get('charlie') to return None safely.",
-          "Dictionary keys can be any hashable type including strings.",
-          "ValueError is not raised during key lookups.",
-          "IndexError occurs with lists/tuples, not dictionaries."
+          "✓ In Python, compound headers like 'for p in prices:' require a trailing colon.",
+          "total += p is valid in-place addition.",
+          "Functions can return integers or floats directly.",
+          "p is implicitly defined by the for loop iteration."
         ],
-        conceptSummary: "Direct key access d[k] raises KeyError if missing; use d.get(k, default) for safe retrieval."
+        conceptSummary: "Every header line in Python (def, for, while, if, try) requires a trailing colon (:)."
       },
       {
         questionType: "scenario",
-        prompt: "How should you design the data processing pipeline to handle unexpected network drops?",
-        scenarioSetup: `Your microservice ingests batch telemetry for ${skillName} over HTTP. Occasionally the remote API drops connections midway through batch processing.`,
-        options: [
-          "Wrap API calls in a try...except block with retry exponential backoff",
-          "Increase the global server RAM allocation",
-          "Use a for loop without exception handling",
-          "Ignore error responses and continue silently"
-        ],
+        prompt: `Which data structure should you choose to maintain key-value lookups for ${skillName}?`,
+        scenarioSetup: `You are designing a high-speed user session store for ${skillName}. You need to retrieve user profiles by their unique string User ID in O(1) average time.`,
+        options: ["Dictionary (Dict / Hash Map)", "List", "Tuple", "Linked List"],
         correctIndex: 0,
         explanations: [
-          "✓ Wrapping network requests in try...except with retries handles transient failure gracefully.",
-          "RAM does not prevent network socket timeouts.",
-          "An unhandled network exception will crash the process.",
-          "Ignoring errors leads to data loss and corrupted state."
+          "✓ Dictionaries store key-value pairs and offer O(1) average lookup by key.",
+          "Lists require O(n) search time to find matching elements.",
+          "Tuples are immutable sequences, not key-value stores.",
+          "Linked Lists require O(n) traversal time."
         ],
-        conceptSummary: "Robust network callers catch socket/HTTP exceptions and implement exponential backoff retries."
-      },
-      {
-        questionType: "compare",
-        prompt: "What is the key difference between list.sort() and sorted(list)?",
-        options: [
-          "list.sort() mutates the list in-place returning None; sorted(list) returns a new sorted list",
-          "sorted(list) mutates in-place; list.sort() creates a copy",
-          "list.sort() only works on numbers; sorted() works on strings",
-          "sorted() operates in O(n^2); list.sort() operates in O(n log n)"
-        ],
-        correctIndex: 0,
-        explanations: [
-          "✓ list.sort() modifies the original list directly. sorted() leaves the original untouched and returns a new list.",
-          "Incorrect — sorted() creates a copy, list.sort() modifies in-place.",
-          "Both functions sort any comparable items using Timsort.",
-          "Both functions use Timsort with O(n log n) worst-case time."
-        ],
-        conceptSummary: "In-place methods (list.sort) modify original objects and return None; built-in functions (sorted) return new instances."
+        conceptSummary: "Python Dictionaries use hash tables to provide O(1) key-value retrieval."
       }
-    ],
-    3: [
-      {
-        questionType: "concept",
-        prompt: "What is the average time complexity of looking up a key in a Python dictionary or hash table?",
-        options: ["O(1)", "O(log n)", "O(n)", "O(n log n)"],
-        correctIndex: 0,
-        explanations: [
-          "✓ Hash tables hash the key to index directly in constant O(1) average time.",
-          "O(log n) applies to binary search trees.",
-          "O(n) is the worst case under extreme hash collisions.",
-          "O(n log n) is sorting time."
-        ],
-        conceptSummary: "Hash tables achieve O(1) average lookup by mapping keys to array indices via hash functions."
-      },
-      {
-        questionType: "code_output",
-        prompt: "What is the output of this Python list comprehension with conditional filtering?",
-        codeSnippet: `nums = [1, 2, 3, 4, 5, 6]\nevens_squared = [x**2 for x in nums if x % 2 == 0]\nprint(evens_squared)`,
-        options: ["[4, 16, 36]", "[1, 9, 25]", "[2, 4, 6]", "[4, 8, 12]"],
-        correctIndex: 0,
-        explanations: [
-          "✓ Evens are 2, 4, 6. Squaring them gives 2^2=4, 4^2=16, 6^2=36 -> [4, 16, 36].",
-          "[1, 9, 25] are the squares of odd numbers.",
-          "[2, 4, 6] are the unsquared evens.",
-          "[4, 8, 12] are multiplied by 2, not squared."
-        ],
-        conceptSummary: "List comprehensions [expr for var in iterable if condition] map and filter in a single readable line."
-      },
-      {
-        questionType: "debug",
-        prompt: "Why does this class method fail when instantiated?",
-        codeSnippet: `class Counter:\n    def __init__(val):\n        self.val = val`,
-        options: [
-          "Missing 'self' as the first parameter in __init__ signature",
-          "__init__ must return an integer",
-          "Classes cannot store instance variables",
-          "def keyword cannot be used inside class body"
-        ],
-        correctIndex: 0,
-        explanations: [
-          "✓ Python instance methods MUST receive 'self' as their explicit first argument: def __init__(self, val):",
-          "__init__ should return None, never an integer.",
-          "Classes routinely store instance variables on self.",
-          "def is required to define methods inside classes."
-        ],
-        conceptSummary: "Python methods explicitly receive the instance instance 'self' as the first parameter."
-      },
-      {
-        questionType: "scenario",
-        prompt: "Which algorithmic technique should you select to find the shortest path in an unweighted graph?",
-        scenarioSetup: `You are designing a social network feature for ${skillName} that calculates the shortest degree of separation between two users in an unweighted connection graph.`,
-        options: ["Breadth-First Search (BFS)", "Depth-First Search (DFS)", "Binary Search", "Quicksort"],
-        correctIndex: 0,
-        explanations: [
-          "✓ BFS explores node-by-node outward level-by-level, guaranteeing the shortest path in unweighted graphs.",
-          "DFS goes deep down one path first and may find a much longer path before finding the shortest.",
-          "Binary Search operates on sorted arrays, not graphs.",
-          "Quicksort sorts elements, not graph nodes."
-        ],
-        conceptSummary: "Breadth-First Search (BFS) uses a queue (FIFO) to explore graph nodes by distance, guaranteeing shortest paths on unweighted graphs."
-      },
-      {
-        questionType: "compare",
-        prompt: "How does Breadth-First Search (BFS) differ from Depth-First Search (DFS) in memory usage on deep trees?",
-        options: [
-          "BFS uses a queue storing frontier nodes by level; DFS uses a stack (or recursion) storing path height",
-          "DFS uses more memory than BFS on wide shallow trees",
-          "BFS requires no extra memory; DFS requires O(V+E)",
-          "DFS processes nodes in FIFO order; BFS in LIFO order"
-        ],
-        correctIndex: 0,
-        explanations: [
-          "✓ BFS queue size depends on maximum tree width O(w); DFS stack size depends on maximum path height O(h).",
-          "On wide shallow trees BFS memory dominates due to storing all leaf nodes in queue.",
-          "Both algorithms require memory for visited tracking.",
-          "BFS is FIFO (Queue); DFS is LIFO (Stack)."
-        ],
-        conceptSummary: "BFS uses FIFO queues (level-by-level); DFS uses LIFO stacks (branch-by-branch)."
-      }
-    ],
-    4: [
-      {
-        questionType: "concept",
-        prompt: "What is the primary memory advantage of Python generator functions using 'yield'?",
-        options: [
-          "Lazy evaluation: elements are generated one at a time without storing the full sequence in RAM",
-          "Generators execute 10x faster than compiled C code",
-          "Generators automatically parallelize across all CPU cores",
-          "Generators prevent all garbage collection cycles"
-        ],
-        correctIndex: 0,
-        explanations: [
-          "✓ Yielding items on-demand keeps memory usage constant O(1) regardless of dataset size.",
-          "Generators incur Python iterator overhead; they are not faster than C.",
-          "Generators are single-threaded; GIL still applies.",
-          "Generators do not disable garbage collection."
-        ],
-        conceptSummary: "Generators pause execution and stream values lazily, enabling processing of massive datasets with O(1) memory."
-      },
-      {
-        questionType: "code_output",
-        prompt: "What does this generator code print when iterated?",
-        codeSnippet: `def countdown(n):\n    while n > 0:\n        yield n\n        n -= 1\n\nprint(list(countdown(3)))`,
-        options: ["[3, 2, 1]", "[3, 2, 1, 0]", "[1, 2, 3]", "<generator object>"],
-        correctIndex: 0,
-        explanations: [
-          "✓ The loop yields 3, then 2, then 1, stopping when n becomes 0.",
-          "n > 0 condition prevents 0 from being yielded.",
-          "Values are yielded in descending order starting at 3.",
-          "list() evaluates the generator into a list, so it prints the list, not the raw generator object."
-        ],
-        conceptSummary: "list(generator) consumes all yielded values sequentially until StopIteration."
-      },
-      {
-        questionType: "debug",
-        prompt: "Why does this mutable default argument cause unexpected state retention across function calls?",
-        codeSnippet: `def add_item(item, target_list=[]):\n    target_list.append(item)\n    return target_list`,
-        options: [
-          "Default argument target_list is evaluated ONCE when function is defined, sharing the list across all calls",
-          "Lists cannot be passed as default parameters",
-          "append() returns a new list instead of modifying in-place",
-          "target_list variable is deleted after function returns"
-        ],
-        correctIndex: 0,
-        explanations: [
-          "✓ Python default parameter expressions execute once at definition time. The default list object is shared across calls!",
-          "Lists can be passed, but mutable defaults are a known Python gotcha.",
-          "append() modifies in-place and returns None.",
-          "Default parameter objects persist in the function's __defaults__ attribute."
-        ],
-        conceptSummary: "Never use mutable defaults (lists, dicts). Use 'target_list=None' and initialize inside the body."
-      },
-      {
-        questionType: "scenario",
-        prompt: "Which optimization technique should you apply to convert exponential O(2^n) recursive Fibonacci into linear O(n)?",
-        scenarioSetup: `You are optimizing a recursive algorithm in ${skillName} that calculates overlapping subproblems. The recursive call tree is repeating the exact same calculations millions of times.`,
-        options: ["Memoization / Dynamic Programming", "Multiprocessing", "Tail recursion", "Increasing stack size"],
-        correctIndex: 0,
-        explanations: [
-          "✓ Memoization stores computed subproblem outputs in a cache dict, cutting redundant recursive branches.",
-          "Multiprocessing distributes work but does not eliminate redundant subproblems.",
-          "Tail recursion reduces call stack depth but doesn't solve exponential overlapping work.",
-          "Increasing stack size prevents RecursionError but leaves time complexity at O(2^n)."
-        ],
-        conceptSummary: "Memoization caches recursive function call results to solve overlapping subproblems in O(n) time."
-      },
-      {
-        questionType: "compare",
-        prompt: "What is the key functional difference between multiprocessing and multithreading in Python?",
-        options: [
-          "Multiprocessing spawns separate OS processes bypassing GIL for CPU-bound tasks; Multithreading shares memory space under GIL",
-          "Multithreading bypasses the GIL; Multiprocessing does not",
-          "Multiprocessing uses less memory than Multithreading",
-          "Multithreading allows true parallel execution on CPU-heavy math tasks"
-        ],
-        correctIndex: 0,
-        explanations: [
-          "✓ Multiprocessing creates separate memory spaces and GIL instances per core. Multithreading is bound by a single GIL.",
-          "Multithreading is constrained by GIL; Multiprocessing bypasses it.",
-          "Multiprocessing consumes MORE memory due to process overhead.",
-          "GIL prevents true CPU-bound parallelism in threads."
-        ],
-        conceptSummary: "Use multiprocessing for CPU-bound computation (bypasses GIL); use multithreading/asyncio for I/O-bound wait states."
-      }
-    ],
-    5: [
-      {
-        questionType: "concept",
-        prompt: "In Python's execution architecture, what is the exact function of the Global Interpreter Lock (GIL)?",
-        options: [
-          "A mutex lock ensuring only one thread executes Python bytecode at any single moment",
-          "A security firewall preventing code injection",
-          "A compiler optimizer that converts Python to C assembly",
-          "A database lock for SQLite transactions"
-        ],
-        correctIndex: 0,
-        explanations: [
-          "✓ The GIL protects memory management (C Python reference counting) by serializing bytecode execution.",
-          "The GIL is not a security firewall.",
-          "The GIL does not compile code to C assembly.",
-          "The GIL is internal to CPython interpreter, unrelated to databases."
-        ],
-        conceptSummary: "The GIL prevents multi-threaded CPython from running threads in true parallel on multiple CPU cores."
-      },
-      {
-        questionType: "code_output",
-        prompt: "What is the output of this decorator pattern in Python?",
-        codeSnippet: `def uppercase(func):\n    def wrapper():\n        return func().upper()\n    return wrapper\n\n@uppercase\ndef greet():\n    return "hello"\n\nprint(greet())`,
-        options: ["HELLO", "hello", "TypeError", "<function wrapper>"],
-        correctIndex: 0,
-        explanations: [
-          "✓ @uppercase wraps greet(), transforming its return value 'hello' into 'HELLO'.",
-          "hello would be returned without decorator.",
-          "TypeError is incorrect — decorator syntax is valid.",
-          "greet() calls wrapper() which returns the string result 'HELLO'."
-        ],
-        conceptSummary: "@decorator syntax wraps functions, modifying arguments or return values transparently."
-      },
-      {
-        questionType: "debug",
-        prompt: "What causes a deadlock in this concurrent multi-threading scenario?",
-        codeSnippet: `# Thread A locks Lock 1, waits for Lock 2\n# Thread B locks Lock 2, waits for Lock 1`,
-        options: [
-          "Circular dependency / Lock acquisition ordering conflict",
-          "GIL prevents threads from running",
-          "Memory leak in Thread A",
-          "Queue overflow"
-        ],
-        correctIndex: 0,
-        explanations: [
-          "✓ Circular wait condition: Thread A holds L1 needing L2; Thread B holds L2 needing L1. Neither can proceed.",
-          "GIL causes serialization, not deadlocks.",
-          "Memory leaks do not cause thread deadlocks.",
-          "Queue overflow causes buffer errors, not mutual exclusion deadlocks."
-        ],
-        conceptSummary: "Deadlocks occur when threads hold resources while waiting for others in a circular dependency chain. Enforce strict lock acquisition order."
-      },
-      {
-        questionType: "scenario",
-        prompt: "How should you architect cache invalidation to prevent the 'thundering herd' problem during high traffic surge?",
-        scenarioSetup: `Your system experiences 100,000 requests/sec. When a core Redis cache key for ${skillName} expires, thousands of incoming requests simultaneously hit the primary database.`,
-        options: [
-          "Use Mutex locking with probabilistic early expiration (PER)",
-          "Double the database connection pool limit",
-          "Disable cache TTL completely",
-          "Increase HTTP timeout to 60 seconds"
-        ],
-        correctIndex: 0,
-        explanations: [
-          "✓ Mutex locks ensure only ONE worker recomputes cache while others wait or serve stale values.",
-          "Doubling connection pool will overwhelm and crash the database under stampede.",
-          "Disabling TTL causes permanent stale data bugs.",
-          "Increasing timeout worsens user latency without resolving database stampede."
-        ],
-        conceptSummary: "Thundering herd is solved via distributed locks or probabilistic early recomputation (XFetch)."
-      },
-      {
-        questionType: "compare",
-        prompt: "What is the architectural tradeoff between REST and gRPC for high-throughput microservices?",
-        options: [
-          "gRPC uses Protocol Buffers over HTTP/2 with binary serialization; REST uses JSON over HTTP/1.1 with text payload",
-          "REST is faster than gRPC because JSON requires no compilation",
-          "gRPC only works with Python; REST works with all languages",
-          "REST supports bi-directional streaming; gRPC does not"
-        ],
-        correctIndex: 0,
-        explanations: [
-          "✓ gRPC leverages HTTP/2 multiplexing and compact Protobuf binary format for up to 7x higher throughput.",
-          "Binary Protobuf is significantly faster to serialize/deserialize than text JSON.",
-          "gRPC supports code generation across virtually all major programming languages.",
-          "gRPC supports native HTTP/2 bi-directional streaming; REST on HTTP/1.1 does not."
-        ],
-        conceptSummary: "gRPC achieves higher performance via Protobuf binary serialization and HTTP/2 multiplexed streaming."
-      }
-    ]
-  };
-
-  const pool = fallbackPool[diffLevel] || fallbackPool[2];
-
-  // 1. Filter out questions whose questionType is in avoidTypes
-  let filtered = pool.filter((q) => !avoidTypes.includes(q.questionType));
-
-  // 2. Filter out questions whose prompt is duplicate
-  let nonDups = filtered.filter((q) => !isDuplicatePrompt(q.prompt, promptHistory));
-
-  if (nonDups.length === 0) {
-    // Relax questionType constraint
-    nonDups = pool.filter((q) => !isDuplicatePrompt(q.prompt, promptHistory));
+    ];
   }
 
-  const selected = nonDups.length > 0 ? nonDups[Math.floor(Math.random() * nonDups.length)] : pool[Math.floor(Math.random() * pool.length)];
+  // Filter pool entries that haven't been served to this user
+  const freshItems = pool.filter((q) => !isDuplicatePrompt(q.prompt, userServedHashes, promptHistory));
+  const picked = freshItems.length > 0 ? freshItems[Math.floor(Math.random() * freshItems.length)] : pool[Math.floor(Math.random() * pool.length)];
 
   return {
-    questionType: selected.questionType,
-    prompt: selected.prompt,
-    scenarioSetup: selected.scenarioSetup,
-    codeSnippet: selected.codeSnippet,
-    options: selected.options,
-    correctIndex: selected.correctIndex,
-    explanations: selected.explanations,
-    conceptSummary: selected.conceptSummary,
+    questionType: picked.questionType,
+    prompt: picked.prompt,
+    scenarioSetup: picked.scenarioSetup,
+    codeSnippet: picked.codeSnippet,
+    options: picked.options,
+    correctIndex: picked.correctIndex,
+    explanations: picked.explanations,
+    conceptSummary: picked.conceptSummary,
+    reinforcement: {
+      whyItMatters: `Gotcha for ${skillName}: Always test edge cases and verify performance under high volume.`,
+      format: "true_false",
+      prompt: `True or False: Core concepts in ${skillName} operate deterministically across all environments.`,
+      options: ["True", "False"],
+      correctIndex: 0,
+      explanation: "True! Understanding core principles guarantees predictable behavior."
+    }
   };
 }
