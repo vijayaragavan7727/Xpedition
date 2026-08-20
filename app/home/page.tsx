@@ -116,16 +116,16 @@ export default function HomePage() {
               className={`flex items-center gap-1.5 px-3 py-2 rounded-2xl border transition-all cursor-pointer ${
                 dueCount > 0
                   ? "bg-red-500/20 border-red-500/60 text-red-400 font-bold glow-box-violet animate-pulse"
-                  : "bg-[#0A0A1A] border-white/10 text-slate-500 opacity-60"
+                  : "bg-[#0A0A1A]/80 border-white/10 text-slate-500 hover:text-slate-400 opacity-70"
               }`}
             >
-              <Swords className="w-5 h-5" />
+              <Swords className={`w-5 h-5 ${dueCount > 0 ? "text-red-400" : "text-slate-600"}`} />
               <div className="flex flex-col text-left">
-                <span className="text-xs font-bold font-mono leading-none">
+                <span className={`text-xs font-bold font-mono leading-none ${dueCount > 0 ? "text-red-400" : "text-slate-400"}`}>
                   {dueCount > 0 ? `${dueCount} Due` : "0 Due"}
                 </span>
                 <span className="text-[9px] font-mono uppercase tracking-tight leading-none mt-0.5">
-                  {dueCount > 0 ? "Raid Due" : "Memory Fresh"}
+                  {dueCount > 0 ? "Raid Due" : "Nothing due yet — come back later"}
                 </span>
               </div>
             </Link>

@@ -157,7 +157,7 @@ export function QuestProvider({ children }: { children: React.ReactNode }) {
 
   // BKT & Flow Controller State
   const [pKnow, setPKnow] = useState<number>(BKT_PARAMS.pKnowPrior);
-  const [halfLifeHours, setHalfLifeHours] = useState<number>(48.0);
+  const [halfLifeHours, setHalfLifeHours] = useState<number>(0.1667); // 10 minutes initial half-life for demo reviews
   const [flowDifficulty, setFlowDifficulty] = useState<number>(2);
   const [correctStreak, setCorrectStreak] = useState<number>(0);
   const [wrongStreak, setWrongStreak] = useState<number>(0);
@@ -489,7 +489,7 @@ export function QuestProvider({ children }: { children: React.ReactNode }) {
         setTimeout(() => {
           setActiveSkillIndex((prev) => prev + 1);
           setPKnow(BKT_PARAMS.pKnowPrior);
-          setHalfLifeHours(48.0);
+          setHalfLifeHours(0.1667);
         }, 1200);
       }
     }
@@ -508,6 +508,7 @@ export function QuestProvider({ children }: { children: React.ReactNode }) {
         });
 
         if (currentSkill?.id) {
+          console.log(`[Mastery DB Write] User: ${user.id}, Skill: ${currentSkill.name}, half_life_hours: ${newHalfLife}h, next_review_at: ${nextReviewAt}`);
           await supabase.from("mastery").upsert({
             user_id: user.id,
             skill_id: currentSkill.id,

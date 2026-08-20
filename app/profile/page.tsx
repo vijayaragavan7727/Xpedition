@@ -22,12 +22,15 @@ import {
   HeartHandshake,
   Award,
   FlaskConical,
-  GraduationCap,
-  Link2,
   Unlink,
   Key,
   BookOpen,
+  Swords,
+  GraduationCap,
+  Link2,
 } from "lucide-react";
+import { supabase, isSupabaseConfigured } from "@/lib/supabase";
+import { DueSkill } from "@/lib/forgetting";
 
 export default function ProfilePage() {
   const {
@@ -46,6 +49,49 @@ export default function ProfilePage() {
   const progress = xpProgress(user.xp);
 
   const [hasClassroomConnected, setHasClassroomConnected] = useState(true);
+  const [forcedDueNotice, setForcedDueNotice] = useState<string | null>(null);
+
+  const handleForceConceptDue = async () => {
+    const targetSkill = course?.skills?.[0] || {
+      id: "p1",
+      name: "Python Core Syntax & Data Structures",
+      difficulty: 1,
+    };
+
+    const pastDate = new Date(Date.now() - 3600000).toISOString(); // 1 hour ago
+
+    const forcedSkill: DueSkill = {
+      id: targetSkill.id,
+      name: targetSkill.name,
+      difficulty: targetSkill.difficulty || 1,
+      halfLifeHours: 0.1667,
+      nextReviewAt: pastDate,
+      pKnow: 0.85,
+      overdueMinutes: 60,
+    };
+
+    if (typeof window !== "undefined") {
+      localStorage.setItem("xpedition_forced_due", JSON.stringify([forcedSkill]));
+    }
+
+    if (isSupabaseConfigured() && user?.id) {
+      try {
+        await supabase.from("mastery").upsert({
+          user_id: user.id,
+          skill_id: targetSkill.id,
+          p_know: 0.85,
+          half_life_hours: 0.1667,
+          next_review_at: pastDate,
+          last_seen_at: new Date().toISOString(),
+        });
+        console.log(`[Dev Force Due] Set next_review_at to past for user ${user.id}, skill ${targetSkill.id}`);
+      } catch (e) {
+        console.warn("Dev force due error:", e);
+      }
+    }
+
+    setForcedDueNotice(`✓ Forced concept '${targetSkill.name}' due now! Home Arena now shows 1 Raid Due.`);
+  };
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -389,6 +435,39 @@ export default function ProfilePage() {
                 {accessibilitySettings.reducedMotion ? "ON ✓" : "OFF"}
               </button>
             </div>
+          </div>
+        </div>
+
+        {/* Dev-Only Tools & Stage Demo Harness */}
+        <div className="bg-[#1B1B3A] border border-amber-500/40 rounded-3xl p-6 shadow-xl glow-box-amber space-y-4">
+          <div className="flex items-center justify-between border-b border-white/10 pb-3">
+            <span className="text-xs font-bold text-[#FBBF24] font-mono uppercase tracking-wider flex items-center gap-2">
+              <Swords className="w-4 h-4 text-[#FBBF24]" />
+              Stage Demo Harness & Dev Tools
+            </span>
+            <span className="text-[10px] font-mono text-amber-300 font-bold bg-amber-500/20 px-2 py-0.5 rounded-full border border-amber-500/40">
+              DEV ONLY
+            </span>
+          </div>
+
+          <div className="space-y-3">
+            <p className="text-xs text-slate-300 leading-relaxed">
+              Instantly trigger Memory Raid due status for stage demos regardless of timing:
+            </p>
+
+            <button
+              onClick={handleForceConceptDue}
+              className="w-full py-3 rounded-2xl bg-gradient-to-r from-red-500 to-[#FBBF24] hover:from-red-600 hover:to-amber-500 text-black font-black font-heading text-xs uppercase tracking-wider transition-all cursor-pointer shadow-lg shadow-red-500/20 flex items-center justify-center gap-2"
+            >
+              <Swords className="w-4 h-4 fill-current" />
+              <span>Force a Concept Due Now (Stage Demo)</span>
+            </button>
+
+            {forcedDueNotice && (
+              <div className="bg-[#34D399]/20 border border-[#34D399]/40 rounded-xl p-3 text-xs text-[#34D399] font-mono font-bold animate-fadeIn">
+                {forcedDueNotice}
+              </div>
+            )}
           </div>
         </div>
 
