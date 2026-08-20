@@ -182,6 +182,26 @@ export default function HomePage() {
           </div>
         )}
 
+        {/* Red Light, Green Light Survival Game World Banner */}
+        <div className="bg-[#12122C] border border-[#FB7185]/40 rounded-2xl p-4 shadow-xl flex items-center justify-between gap-3 relative overflow-hidden group glow-box-red">
+          <div className="absolute inset-0 bg-gradient-to-r from-[#0A0A1A] via-[#12122C]/90 to-transparent z-0 pointer-events-none" />
+          <div className="flex items-center gap-3.5 relative z-10 truncate">
+            <SquidAsset name="younghee" alt="Red Light Green Light Young-hee Doll" width={44} height={44} className="shrink-0 group-hover:scale-110 transition-transform" />
+            <div className="truncate">
+              <div className="flex items-center gap-1.5 text-[10px] font-mono font-bold text-[#FB7185] uppercase tracking-wider">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#FB7185] animate-ping" />
+                <span>Red Light, Green Light Inspection Active</span>
+              </div>
+              <p className="text-xs font-bold text-white font-heading truncate mt-0.5">
+                Survival Quest Mode: Answer accurately to avoid doubt elimination!
+              </p>
+            </div>
+          </div>
+          <span className="relative z-10 px-2.5 py-1 rounded-full bg-[#FB7185]/20 border border-[#FB7185]/40 text-[#FB7185] text-[10px] font-mono font-bold shrink-0">
+            SURVIVAL
+          </span>
+        </div>
+
         {/* 2. ONE Primary "Continue Your Quest" Hero Card (Sole Primary Focal Point) */}
         <section className="bg-[#1B1B3A] border border-[#7C3AED]/50 rounded-3xl p-5 shadow-2xl glow-box-violet relative overflow-hidden space-y-4">
           <div className="flex items-center justify-between">
@@ -271,7 +291,12 @@ export default function HomePage() {
                     </div>
 
                     <div className="truncate">
-                      <h4 className="text-xs sm:text-sm font-bold text-white font-heading truncate">{skill.name}</h4>
+                      <div className="flex items-center gap-1.5 truncate">
+                        <h4 className="text-xs sm:text-sm font-bold text-white font-heading truncate">{skill.name}</h4>
+                        {idx % 3 === 0 && <SquidAsset name="guard_circle" alt="Circle Guard" width={16} height={16} className="opacity-75 shrink-0" />}
+                        {idx % 3 === 1 && <SquidAsset name="guard_triangle" alt="Triangle Guard" width={16} height={16} className="opacity-75 shrink-0" />}
+                        {idx % 3 === 2 && <SquidAsset name="guard_square" alt="Square Guard" width={16} height={16} className="opacity-75 shrink-0" />}
+                      </div>
                       <span className="text-[10px] text-[#94A3B8] font-mono">
                         Difficulty Level {skill.difficulty}
                       </span>
