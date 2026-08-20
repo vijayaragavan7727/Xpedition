@@ -10,9 +10,9 @@ export default function BottomNav() {
   const navItems = [
     { label: "Home", href: "/home", icon: Home },
     { label: "Quests", href: "/quest", icon: Zap },
-    { label: "Guild", href: "/guild", icon: Shield },
-    { label: "Teach", href: "/teach", icon: BookOpen },
+    { label: "Squad", href: "/guild", icon: Shield },
     { label: "Passport", href: "/passport", icon: Compass },
+    { label: "Profile", href: "/profile", icon: User },
   ];
 
   return (

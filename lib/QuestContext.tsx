@@ -32,6 +32,7 @@ export type VisualTheme = "Classic" | "Shadow Duel" | "Arena";
 export interface AccessibilitySettings {
   focusMode: boolean;
   dyslexiaFriendly: boolean;
+  dyslexiaFont?: boolean;
   reducedMotion: boolean;
 }
 
@@ -80,6 +81,7 @@ interface QuestContextType {
   setActiveSkillIndex: (index: number) => void;
   addSkillToCourse: (skillName: string) => Promise<void>;
   resetProgress: () => void;
+  saveUserProfile: (updatedUser: UserProfile) => Promise<void>;
 }
 
 const DEFAULT_USER: UserProfile = {
@@ -630,6 +632,7 @@ export function QuestProvider({ children }: { children: React.ReactNode }) {
         setActiveSkillIndex,
         addSkillToCourse,
         resetProgress,
+        saveUserProfile,
       }}
     >
       {children}

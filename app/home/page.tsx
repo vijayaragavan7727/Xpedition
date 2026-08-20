@@ -109,20 +109,20 @@ export default function HomePage() {
       <div className="w-full max-w-xl mx-auto space-y-4 z-10">
         {/* 1. XP / Level Header */}
         <header className="bg-[#1B1B3A] border border-white/10 rounded-2xl p-4 shadow-md flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-full bg-gradient-to-br from-[#7C3AED] to-[#22D3EE] flex items-center justify-center text-white font-black text-base font-heading ring-2 ring-[#22D3EE]/40 shrink-0">
+          <Link href="/profile" className="flex items-center gap-3 truncate group cursor-pointer hover:opacity-90">
+            <div className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-full bg-gradient-to-br from-[#7C3AED] to-[#22D3EE] flex items-center justify-center text-white font-black text-base font-heading ring-2 ring-[#22D3EE]/40 group-hover:scale-105 transition-transform shrink-0">
               {user.name.charAt(0).toUpperCase()}
             </div>
             <div className="truncate">
               <div className="flex items-center gap-2 truncate">
-                <h1 className="text-sm font-bold text-white font-heading truncate">{user.name}</h1>
+                <h1 className="text-sm font-bold text-white font-heading truncate group-hover:text-[#22D3EE] transition-colors">{user.name}</h1>
                 <span className="px-2 py-0.5 rounded-full bg-[#7C3AED]/30 text-[#22D3EE] text-[10px] font-mono font-bold border border-[#7C3AED]/40 shrink-0">
                   Lvl {progress.level}
                 </span>
               </div>
               <p className="text-[11px] text-[#94A3B8] truncate">{user.email}</p>
             </div>
-          </div>
+          </Link>
 
           <div className="flex items-center gap-3 shrink-0">
             <div className="flex flex-col items-end gap-1">
