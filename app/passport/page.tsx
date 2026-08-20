@@ -21,6 +21,8 @@ import {
   ShieldCheck,
   TrendingUp,
 } from "lucide-react";
+import SquidAsset from "@/components/SquidAsset";
+import { getModuleTheme } from "@/lib/moduleThemes";
 
 interface SkillMasteryItem {
   id: string;
@@ -281,15 +283,22 @@ export default function PassportPage() {
             ) : (
               skillsMastery.map((skill, idx) => {
                 const pct = Math.round(skill.pKnow * 100);
+                const mTheme = getModuleTheme(idx);
                 let colorClass = "from-[#7C3AED] to-[#22D3EE]";
                 if (pct >= 75) colorClass = "from-[#22D3EE] to-[#34D399]";
                 else if (pct <= 35) colorClass = "from-[#FBBF24] to-[#7C3AED]";
 
                 return (
-                  <div key={skill.id || idx} className="space-y-1.5">
-                    <div className="flex items-center justify-between text-xs font-mono">
-                      <span className="text-slate-200 font-semibold">{skill.name}</span>
-                      <span className="text-[#22D3EE] font-bold">{pct}% P(know)</span>
+                  <div key={skill.id || idx} className="space-y-1.5 bg-[#0A0A1A]/60 p-3 rounded-2xl border border-white/5">
+                    <div className="flex items-center justify-between text-xs font-mono gap-2">
+                      <div className="flex items-center gap-2 truncate">
+                        <SquidAsset name={mTheme.assetName} alt={mTheme.themeName} width={20} height={20} className="shrink-0" />
+                        <span className="text-slate-200 font-semibold truncate">{skill.name}</span>
+                        <span className={`text-[9px] font-mono font-bold px-2 py-0.2 rounded-full border ${mTheme.badgeStyle} shrink-0 hidden sm:inline-block`}>
+                          {mTheme.intensityLabel}
+                        </span>
+                      </div>
+                      <span className="text-[#22D3EE] font-bold shrink-0">{pct}% P(know)</span>
                     </div>
                     <div className="w-full h-3.5 bg-[#0A0A1A] rounded-full overflow-hidden border border-white/10 p-0.5">
                       <div
