@@ -144,7 +144,15 @@ Return STRICT JSON ONLY matching this format:
     "Why Option C is correct or wrong — written in '${learningStyle}' style, specific to concept",
     "Why Option D is correct or wrong — written in '${learningStyle}' style, specific to concept"
   ],
-  "conceptSummary": "A 1-2 sentence explanation of the core concept written in '${learningStyle}' style."
+  "conceptSummary": "A 1-2 sentence explanation of the core concept written in '${learningStyle}' style.",
+  "reinforcement": {
+    "whyItMatters": "A 1-sentence 'Why this matters' insight or common gotcha about this specific concept",
+    "format": "true_false",
+    "prompt": "A quick-check True/False or Fill-in-the-blank question testing a nuance of the same concept",
+    "options": ["True", "False"],
+    "correctIndex": 0,
+    "explanation": "1-sentence explanation of why the answer is correct"
+  }
 }`;
 
           const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {

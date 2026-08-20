@@ -18,6 +18,15 @@ export interface Skill {
 
 export type QuestionType = "concept" | "code_output" | "debug" | "scenario" | "compare";
 
+export interface ReinforcementQuestion {
+  whyItMatters: string;
+  format: "true_false" | "fill_blank";
+  prompt: string;
+  options: string[];
+  correctIndex: number;
+  explanation: string;
+}
+
 export interface Question {
   prompt: string;
   options: [string, string, string, string] | string[];
@@ -34,6 +43,7 @@ export interface Question {
   explanation?: string;
   isPeerQuest?: boolean;
   authorName?: string;
+  reinforcement?: ReinforcementQuestion;
 }
 
 export interface GoalEngineResponse {

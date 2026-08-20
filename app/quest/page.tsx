@@ -263,13 +263,33 @@ export default function QuestPage() {
     }
   };
 
-  const handleClaimReward = async () => {
+  const handleClaimReward = async (bonusXp: number = 0) => {
     if (activeRewardDrop) {
-      claimReward(activeRewardDrop);
+      const dropWithBonus =
+        bonusXp > 0
+          ? { ...activeRewardDrop, xpBonus: (activeRewardDrop.xpBonus || 30) + bonusXp }
+          : activeRewardDrop;
+      claimReward(dropWithBonus);
       if (activeRewardDrop.arm) {
         setLastClaimedArm(activeRewardDrop.arm);
       }
       setActiveRewardDrop(null);
+
+      // Persist reinforcement attempt to DB with is_reinforcement flag
+      if (isSupabaseConfigured() && user?.id) {
+        try {
+          await supabase.from("attempts").insert({
+            user_id: user.id,
+            skill_id: currentSkill.id,
+            is_correct: bonusXp > 0,
+            is_reinforcement: true,
+            created_at: new Date().toISOString(),
+          });
+        } catch (e) {
+          console.warn("Reinforcement attempt logging notice:", e);
+        }
+      }
+
       await fetchNextQuestion(true);
     }
   };
@@ -741,7 +761,7 @@ export default function QuestPage() {
 
       {/* Reward Drop Modal */}
       {activeRewardDrop && (
-        <RewardModal reward={activeRewardDrop} onClaim={handleClaimReward} />
+        <RewardModal reward={activeRewardDrop} question={question} onClaim={handleClaimReward} />
       )}
 
       {/* Why? Flow Explanation Modal */}

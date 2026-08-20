@@ -212,14 +212,17 @@ Respond with STRICT JSON ONLY. Do not wrap in markdown backticks. The JSON struc
       "Why Option C is correct or wrong — specific to the concept, never generic",
       "Why Option D is correct or wrong — specific to the concept, never generic"
     ],
-    "conceptSummary": "A 1-2 sentence explanation of the core concept this question tests."
+    "conceptSummary": "A 1-2 sentence explanation of the core concept this question tests.",
+    "reinforcement": {
+      "whyItMatters": "A 1-sentence 'Why this matters' insight or common gotcha about this specific concept",
+      "format": "true_false",
+      "prompt": "A quick-check True/False or Fill-in-the-blank question testing a nuance of the same concept",
+      "options": ["True", "False"],
+      "correctIndex": 0,
+      "explanation": "1-sentence explanation of why the answer is correct"
+    }
   }
-}
-
-Rules:
-- questionType MUST be one of: "concept", "code_output", "debug", "scenario", "compare".
-- Provide 4 to 6 core skills ordered logically from foundational to advanced.
-- Attribute each skill to one of the provided sources in sourceUrl.`;
+}`;
 
         const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
           method: "POST",
