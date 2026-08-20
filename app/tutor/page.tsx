@@ -68,11 +68,29 @@ export default function TutorPage() {
     window.speechSynthesis.speak(utterance);
   };
 
+  const [chatHistory, setChatHistory] = useState<Array<{ role: "user" | "assistant"; content: string }>>([]);
+
   const askTutor = async (transcript: string) => {
-    if (!transcript.trim()) return;
+    const trimmed = (transcript || "").trim();
+    if (!trimmed) {
+      setTutorHint("I didn't catch that, try again");
+      speakText("I didn't catch that, try again");
+      return;
+    }
+
     setLoading(true);
-    setActiveSpeechText(transcript);
+    setActiveSpeechText(trimmed);
     setTutorHint(null);
+
+    const updatedHistory = [...chatHistory, { role: "user" as const, content: trimmed }];
+    setChatHistory(updatedHistory);
+
+    console.log("[CLIENT TUTOR REQUEST]", {
+      transcript: trimmed,
+      questionPrompt,
+      skillName: currentSkillName,
+      historyLength: updatedHistory.length,
+    });
 
     try {
       const res = await fetch("/api/tutor", {
@@ -80,9 +98,10 @@ export default function TutorPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           question: { prompt: questionPrompt, options: currentQuestion?.options },
-          userTranscript: transcript,
+          userTranscript: trimmed,
           skillName: currentSkillName,
           masteryLevel: pKnow,
+          history: updatedHistory.slice(-6),
         }),
       });
 
@@ -90,6 +109,7 @@ export default function TutorPage() {
 
       if (res.ok && data.hint) {
         setTutorHint(data.hint);
+        setChatHistory((prev) => [...prev, { role: "assistant" as const, content: data.hint }]);
         speakText(data.hint);
       } else {
         throw new Error(data.error || "Couldn't reach the tutor, try again");

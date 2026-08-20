@@ -69,12 +69,30 @@ export default function TutorOverlay({
     window.speechSynthesis.speak(utterance);
   };
 
+  const [chatHistory, setChatHistory] = useState<Array<{ role: "user" | "assistant"; content: string }>>([]);
+
   const fetchTutorHint = async (transcript: string) => {
-    if (!transcript.trim()) return;
+    const trimmed = (transcript || "").trim();
+    if (!trimmed) {
+      setAiHint("I didn't catch that, try again");
+      speakText("I didn't catch that, try again");
+      return;
+    }
+
     setLoading(true);
     setErrorMsg(null);
     setAiHint(null);
     if (onHintRequested) onHintRequested();
+
+    const updatedHistory = [...chatHistory, { role: "user" as const, content: trimmed }];
+    setChatHistory(updatedHistory);
+
+    console.log("[CLIENT TUTOR OVERLAY REQUEST]", {
+      transcript: trimmed,
+      questionPrompt,
+      skillName,
+      historyLength: updatedHistory.length,
+    });
 
     try {
       const res = await fetch("/api/tutor", {
@@ -82,9 +100,10 @@ export default function TutorOverlay({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           question: { prompt: questionPrompt, options },
-          userTranscript: transcript,
+          userTranscript: trimmed,
           skillName,
           masteryLevel,
+          history: updatedHistory.slice(-6),
         }),
       });
 
@@ -92,6 +111,7 @@ export default function TutorOverlay({
 
       if (res.ok && data.hint) {
         setAiHint(data.hint);
+        setChatHistory((prev) => [...prev, { role: "assistant" as const, content: data.hint }]);
         speakText(data.hint);
       } else {
         throw new Error(data.error || "Couldn't reach the tutor, try again");
