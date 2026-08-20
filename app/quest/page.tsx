@@ -43,6 +43,7 @@ import {
 } from "lucide-react";
 import TutorOverlay from "@/components/TutorOverlay";
 import SquidAsset from "@/components/SquidAsset";
+import { getModuleTheme } from "@/lib/moduleThemes";
 
 export default function QuestPage() {
   const {
@@ -481,21 +482,32 @@ export default function QuestPage() {
             )}
           </div>
         )}
-        {/* Header Flow Bar */}
-        <header className="flex items-center justify-between bg-[#1B1B3A] border border-white/10 rounded-2xl p-4 shadow-xl">
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-[#94A3B8] font-mono">Module {activeSkillIndex + 1}:</span>
-            <span className="text-xs font-bold text-white truncate max-w-[140px] sm:max-w-[200px]">
-              {currentSkill.name}
-            </span>
-          </div>
+        {/* Header Flow Bar with Module Progression Visual Theme */}
+        {(() => {
+          const activeModuleTheme = getModuleTheme(activeSkillIndex);
+          return (
+            <header className={`flex items-center justify-between bg-[#1B1B3A] border ${activeModuleTheme.borderColor} rounded-2xl p-4 shadow-xl ${activeModuleTheme.glowClass}`}>
+              <div className="flex items-center gap-2.5 truncate">
+                <SquidAsset name={activeModuleTheme.assetName} alt={activeModuleTheme.themeName} width={28} height={28} className="shrink-0" />
+                <div className="truncate">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-[#94A3B8] font-mono">Module {activeSkillIndex + 1}:</span>
+                    <span className="text-xs font-bold text-white truncate max-w-[120px] sm:max-w-[180px]">
+                      {currentSkill.name}
+                    </span>
+                  </div>
+                  <span className={`text-[9px] font-mono font-bold px-2 py-0.2 rounded-full border ${activeModuleTheme.badgeStyle} inline-block mt-0.5`}>
+                    {activeModuleTheme.intensityLabel}
+                  </span>
+                </div>
+              </div>
 
-          {/* Flow Level Chip + Why Button */}
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-gradient-to-r from-[#7C3AED]/30 to-[#22D3EE]/30 border border-[#22D3EE]/50 text-[#22D3EE] font-mono text-xs font-bold shadow-md shadow-[#22D3EE]/20 animate-pulse">
-              <SquidAsset name="glass_bridge" alt="Glass Bridge Step" width={20} height={20} />
-              <span>Flow: Level {flowDifficulty}</span>
-            </div>
+              {/* Flow Level Chip + Why Button */}
+              <div className="flex items-center gap-2 shrink-0">
+                <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-gradient-to-r from-[#7C3AED]/30 to-[#22D3EE]/30 border border-[#22D3EE]/50 text-[#22D3EE] font-mono text-xs font-bold shadow-md shadow-[#22D3EE]/20 animate-pulse">
+                  <SquidAsset name="glass_bridge" alt="Glass Bridge Step" width={18} height={18} />
+                  <span>Flow: Level {flowDifficulty}</span>
+                </div>
 
             {/* Why? Algorithmic Explanation Button */}
             <button
@@ -511,8 +523,10 @@ export default function QuestPage() {
               <Flame className="w-3.5 h-3.5" />
               <span>P(know): {(pKnow * 100).toFixed(0)}%</span>
             </div>
-          </div>
-        </header>
+            </div>
+          </header>
+        );
+      })()}
 
         {/* Mastery Threshold Peer-Teach Banner */}
         {pKnow >= 0.85 && (

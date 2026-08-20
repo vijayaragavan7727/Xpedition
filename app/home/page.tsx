@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { getResumeSession, StudySession } from "@/lib/studySessions";
 import SquidAsset from "@/components/SquidAsset";
+import { getModuleTheme } from "@/lib/moduleThemes";
 
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 
@@ -265,6 +266,7 @@ export default function HomePage() {
             {course?.skills.map((skill, idx) => {
               const isCurrent = idx === activeSkillIndex;
               const isMastered = idx < activeSkillIndex;
+              const mTheme = getModuleTheme(idx);
 
               return (
                 <div
@@ -293,13 +295,16 @@ export default function HomePage() {
                     <div className="truncate">
                       <div className="flex items-center gap-1.5 truncate">
                         <h4 className="text-xs sm:text-sm font-bold text-white font-heading truncate">{skill.name}</h4>
-                        {idx % 3 === 0 && <SquidAsset name="guard_circle" alt="Circle Guard" width={16} height={16} className="opacity-75 shrink-0" />}
-                        {idx % 3 === 1 && <SquidAsset name="guard_triangle" alt="Triangle Guard" width={16} height={16} className="opacity-75 shrink-0" />}
-                        {idx % 3 === 2 && <SquidAsset name="guard_square" alt="Square Guard" width={16} height={16} className="opacity-75 shrink-0" />}
+                        <SquidAsset name={mTheme.assetName} alt={mTheme.themeName} width={18} height={18} className="shrink-0" />
                       </div>
-                      <span className="text-[10px] text-[#94A3B8] font-mono">
-                        Difficulty Level {skill.difficulty}
-                      </span>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className={`text-[9px] font-mono font-bold px-2 py-0.2 rounded-full border ${mTheme.badgeStyle}`}>
+                          {mTheme.intensityLabel}
+                        </span>
+                        <span className="text-[10px] text-[#94A3B8] font-mono">
+                          Difficulty Level {skill.difficulty}
+                        </span>
+                      </div>
                     </div>
                   </div>
 
