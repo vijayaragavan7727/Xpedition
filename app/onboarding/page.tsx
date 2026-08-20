@@ -41,36 +41,6 @@ const POPULAR_QUICKSTART_GOALS = [
   { id: "systemdesign", title: "System Design", desc: "Scalability, caching & load balancing", icon: "🏗️", query: "System Design & Distributed Systems" },
 ];
 
-const MOTIVATION_OPTIONS = [
-  {
-    id: "badge" as ArmType,
-    label: "Trophy & Badges",
-    desc: "Collecting rare credentials & badges on your Passport",
-    icon: Trophy,
-    color: "text-[#34D399] bg-[#34D399]/20 border-[#34D399]/40",
-  },
-  {
-    id: "lore" as ArmType,
-    label: "Hidden Lore & Story",
-    desc: "Unlocking secret cyber lore & tech story chapters",
-    icon: BookOpen,
-    color: "text-[#22D3EE] bg-[#22D3EE]/20 border-[#22D3EE]/40",
-  },
-  {
-    id: "guild_invite" as ArmType,
-    label: "Squad & Co-op Raids",
-    desc: "Teaming up with live matched peers to defeat bosses",
-    icon: Swords,
-    color: "text-red-400 bg-red-500/20 border-red-500/40",
-  },
-  {
-    id: "leaderboard" as ArmType,
-    label: "Rank & Leaderboards",
-    desc: "Climbing global standings & earning XP multipliers",
-    icon: Zap,
-    color: "text-[#FBBF24] bg-[#FBBF24]/20 border-[#FBBF24]/40",
-  },
-];
 
 const LEARNING_STYLE_OPTIONS = [
   {
@@ -111,10 +81,9 @@ const LOADING_STEPS = [
 ];
 
 export default function OnboardingPage() {
-  const { user, setCourseData, setMotivationType, setLearningStyle } = useQuest();
+  const { user, setCourseData, setLearningStyle } = useQuest();
   const [userName, setUserName] = useState("Adventurer");
-  const [step, setStep] = useState<"motivation" | "learning_style" | "goal">("motivation");
-  const [motivatedArm, setMotivatedArm] = useState<ArmType>("badge");
+  const [step, setStep] = useState<"learning_style" | "goal">("learning_style");
   const [selectedStyle, setSelectedStyle] = useState<LearningStyle>("story");
   const [goal, setGoal] = useState("");
   const [loading, setLoading] = useState(false);
@@ -137,32 +106,23 @@ export default function OnboardingPage() {
     }
   }, [user]);
 
-  const handleSelectMotivation = async (arm: ArmType) => {
-    setMotivatedArm(arm);
-
-    if (setMotivationType) {
-      await setMotivationType(arm);
+  const handleSelectLearningStyle = async (style: LearningStyle) => {
+    setSelectedStyle(style);
+    if (setLearningStyle) {
+      await setLearningStyle(style);
     }
 
     if (isSupabaseConfigured()) {
       try {
         const { data: userData } = await supabase.auth.getUser();
         if (userData?.user?.id) {
-          await initUserArms(userData.user.id, arm);
+          await initUserArms(userData.user.id);
         }
       } catch (err) {
         console.warn("Supabase initUserArms notice:", err);
       }
     }
 
-    setStep("learning_style");
-  };
-
-  const handleSelectLearningStyle = async (style: LearningStyle) => {
-    setSelectedStyle(style);
-    if (setLearningStyle) {
-      await setLearningStyle(style);
-    }
     setStep("goal");
   };
 
@@ -337,8 +297,8 @@ export default function OnboardingPage() {
               await supabase.from("skills").insert(skillRecords);
             }
 
-            // Also ensure arms initialized
-            await initUserArms(userId, motivatedArm);
+            // Also ensure arms initialized with equal priors
+            await initUserArms(userId);
           }
         } catch (dbErr) {
           console.warn("Supabase database insert warning:", dbErr);
@@ -373,7 +333,6 @@ export default function OnboardingPage() {
         <button
           onClick={() => {
             if (step === "goal") setStep("learning_style");
-            else if (step === "learning_style") setStep("motivation");
             else router.push("/home");
           }}
           className="flex items-center gap-2 text-xs text-[#94A3B8] hover:text-white transition-colors cursor-pointer"
@@ -382,8 +341,6 @@ export default function OnboardingPage() {
           <span>
             {step === "goal"
               ? "Change Learning Style"
-              : step === "learning_style"
-              ? "Change Motivation"
               : "Back to Home"}
           </span>
         </button>
@@ -399,52 +356,7 @@ export default function OnboardingPage() {
 
       {/* Main Content */}
       <div className="w-full max-w-3xl mx-auto z-10 my-auto py-8">
-        {/* Step 1: Motivation Question Screen */}
-        {step === "motivation" && !loading && (
-          <div className="text-center space-y-6 animate-fadeIn">
-            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#1B1B3A] border border-[#7C3AED]/40 shadow-lg shadow-[#7C3AED]/10 text-xs text-[#22D3EE] font-mono">
-              <Sparkles className="w-3.5 h-3.5 text-[#FBBF24]" />
-              BANDIT COLD-START WARM PRIOR (ALPHA = 3)
-            </div>
 
-            <h1 className="text-3xl sm:text-5xl font-black text-white font-heading tracking-tight">
-              What motivates you most?
-            </h1>
-            <p className="text-sm sm:text-base text-[#94A3B8] max-w-lg mx-auto">
-              Select your primary drive. Our Thompson Sampling Contextual Bandit uses this to initialize your reward arm priors.
-            </p>
-
-            {/* 4 Tappable Motivation Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl mx-auto pt-2">
-              {MOTIVATION_OPTIONS.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <button
-                    key={item.id}
-                    onClick={() => handleSelectMotivation(item.id)}
-                    className="bg-[#1B1B3A] border border-white/10 hover:border-[#22D3EE] p-5 rounded-3xl transition-all duration-200 hover:scale-[1.02] text-left cursor-pointer group glow-box-violet space-y-3"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className={`p-3 rounded-2xl ${item.color}`}>
-                        <Icon className="w-6 h-6" />
-                      </div>
-                      <span className="text-[10px] font-mono text-slate-400 group-hover:text-[#22D3EE]">
-                        α = 3 Prior
-                      </span>
-                    </div>
-
-                    <div>
-                      <h3 className="text-base font-bold text-white font-heading group-hover:text-[#22D3EE] transition-colors">
-                        {item.label}
-                      </h3>
-                      <p className="text-xs text-[#94A3B8] mt-1 leading-relaxed">{item.desc}</p>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
 
         {/* Step 1.5: Learning Style Selection Screen */}
         {step === "learning_style" && !loading && (
@@ -498,7 +410,7 @@ export default function OnboardingPage() {
           <div className="text-center space-y-6 animate-fadeIn">
             <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#1B1B3A] border border-[#7C3AED]/40 text-xs text-[#22D3EE] font-mono">
               <CheckCircle2 className="w-3.5 h-3.5 text-[#34D399]" />
-              MOTIVATION PRIOR SET ({motivatedArm.toUpperCase()})
+              THOMPSON SAMPLING BANDIT ARMS READY
             </div>
 
             <h1 className="text-3xl sm:text-5xl font-black text-white font-heading tracking-tight">

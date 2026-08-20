@@ -35,12 +35,10 @@ export default function SettingsPage() {
     setVisualTheme,
     accessibilitySettings,
     updateAccessibilitySettings,
-    setMotivationType,
     setLearningStyle,
   } = useQuest();
 
   const [savingStyle, setSavingStyle] = useState(false);
-  const [savingMotivation, setSavingMotivation] = useState(false);
   const [passwordNotice, setPasswordNotice] = useState<string | null>(null);
   const [newPassword, setNewPassword] = useState("");
   const [changingPassword, setChangingPassword] = useState(false);
@@ -60,13 +58,6 @@ export default function SettingsPage() {
     { id: "stepwise", title: "Step-by-Step", desc: "Break concepts into clear, numbered logical steps" },
   ];
 
-  const motivationOptions = [
-    { id: "badge", title: "Trophies & Badges", desc: "Unlock achievement badges & milestone drops" },
-    { id: "streak", title: "Streak Protection", desc: "Focus on maintaining daily streak shields" },
-    { id: "lore", title: "Lore & Boss Raids", desc: "Unlock RPG storyline chapters & boss raids" },
-    { id: "xp", title: "Leaderboard & XP", desc: "Compete for top position on global ladder" },
-  ];
-
   const themeOptions: { id: VisualTheme; title: string }[] = [
     { id: "Classic", title: "Classic Cyberpunk" },
     { id: "Shadow Duel", title: "Shadow Duel (Red Rim Light)" },
@@ -77,12 +68,6 @@ export default function SettingsPage() {
     setSavingStyle(true);
     await setLearningStyle(style);
     setSavingStyle(false);
-  };
-
-  const handleMotivationChange = async (mot: string) => {
-    setSavingMotivation(true);
-    await setMotivationType(mot);
-    setSavingMotivation(false);
   };
 
   const handlePasswordChange = async (e: React.FormEvent) => {
@@ -192,39 +177,7 @@ export default function SettingsPage() {
           </div>
         </section>
 
-        {/* 2. Motivation Type Preference (4 Reward Types) */}
-        <section className="bg-[#1B1B3A] border border-white/10 rounded-3xl p-5 shadow-lg space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-bold text-white font-heading flex items-center gap-2">
-              <Zap className="w-4 h-4 text-[#FBBF24]" />
-              Motivation & Reward Engine
-            </h2>
-            {savingMotivation && <Loader2 className="w-4 h-4 text-[#FBBF24] animate-spin" />}
-          </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
-            {motivationOptions.map((opt) => {
-              const isSelected = user.motivationType === opt.id;
-              return (
-                <button
-                  key={opt.id}
-                  onClick={() => handleMotivationChange(opt.id)}
-                  className={`p-3.5 rounded-2xl border text-left transition-all min-h-[44px] cursor-pointer flex flex-col justify-between ${
-                    isSelected
-                      ? "bg-[#FBBF24]/15 border-[#FBBF24] text-white"
-                      : "bg-[#0A0A1A] border-white/10 text-slate-300 hover:border-white/20"
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs font-bold font-heading">{opt.title}</span>
-                    {isSelected && <Check className="w-4 h-4 text-[#FBBF24] shrink-0" />}
-                  </div>
-                  <p className="text-[10px] text-[#94A3B8] leading-normal">{opt.desc}</p>
-                </button>
-              );
-            })}
-          </div>
-        </section>
 
         {/* 3. Inclusive Presets (Focus mode, Dyslexia-friendly, Reduced motion) */}
         <section className="bg-[#1B1B3A] border border-white/10 rounded-3xl p-5 shadow-lg space-y-4">

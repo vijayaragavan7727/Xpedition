@@ -22,8 +22,10 @@ import {
   ArrowRight,
   Shield,
   HelpCircle,
+  Sparkles,
 } from "lucide-react";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
+import { getTopArmInsight, RewardArm } from "@/lib/bandit";
 
 export default function ProfilePage() {
   const { user, isAuthLoading, course, goalText, saveUserProfile } = useQuest();
@@ -38,6 +40,7 @@ export default function ProfilePage() {
   const [masteredCount, setMasteredCount] = useState<number>(0);
   const [totalQuestionsAnswered, setTotalQuestionsAnswered] = useState<number>(0);
   const [courseProgressPct, setCourseProgressPct] = useState<number>(0);
+  const [banditArms, setBanditArms] = useState<RewardArm[]>([]);
   const [loadingRealStats, setLoadingRealStats] = useState(true);
 
   useEffect(() => {
@@ -62,7 +65,7 @@ export default function ProfilePage() {
 
           if (masteryRecords) {
             mastered = masteryRecords.filter((m) => m.p_know > 0.85).length;
-            questions = masteryRecords.length * 3; // Approx 3 questions per skill attempt
+            questions = masteryRecords.length * 3;
           }
 
           // 2. Query total assessments
@@ -73,6 +76,16 @@ export default function ProfilePage() {
 
           if (assessmentCount) {
             questions += assessmentCount;
+          }
+
+          // 3. Query reward arms for bandit insights
+          const { data: armsData } = await supabase
+            .from("reward_arms")
+            .select("*")
+            .eq("user_id", user.id);
+
+          if (armsData && armsData.length > 0) {
+            setBanditArms(armsData as RewardArm[]);
           }
         } catch (err) {
           console.warn("Profile stats fetch notice:", err);
@@ -127,6 +140,7 @@ export default function ProfilePage() {
   }
 
   const isBrandNew = user.xp === 0 && masteredCount === 0;
+  const banditInsight = getTopArmInsight(banditArms);
 
   return (
     <main className="min-h-screen bg-[#0A0A1A] bg-grid-pattern relative flex flex-col justify-between pb-24 p-4 sm:p-6 overflow-x-hidden">
@@ -251,6 +265,44 @@ export default function ProfilePage() {
               <p className="text-[10px] text-[#94A3B8]">Quests & Raids</p>
             </div>
           </div>
+        </section>
+
+        {/* Thompson Sampling Bandit Read-Only Insight Card */}
+        <section className="bg-[#1B1B3A] border border-white/10 rounded-3xl p-5 shadow-md space-y-2">
+          <div className="flex items-center justify-between text-xs">
+            <div className="flex items-center gap-2 text-white font-bold font-heading">
+              <Sparkles className="w-4 h-4 text-[#FBBF24]" />
+              <span>Reward Drive Insight</span>
+            </div>
+            <span className="text-[10px] font-mono text-slate-400">
+              {banditInsight.totalOutcomes} Outcomes Tracked
+            </span>
+          </div>
+
+          {banditInsight.isLearned ? (
+            <div className="flex items-center justify-between bg-[#0A0A1A] border border-[#34D399]/40 rounded-2xl p-3.5">
+              <div className="pr-2">
+                <p className="text-xs text-white font-bold font-heading">
+                  You respond best to: <span className="text-[#34D399]">{banditInsight.label}</span>
+                </p>
+                <p className="text-[10px] text-[#94A3B8] mt-0.5">
+                  Thompson Sampling Bandit observed highest return rate from this reward arm
+                </p>
+              </div>
+              <span className="px-3 py-1 rounded-full bg-[#34D399]/20 text-[#34D399] text-[10px] font-mono font-bold border border-[#34D399]/30 shrink-0">
+                {banditInsight.expectedValue}% EV
+              </span>
+            </div>
+          ) : (
+            <div className="bg-[#0A0A1A] border border-white/10 rounded-2xl p-3.5 text-center space-y-1">
+              <p className="text-xs font-bold text-slate-200 font-heading">
+                Still learning what motivates you...
+              </p>
+              <p className="text-[10px] text-[#94A3B8]">
+                {banditInsight.totalOutcomes}/10 reward outcomes recorded ({10 - banditInsight.totalOutcomes} more needed for peak drive analysis)
+              </p>
+            </div>
+          )}
         </section>
 
         {/* Current Active Goal & Real Computed Progress */}

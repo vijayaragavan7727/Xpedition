@@ -72,7 +72,6 @@ interface QuestContextType {
   accessibilitySettings: AccessibilitySettings;
   setVisualTheme: (theme: VisualTheme) => void;
   updateAccessibilitySettings: (newSettings: Partial<AccessibilitySettings>) => void;
-  setMotivationType: (motivation: string) => Promise<void>;
   setLearningStyle: (style: LearningStyle) => Promise<void>;
   setCourseData: (course: GoalEngineResponse, goal: string) => void;
   answerQuestion: (isCorrect: boolean, latencyMs?: number, hintsUsed?: number) => void;
@@ -376,46 +375,7 @@ export function QuestProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const setMotivationType = async (motivation: string) => {
-    const updatedUser: UserProfile = {
-      ...user,
-      motivationType: motivation,
-    };
-    setUser(updatedUser);
 
-    try {
-      localStorage.setItem("xpedition_motivation", motivation);
-
-      if (isSupabaseConfigured() && user.id) {
-        await supabase
-          .from("users")
-          .update({ motivation_type: motivation })
-          .eq("id", user.id);
-
-        // Re-warm corresponding bandit arm alpha = 3
-        const armMap: Record<string, ArmType> = {
-          trophy: "badge",
-          badge: "badge",
-          lore: "lore",
-          guild: "guild_invite",
-          guild_invite: "guild_invite",
-          leaderboard: "leaderboard",
-          rank: "leaderboard",
-          cosmetic: "cosmetic",
-        };
-        const targetArm = armMap[motivation.toLowerCase()] || "badge";
-
-        await supabase.from("reward_arms").upsert({
-          user_id: user.id,
-          arm: targetArm,
-          alpha: 3.0,
-          beta: 1.0,
-        });
-      }
-    } catch (err) {
-      console.warn("Failed to persist motivation type:", err);
-    }
-  };
 
   const setCourseData = (newCourse: GoalEngineResponse, goal: string) => {
     setCourse(newCourse);
@@ -623,7 +583,6 @@ export function QuestProvider({ children }: { children: React.ReactNode }) {
         accessibilitySettings,
         setVisualTheme,
         updateAccessibilitySettings,
-        setMotivationType,
         setLearningStyle,
         setCourseData,
         answerQuestion,

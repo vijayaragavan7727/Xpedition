@@ -150,11 +150,11 @@ export default function QuestPage() {
       }
     }
 
-    // Default fallback arms
+    // Default fallback arms with equal priors (alpha = 1, beta = 1)
     setUserArms(
       BANDIT_ARMS.map((arm) => ({
         arm,
-        alpha: arm === "badge" ? 3 : 1,
+        alpha: 1,
         beta: 1,
         pulls: 0,
         returns: 0,
@@ -175,10 +175,15 @@ export default function QuestPage() {
     explanation: "Tuples are defined with parentheses and cannot be modified after creation.",
   };
 
-  // Thompson Sampling arm picker (Control cohort always gets 'badge')
+  // Thompson Sampling arm picker (First 8 rewards force exploration across all 4 arms twice)
   const pickBanditRewardDrop = (): RewardDrop => {
     const selected = selectArm(userArms);
     const arm: ArmType = user?.cohort === "control" ? "badge" : selected.arm;
+
+    // Increment pulls count state for selected arm
+    setUserArms((prev) =>
+      prev.map((a) => (a.arm === arm ? { ...a, pulls: (a.pulls || 0) + 1 } : a))
+    );
 
     const armDetails: Record<ArmType, { title: string; xpBonus: number; description: string }> = {
       badge: {
@@ -200,11 +205,6 @@ export default function QuestPage() {
         title: "Leaderboard XP Multiplier",
         xpBonus: 45,
         description: "Active +1.5x Multiplier pushing your rank up the global standings!",
-      },
-      cosmetic: {
-        title: "Exclusive Neon Title: 'Gridmaster'",
-        xpBonus: 35,
-        description: "Equipped shiny cyan glowing name badge on your public adventurer avatar.",
       },
     };
 

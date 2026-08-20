@@ -68,15 +68,6 @@ export default function RewardModal({ reward, question, onClaim }: RewardModalPr
           color: "text-[#FBBF24]",
           bg: "bg-[#FBBF24]/20 border-[#FBBF24]/60",
         };
-      case "cosmetic":
-        return {
-          icon: Sparkles,
-          title: "Exclusive Neon Title",
-          xpBonus: 35,
-          description: "Equipped shiny glowing name badge on your public profile.",
-          color: "text-pink-400",
-          bg: "bg-pink-500/20 border-pink-500/60",
-        };
       case "badge":
       default:
         return {

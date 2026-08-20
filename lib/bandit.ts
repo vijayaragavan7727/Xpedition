@@ -1,6 +1,6 @@
 import { supabase, isSupabaseConfigured } from "./supabase";
 
-export type ArmType = "badge" | "lore" | "guild_invite" | "leaderboard" | "cosmetic";
+export type ArmType = "badge" | "lore" | "guild_invite" | "leaderboard";
 
 export interface RewardArm {
   arm: ArmType;
@@ -16,8 +16,14 @@ export const BANDIT_ARMS: ArmType[] = [
   "lore",
   "guild_invite",
   "leaderboard",
-  "cosmetic",
 ];
+
+export const ARM_LABELS: Record<ArmType, string> = {
+  badge: "Trophy & Badges",
+  lore: "Cyber Lore & Story",
+  guild_invite: "Squad & Co-op Raids",
+  leaderboard: "Rank & Leaderboards",
+};
 
 /**
  * Marsaglia and Tsang method for sampling Gamma(shape, 1) distribution
@@ -48,7 +54,6 @@ function sampleGamma(shape: number): number {
 
 /**
  * Generates a random sample from Beta(alpha, beta) distribution
- * Beta(a, b) = X / (X + Y) where X ~ Gamma(a) and Y ~ Gamma(b)
  */
 export function sampleBeta(alpha: number, beta: number): number {
   const a = Math.max(0.01, alpha);
@@ -62,21 +67,44 @@ export function sampleBeta(alpha: number, beta: number): number {
 }
 
 /**
- * Selects the optimal arm using Thompson Sampling:
- * For each arm, draws a sample from Beta(alpha, beta) and selects the arm with max sample.
+ * Selects reward arm:
+ * - For first 8 rewards: Forced Exploration (rotates through all 4 arms twice so bandit gets real behavioral data)
+ * - After 8 rewards: Standard Thompson Sampling (sampleBeta)
  */
 export function selectArm(arms: RewardArm[]): RewardArm {
   if (!arms || arms.length === 0) {
-    return {
-      arm: "badge",
-      alpha: 3,
+    arms = BANDIT_ARMS.map((arm) => ({
+      arm,
+      alpha: 1,
       beta: 1,
-      pulls: 1,
-      returns: 1,
-      lastSampledValue: 0.75,
-    };
+      pulls: 0,
+      returns: 0,
+    }));
   }
 
+  // Ensure all 4 arms exist
+  for (const armType of BANDIT_ARMS) {
+    if (!arms.some((a) => a.arm === armType)) {
+      arms.push({ arm: armType, alpha: 1, beta: 1, pulls: 0, returns: 0 });
+    }
+  }
+
+  const totalPulls = arms.reduce((sum, a) => sum + (a.pulls || 0), 0);
+
+  // 1. Behavioral Warm Start: First 8 rewards force exploration across all 4 arms twice
+  if (totalPulls < 8) {
+    // Find arms that have less than 2 pulls
+    const unservedArms = arms.filter((a) => (a.pulls || 0) < 2);
+    if (unservedArms.length > 0) {
+      // Pick the arm with the minimum number of pulls (cycle tie-breaking)
+      const minPullsArm = unservedArms.reduce((prev, curr) =>
+        (curr.pulls || 0) < (prev.pulls || 0) ? curr : prev
+      );
+      return minPullsArm;
+    }
+  }
+
+  // 2. Thompson Sampling (after 8 forced exploration rewards)
   let bestArm = arms[0];
   let maxSample = -1;
 
@@ -95,8 +123,6 @@ export function selectArm(arms: RewardArm[]): RewardArm {
 
 /**
  * Records outcome of reward drop (return visit signal):
- * - Delayed 24h Return Signal (weight = 1.0): User returned for a new session within 24 hours of reward drop.
- * - Same-Session Return Signal (weight = 0.3): User completed another quest within the same session.
  * - If success = true: alpha += weight, returns += weight, pulls += 1
  * - If success = false: beta += weight, pulls += 1
  */
@@ -115,7 +141,6 @@ export async function recordOutcome(
     returns: 0,
   };
 
-  // Delayed 24h return signal is weighted at 1.0 (alpha += 1.0), whereas same-session return is weighted at 0.3 (alpha += 0.3)
   const weight = signalType === "24h_return" ? 1.0 : 0.3;
 
   const newAlpha = success ? targetArm.alpha + weight : targetArm.alpha;
@@ -150,13 +175,13 @@ export async function recordOutcome(
 }
 
 /**
- * Warm starts user reward arms in Supabase:
- * Sets alpha = 3 for the user's selected motivation arm
+ * Behavioral Warm Start:
+ * Initializes all 4 reward arms with equal priors (alpha = 1, beta = 1)
  */
-export async function initUserArms(userId: string, motivatedArm: ArmType = "badge"): Promise<RewardArm[]> {
+export async function initUserArms(userId: string): Promise<RewardArm[]> {
   const armsToCreate: RewardArm[] = BANDIT_ARMS.map((arm) => ({
     arm,
-    alpha: arm === motivatedArm ? 3 : 1, // Warm prior alpha = 3 for motivated arm
+    alpha: 1,
     beta: 1,
     pulls: 0,
     returns: 0,
@@ -167,10 +192,10 @@ export async function initUserArms(userId: string, motivatedArm: ArmType = "badg
       const records = armsToCreate.map((a) => ({
         user_id: userId,
         arm: a.arm,
-        alpha: a.alpha,
-        beta: a.beta,
-        pulls: a.pulls,
-        returns: a.returns,
+        alpha: 1,
+        beta: 1,
+        pulls: 0,
+        returns: 0,
       }));
 
       await supabase.from("reward_arms").upsert(records);
@@ -180,4 +205,46 @@ export async function initUserArms(userId: string, motivatedArm: ArmType = "badg
   }
 
   return armsToCreate;
+}
+
+/**
+ * Computes top arm insight for profile page:
+ * Shown only once there are at least 10 recorded outcomes.
+ */
+export function getTopArmInsight(arms: RewardArm[]): {
+  isLearned: boolean;
+  totalOutcomes: number;
+  topArm?: ArmType;
+  label?: string;
+  expectedValue?: number;
+} {
+  if (!arms || arms.length === 0) {
+    return { isLearned: false, totalOutcomes: 0 };
+  }
+
+  const totalOutcomes = arms.reduce((sum, a) => sum + (a.pulls || 0), 0);
+
+  if (totalOutcomes < 10) {
+    return { isLearned: false, totalOutcomes };
+  }
+
+  // Find arm with highest mean alpha / (alpha + beta)
+  let bestArm = arms[0];
+  let maxEV = -1;
+
+  for (const armItem of arms) {
+    const ev = armItem.alpha / (armItem.alpha + armItem.beta);
+    if (ev > maxEV) {
+      maxEV = ev;
+      bestArm = armItem;
+    }
+  }
+
+  return {
+    isLearned: true,
+    totalOutcomes,
+    topArm: bestArm.arm,
+    label: ARM_LABELS[bestArm.arm] || bestArm.arm,
+    expectedValue: Number((maxEV * 100).toFixed(0)),
+  };
 }
