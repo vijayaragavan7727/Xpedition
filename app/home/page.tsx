@@ -22,6 +22,7 @@ import {
   ShieldAlert,
   Loader2,
   RotateCcw,
+  Briefcase,
 } from "lucide-react";
 import { getResumeSession, StudySession } from "@/lib/studySessions";
 import SquidAsset from "@/components/SquidAsset";
@@ -219,6 +220,31 @@ export default function HomePage() {
             </Link>
           </div>
         )}
+
+        {/* CAREER GUIDANCE PROMINENT DASHBOARD CARD */}
+        <div className="bg-[#0D0D1A] border border-[#A855F7]/40 rounded-2xl p-4 shadow-xl flex items-center justify-between gap-3 animate-fadeIn glow-violet">
+          <div className="flex items-center gap-3 truncate">
+            <div className="w-10 h-10 rounded-xl bg-[#A855F7]/20 border border-[#A855F7]/40 flex items-center justify-center text-[#A855F7] shrink-0">
+              <Briefcase className="w-5 h-5" />
+            </div>
+            <div className="truncate">
+              <span className="text-[10px] font-mono text-[#A855F7] font-bold uppercase tracking-wider block">
+                Career Guidance & Gap Map
+              </span>
+              <p className="text-xs font-bold text-white font-heading truncate mt-0.5">
+                Target: {course?.title || "Software Engineer"}
+              </p>
+            </div>
+          </div>
+
+          <Link
+            href="/career"
+            className="px-3.5 py-2 min-h-[44px] rounded-xl bg-[#A855F7] hover:brightness-110 text-white font-bold text-xs font-heading shrink-0 flex items-center gap-1 cursor-pointer transition-all shadow-md"
+          >
+            <span>View Career Map</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </Link>
+        </div>
 
         {/* 2. ONE Primary "Continue Your Quest" Hero Card (Sole Primary Focal Point) */}
         <section className="bg-[#0D0D1A] border border-[#00F0FF]/40 rounded-3xl p-5 sm:p-6 shadow-2xl glow-cyan relative overflow-hidden space-y-4">

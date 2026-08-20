@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { goalText, userSkills } = body;
+    const { goalText, userSkills = [] } = body;
 
     const trimmedGoal = goalText?.trim() || "Software Development";
     const tavilyKey = process.env.TAVILY_API_KEY;
@@ -11,7 +11,7 @@ export async function POST(req: NextRequest) {
 
     let searchContent = "";
 
-    // 1. Search real job requirements using Tavily Search API
+    // 1. Tavily Search for real job market requirements
     if (tavilyKey && tavilyKey.trim() !== "") {
       try {
         const tavilyRes = await fetch("https://api.tavily.com/search", {
@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             api_key: tavilyKey,
-            query: `job requirements interview skills syllabus for ${trimmedGoal}`,
+            query: `industry job requirements required skill levels syllabus for ${trimmedGoal}`,
             search_depth: "basic",
             max_results: 5,
           }),
@@ -38,45 +38,74 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 2. Call Groq LLM to generate structured career mapping
+    // Compute REAL overall readiness percentage (never hardcoded)
+    let totalPKnow = 0;
+    let countedSkills = 0;
+
+    const skillReadiness = userSkills.map((s: any) => {
+      const pKnowVal = typeof s.pKnow === "number" ? s.pKnow : (s.p_know ?? 0.15);
+      totalPKnow += pKnowVal;
+      countedSkills++;
+
+      const userLevelPct = Math.round(pKnowVal * 100);
+      // Required level grounded between 70% and 90%
+      const requiredLevelPct = Math.min(90, Math.max(70, Math.round(userLevelPct * 0.4 + 50)));
+      const gapPct = Math.max(0, requiredLevelPct - userLevelPct);
+
+      return {
+        skillId: s.id || `s_${Math.random()}`,
+        skillName: s.name || "Core Skill",
+        userLevelPct,
+        requiredLevelPct,
+        gapPct,
+      };
+    });
+
+    const overallReadiness = countedSkills > 0
+      ? Math.round((totalPKnow / countedSkills) * 100)
+      : 0;
+
+    // 2. Prompt Groq for 3 suggested career paths & recommended next steps
+    let suggestedCareerPaths: any[] = [];
+    let recommendedNextSteps: any[] = [];
+    let roleName = `${trimmedGoal.replace(/basics|prep|interview/gi, "").trim() || "Software"} Engineer`;
+
     if (groqKey && groqKey.trim() !== "") {
       try {
-        const systemPrompt = `You are a Career Outcome & Skill Gap Analyst.
-Analyze the user's target goal "${trimmedGoal}" and their current skill mastery vector:
-${JSON.stringify(userSkills || [])}
+        const systemPrompt = `You are XPedition's AI Career Guidance Engine.
+Analyze the learner's goal "${trimmedGoal}" and their current mastery skills:
+${JSON.stringify(skillReadiness)}
 
-Using the industry research context below:
-${searchContent || "No extra web research available."}
+GROUNDED JOB MARKET CONTEXT:
+${searchContent || "Use standard tech job specifications."}
 
-Respond with STRICT JSON ONLY. Do not wrap in markdown backticks.
-The JSON structure MUST be:
+REQUIREMENTS:
+1. "roleName": Target industry job title.
+2. "suggestedCareerPaths": Exactly 3 alternative career paths matched to their skill profile.
+   Each object: { "roleTitle": string, "matchPercent": number (50-95), "description": string, "requiredSkills": [string] }
+3. "recommendedNextSteps": 3-4 concrete learning actions focused on largest skill gaps.
+   Each object: { "skillName": string, "action": string, "gapPct": number }
+
+Return STRICT JSON ONLY matching this structure:
 {
-  "roleName": "Specific target industry role title (e.g. Python Backend Engineer / Zoho Developer)",
-  "readinessPercent": number between 30 and 95 based on their mastery vector,
-  "matchedSkills": ["Skill Name 1", "Skill Name 2"],
-  "gapSkills": [
-    {
-      "name": "Gap Skill Name",
-      "why": "Clear 1-sentence reason why this skill is vital for this target role"
-    }
-  ]
-}
-
-Provide 2 to 4 gap skills that complement their existing path.`;
+  "roleName": "Target Role Title",
+  "suggestedCareerPaths": [...],
+  "recommendedNextSteps": [...]
+}`;
 
         const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "Authorization": `Bearer ${groqKey}`,
+            Authorization: `Bearer ${groqKey}`,
           },
           body: JSON.stringify({
             model: "llama-3.3-70b-versatile",
             messages: [
               { role: "system", content: systemPrompt },
-              { role: "user", content: `Generate career map for goal: "${trimmedGoal}"` },
+              { role: "user", content: `Generate career guidance for goal: "${trimmedGoal}"` },
             ],
-            temperature: 0.4,
+            temperature: 0.5,
             response_format: { type: "json_object" },
           }),
         });
@@ -86,48 +115,64 @@ Provide 2 to 4 gap skills that complement their existing path.`;
           const contentStr = groqData.choices?.[0]?.message?.content;
           if (contentStr) {
             const parsed = JSON.parse(contentStr);
-            if (parsed.roleName && typeof parsed.readinessPercent === "number" && Array.isArray(parsed.gapSkills)) {
-              return NextResponse.json(parsed);
-            }
+            if (parsed.roleName) roleName = parsed.roleName;
+            if (Array.isArray(parsed.suggestedCareerPaths)) suggestedCareerPaths = parsed.suggestedCareerPaths;
+            if (Array.isArray(parsed.recommendedNextSteps)) recommendedNextSteps = parsed.recommendedNextSteps;
           }
         }
-      } catch (err) {
-        console.warn("Groq API error in career-map:", err);
+      } catch (e) {
+        console.warn("Groq career map error:", e);
       }
     }
 
-    // Fallback career outcome mapping if API is unavailable
-    const fallbackMatched = userSkills?.map((s: any) => s.name) || ["Python Core Syntax & Data Structures"];
+    if (suggestedCareerPaths.length === 0) {
+      suggestedCareerPaths = [
+        {
+          roleTitle: `${trimmedGoal} Specialist`,
+          matchPercent: Math.min(92, Math.max(60, overallReadiness + 15)),
+          description: `Direct alignment with your current ${trimmedGoal} skill trajectory.`,
+          requiredSkills: ["Core Syntax", "Data Structures", "Problem Solving"],
+        },
+        {
+          roleTitle: "Backend Software Engineer",
+          matchPercent: Math.min(88, Math.max(55, overallReadiness + 10)),
+          description: "Build robust production backend services and APIs.",
+          requiredSkills: ["Python/Java", "REST APIs", "SQL Databases"],
+        },
+        {
+          roleTitle: "Systems & Automation Engineer",
+          matchPercent: Math.min(82, Math.max(50, overallReadiness + 5)),
+          description: "Focus on automated data processing and system optimization.",
+          requiredSkills: ["Scripting", "CI/CD Pipelines", "System Architecture"],
+        },
+      ];
+    }
+
+    if (recommendedNextSteps.length === 0) {
+      recommendedNextSteps = skillReadiness
+        .sort((a: any, b: any) => b.gapPct - a.gapPct)
+        .slice(0, 3)
+        .map((s: any) => ({
+          skillId: s.skillId,
+          skillName: s.skillName,
+          action: `Master ${s.skillName} Level 2 Intermediate Module & Test`,
+          gapPct: s.gapPct,
+        }));
+    }
+
     return NextResponse.json({
-      roleName: `${trimmedGoal.replace(/basics|prep|interview/gi, "").trim() || "Software"} Engineer`,
-      readinessPercent: 62,
-      matchedSkills: fallbackMatched,
-      gapSkills: [
-        {
-          name: "System Design & AsyncIO",
-          why: "Required for high-concurrency production microservices.",
-        },
-        {
-          name: "REST API & Database Optimization",
-          why: "Essential for building production backend APIs and query performance.",
-        },
-      ],
+      goalTitle: trimmedGoal,
+      roleName,
+      overallReadiness,
+      skillReadiness,
+      recommendedNextSteps,
+      suggestedCareerPaths,
     });
   } catch (error) {
     console.error("Error in /api/career-map:", error);
     return NextResponse.json(
-      {
-        roleName: "Software Engineer",
-        readinessPercent: 55,
-        matchedSkills: ["Core Fundamentals"],
-        gapSkills: [
-          {
-            name: "API Design & Microservices",
-            why: "Key prerequisite for enterprise software roles.",
-          },
-        ],
-      },
-      { status: 200 }
+      { error: "Failed to generate career guidance map." },
+      { status: 500 }
     );
   }
 }
