@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useQuest } from "@/lib/QuestContext";
 import BottomNav from "@/components/BottomNav";
+import TopBar from "@/components/TopBar";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { QRCodeSVG } from "qrcode.react";
 import {
@@ -36,7 +37,7 @@ interface CareerMapData {
 }
 
 export default function PassportPage() {
-  const { user, course, goalText, addSkillToCourse, pKnow: currentPKnow, activeSkillIndex } = useQuest();
+  const { user, isAuthLoading, course, goalText, addSkillToCourse, pKnow: currentPKnow, activeSkillIndex } = useQuest();
 
   const [skillsMastery, setSkillsMastery] = useState<SkillMasteryItem[]>([]);
   const [loadingSkills, setLoadingSkills] = useState(true);
@@ -196,13 +197,25 @@ export default function PassportPage() {
       : 0.5;
   const overallReadiness = Math.round(avgPKnow * 100);
 
+  if (isAuthLoading) {
+    return (
+      <div className="min-h-screen bg-[#0A0A1A] flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-[#22D3EE] animate-spin" />
+      </div>
+    );
+  }
+
   return (
     <main className="min-h-screen bg-[#0A0A1A] bg-grid-pattern relative flex flex-col justify-between pb-24 p-4 sm:p-6">
       {/* Background Orbs */}
       <div className="absolute top-10 left-10 w-96 h-96 bg-[#7C3AED]/15 rounded-full blur-[130px] pointer-events-none" />
       <div className="absolute bottom-10 right-10 w-96 h-96 bg-[#22D3EE]/15 rounded-full blur-[130px] pointer-events-none" />
 
-      <div className="w-full max-w-xl mx-auto space-y-6 z-10 my-auto">
+      <div className="w-full max-w-xl mx-auto space-y-4 z-10 my-auto">
+        <TopBar
+          title="Skill Passport"
+          subtitle="Verifiable BKT Mastery Vector & Credentials"
+        />
         {/* Header */}
         <header className="bg-[#1B1B3A] border border-[#7C3AED]/40 rounded-3xl p-6 shadow-xl glow-box-violet text-center space-y-2">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#7C3AED]/20 border border-[#7C3AED]/40 text-[#22D3EE] text-xs font-mono font-bold">

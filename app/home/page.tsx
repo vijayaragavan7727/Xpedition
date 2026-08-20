@@ -20,21 +20,25 @@ import {
   Mic,
   Swords,
   ShieldAlert,
+  Loader2,
 } from "lucide-react";
 
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 
 export default function HomePage() {
-  const { user, course, activeSkillIndex } = useQuest();
+  const { user, isAuthLoading, course, activeSkillIndex } = useQuest();
   const [dueCount, setDueCount] = useState<number>(0);
   const [courseProgressPct, setCourseProgressPct] = useState<number>(0);
   const router = useRouter();
 
   useEffect(() => {
+    if (isAuthLoading) return;
+
     if (!user || !user.email) {
-      const storedEmail = localStorage.getItem("xpedition_email");
+      const storedEmail = typeof window !== "undefined" ? localStorage.getItem("xpedition_email") : null;
       if (!storedEmail) {
         router.push("/");
+        return;
       }
     }
 
@@ -87,6 +91,14 @@ export default function HomePage() {
 
   // Real Level Growth Curve Progress
   const progress = xpProgress(user.xp);
+
+  if (isAuthLoading) {
+    return (
+      <div className="min-h-screen bg-[#0A0A1A] flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-[#22D3EE] animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <main className="min-h-screen bg-[#0A0A1A] bg-grid-pattern relative flex flex-col justify-between pb-24 p-4 sm:p-6">

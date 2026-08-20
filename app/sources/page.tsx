@@ -6,6 +6,7 @@ import { useQuest } from "@/lib/QuestContext";
 import { SourceItem } from "@/lib/types";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import BottomNav from "@/components/BottomNav";
+import TopBar from "@/components/TopBar";
 import {
   BookOpen,
   Compass,
@@ -15,6 +16,7 @@ import {
   Sparkles,
   Search,
   BookmarkCheck,
+  Loader2,
 } from "lucide-react";
 
 interface GoalSourceGroup {
@@ -25,7 +27,7 @@ interface GoalSourceGroup {
 }
 
 export default function PersonalReadingListSourcesPage() {
-  const { user, course, goalText } = useQuest();
+  const { user, isAuthLoading, course, goalText } = useQuest();
   const [sourceGroups, setSourceGroups] = useState<GoalSourceGroup[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -91,13 +93,25 @@ export default function PersonalReadingListSourcesPage() {
 
   const totalSourcesCount = sourceGroups.reduce((acc, g) => acc + g.sources.length, 0);
 
+  if (isAuthLoading) {
+    return (
+      <div className="min-h-screen bg-[#0A0A1A] flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-[#22D3EE] animate-spin" />
+      </div>
+    );
+  }
+
   return (
     <main className="min-h-screen bg-[#0A0A1A] bg-grid-pattern text-white relative flex flex-col justify-between pb-24 p-4 sm:p-8">
       {/* Background Glows */}
       <div className="absolute top-10 left-10 w-96 h-96 bg-[#7C3AED]/15 rounded-full blur-[140px] pointer-events-none" />
       <div className="absolute bottom-10 right-10 w-96 h-96 bg-[#22D3EE]/15 rounded-full blur-[140px] pointer-events-none" />
 
-      <div className="w-full max-w-3xl mx-auto space-y-6 z-10 my-auto">
+      <div className="w-full max-w-3xl mx-auto space-y-4 z-10 my-auto">
+        <TopBar
+          title="Open Web Reading List"
+          subtitle="Harvested Web Documentation & Grounded Sources"
+        />
         {/* Top Header */}
         <header className="bg-[#1B1B3A] border border-[#7C3AED]/40 rounded-3xl p-6 shadow-2xl glow-box-violet flex items-center justify-between gap-4">
           <div className="space-y-1">

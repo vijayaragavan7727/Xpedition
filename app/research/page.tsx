@@ -3,6 +3,7 @@ import Link from "next/link";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { computeHakeGain } from "@/lib/abTesting";
 import BottomNav from "@/components/BottomNav";
+import TopBar from "@/components/TopBar";
 import {
   FlaskConical,
   TrendingUp,
@@ -120,7 +121,11 @@ export default async function ResearchPage() {
       <div className="absolute top-10 left-10 w-96 h-96 bg-[#7C3AED]/15 rounded-full blur-[140px] pointer-events-none" />
       <div className="absolute bottom-10 right-10 w-96 h-96 bg-[#22D3EE]/15 rounded-full blur-[140px] pointer-events-none" />
 
-      <div className="w-full max-w-3xl mx-auto space-y-6 z-10 my-auto">
+      <div className="w-full max-w-3xl mx-auto space-y-4 z-10 my-auto">
+        <TopBar
+          title="A/B Research & Learning Gain"
+          subtitle="Hake's Normalized Learning Gain Measurement"
+        />
         {/* Top Header */}
         <header className="bg-[#1B1B3A] border border-[#7C3AED]/40 rounded-3xl p-6 shadow-2xl glow-box-violet flex items-center justify-between gap-4">
           <div className="space-y-1">

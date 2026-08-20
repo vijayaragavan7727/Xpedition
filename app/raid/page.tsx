@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useQuest, RewardDrop } from "@/lib/QuestContext";
 import BottomNav from "@/components/BottomNav";
+import TopBar from "@/components/TopBar";
 import RewardModal from "@/components/RewardModal";
 import { getDueSkills, DueSkill } from "@/lib/forgetting";
 import { Question } from "@/lib/types";
@@ -23,7 +24,7 @@ import {
 } from "lucide-react";
 
 export default function RaidPage() {
-  const { user, claimReward, goalText } = useQuest();
+  const { user, isAuthLoading, claimReward, goalText } = useQuest();
   const [dueSkills, setDueSkills] = useState<DueSkill[]>([]);
   const [currentDueIndex, setCurrentDueIndex] = useState(0);
   const [bossHealth, setBossHealth] = useState(100);
@@ -142,13 +143,25 @@ export default function RaidPage() {
 
   const activeSkill = dueSkills[currentDueIndex];
 
+  if (isAuthLoading) {
+    return (
+      <div className="min-h-screen bg-[#0A0A1A] flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-[#22D3EE] animate-spin" />
+      </div>
+    );
+  }
+
   return (
     <main className="min-h-screen bg-[#0A0A1A] bg-grid-pattern relative flex flex-col justify-between pb-24 p-4 sm:p-6">
       {/* Background Glows */}
       <div className="absolute top-10 left-10 w-96 h-96 bg-red-500/15 rounded-full blur-[140px] pointer-events-none" />
       <div className="absolute bottom-10 right-10 w-96 h-96 bg-[#FBBF24]/15 rounded-full blur-[140px] pointer-events-none" />
 
-      <div className="w-full max-w-xl mx-auto space-y-6 z-10 my-auto">
+      <div className="w-full max-w-xl mx-auto space-y-4 z-10 my-auto">
+        <TopBar
+          title="Memory Raid"
+          subtitle="Spaced Repetition Boss Battle"
+        />
         {/* Header */}
         <header className="bg-[#1B1B3A] border border-red-500/40 rounded-3xl p-6 shadow-xl text-center space-y-2 glow-box-violet">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-500/20 border border-red-500/40 text-red-400 text-xs font-mono font-bold">

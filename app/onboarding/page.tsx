@@ -374,7 +374,7 @@ export default function OnboardingPage() {
           onClick={() => {
             if (step === "goal") setStep("learning_style");
             else if (step === "learning_style") setStep("motivation");
-            else router.push("/");
+            else router.push("/home");
           }}
           className="flex items-center gap-2 text-xs text-[#94A3B8] hover:text-white transition-colors cursor-pointer"
         >

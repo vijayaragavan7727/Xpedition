@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useQuest } from "@/lib/QuestContext";
 import { ClassroomCourse } from "@/app/api/classroom/courses/route";
 import BottomNav from "@/components/BottomNav";
+import TopBar from "@/components/TopBar";
 import Link from "next/link";
 import {
   GraduationCap,
@@ -19,7 +20,7 @@ import {
 } from "lucide-react";
 
 export default function ImportClassroomPage() {
-  const { setCourseData } = useQuest();
+  const { setCourseData, isAuthLoading } = useQuest();
   const router = useRouter();
 
   const [courses, setCourses] = useState<ClassroomCourse[]>([]);
@@ -81,13 +82,25 @@ export default function ImportClassroomPage() {
     }
   };
 
+  if (isAuthLoading) {
+    return (
+      <div className="min-h-screen bg-[#0A0A1A] flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-[#22D3EE] animate-spin" />
+      </div>
+    );
+  }
+
   return (
-    <main className="min-h-screen bg-[#0A0A1A] bg-grid-pattern text-white relative flex flex-col justify-between pb-24 p-4 sm:p-8">
-      {/* Background Glows */}
+    <main className="min-h-screen bg-[#0A0A1A] bg-grid-pattern relative flex flex-col justify-between pb-24 p-4 sm:p-6">
+      {/* Background Orbs */}
       <div className="absolute top-10 left-10 w-96 h-96 bg-[#7C3AED]/15 rounded-full blur-[140px] pointer-events-none" />
       <div className="absolute bottom-10 right-10 w-96 h-96 bg-[#22D3EE]/15 rounded-full blur-[140px] pointer-events-none" />
 
-      <div className="w-full max-w-2xl mx-auto space-y-6 z-10 my-auto">
+      <div className="w-full max-w-2xl mx-auto space-y-4 z-10 my-auto">
+        <TopBar
+          title="Google Classroom Import"
+          subtitle="Ground Courses in Real Coursework & Syllabus"
+        />
         {/* Header */}
         <header className="bg-[#1B1B3A] border border-[#7C3AED]/40 rounded-3xl p-6 shadow-2xl glow-box-violet text-center space-y-2">
           <div className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[#7C3AED]/20 border border-[#7C3AED]/40 text-[#22D3EE] text-xs font-mono font-bold">

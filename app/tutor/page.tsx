@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import BottomNav from "@/components/BottomNav";
+import TopBar from "@/components/TopBar";
 import { useQuest } from "@/lib/QuestContext";
 import {
   Mic,
@@ -16,7 +17,7 @@ import {
 } from "lucide-react";
 
 export default function TutorPage() {
-  const { currentQuestion, course, activeSkillIndex, pKnow } = useQuest();
+  const { currentQuestion, course, activeSkillIndex, pKnow, isAuthLoading } = useQuest();
 
   const currentSkillName =
     course?.skills[activeSkillIndex]?.name || "Python Core Syntax & Data Structures";
@@ -163,12 +164,25 @@ export default function TutorPage() {
     }
   };
 
+  if (isAuthLoading) {
+    return (
+      <div className="min-h-screen bg-[#0A0A1A] flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-[#22D3EE] animate-spin" />
+      </div>
+    );
+  }
+
   return (
     <main className="min-h-screen bg-[#0A0A1A] bg-grid-pattern relative flex flex-col justify-between pb-24 p-4 sm:p-6">
       {/* Background Orbs */}
-      <div className="absolute top-10 left-1/2 -translate-x-1/2 w-96 h-96 bg-[#22D3EE]/15 rounded-full blur-[140px] pointer-events-none" />
+      <div className="absolute top-10 left-10 w-96 h-96 bg-[#22D3EE]/15 rounded-full blur-[140px] pointer-events-none" />
+      <div className="absolute bottom-10 right-10 w-96 h-96 bg-[#7C3AED]/15 rounded-full blur-[140px] pointer-events-none" />
 
-      <div className="w-full max-w-xl mx-auto space-y-6 z-10 my-auto">
+      <div className="w-full max-w-xl mx-auto space-y-4 z-10 my-auto">
+        <TopBar
+          title="Voice AI Tutor"
+          subtitle="Real-Time Speech & Concept Assistance"
+        />
         {/* Top Header */}
         <header className="bg-[#1B1B3A] border border-[#22D3EE]/40 rounded-3xl p-6 shadow-xl text-center space-y-2 glow-box-cyan">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#22D3EE]/20 border border-[#22D3EE]/40 text-[#22D3EE] text-xs font-mono font-bold">

@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useQuest } from "@/lib/QuestContext";
 import BottomNav from "@/components/BottomNav";
+import TopBar from "@/components/TopBar";
 import { xpProgress } from "@/lib/progression";
 import Link from "next/link";
 import {
@@ -28,6 +29,7 @@ import {
   Swords,
   GraduationCap,
   Link2,
+  Loader2,
 } from "lucide-react";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { DueSkill } from "@/lib/forgetting";
@@ -35,6 +37,7 @@ import { DueSkill } from "@/lib/forgetting";
 export default function ProfilePage() {
   const {
     user,
+    isAuthLoading,
     course,
     goalText,
     resetProgress,
@@ -118,9 +121,21 @@ export default function ProfilePage() {
     { id: "cosmetic", label: "Cosmetics & Themes", desc: "Unlock dual themes & visual avatar effects" },
   ];
 
+  if (isAuthLoading) {
+    return (
+      <div className="min-h-screen bg-[#0A0A1A] flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-[#22D3EE] animate-spin" />
+      </div>
+    );
+  }
+
   return (
     <main className="min-h-screen bg-[#0A0A1A] bg-grid-pattern relative flex flex-col justify-between pb-24 p-4 sm:p-6">
-      <div className="w-full max-w-2xl mx-auto space-y-6 z-10 my-auto">
+      <div className="w-full max-w-2xl mx-auto space-y-4 z-10 my-auto">
+        <TopBar
+          title="Learner Settings"
+          subtitle="Profile, Learning Style & Accessibility Controls"
+        />
         {/* Header Profile Card */}
         <header className="bg-[#1B1B3A] border border-[#7C3AED]/40 rounded-3xl p-6 shadow-xl glow-box-violet flex items-center gap-4">
           <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[#7C3AED] to-[#22D3EE] flex items-center justify-center text-white font-black text-2xl font-heading shadow-lg ring-4 ring-[#7C3AED]/30 shrink-0">

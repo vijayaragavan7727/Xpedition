@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useQuest, RewardDrop } from "@/lib/QuestContext";
+import TopBar from "@/components/TopBar";
 import BottomNav from "@/components/BottomNav";
 import RewardModal from "@/components/RewardModal";
 import FlowExplanationModal from "@/components/FlowExplanationModal";
@@ -40,6 +41,7 @@ import TutorOverlay from "@/components/TutorOverlay";
 export default function QuestPage() {
   const {
     user,
+    isAuthLoading,
     course,
     activeSkillIndex,
     currentQuestion,
@@ -312,12 +314,25 @@ export default function QuestPage() {
 
   const isShadowDuelMode = flowDifficulty >= 4 || visualTheme === "Shadow Duel";
 
-  return (
-    <main className="min-h-screen bg-[#0A0A1A] bg-grid-pattern relative flex flex-col justify-between pb-24 p-4 sm:p-6 overflow-x-hidden">
-      {/* Background Glow */}
-      <div className="absolute top-1/3 left-1/2 -translate-x-1/2 w-96 h-96 bg-[#7C3AED]/15 rounded-full blur-[140px] pointer-events-none" />
+  if (isAuthLoading) {
+    return (
+      <div className="min-h-screen bg-[#0A0A1A] flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-[#22D3EE] animate-spin" />
+      </div>
+    );
+  }
 
-      <div className="w-full max-w-2xl mx-auto space-y-6 z-10 my-auto">
+  return (
+    <main className="min-h-screen bg-[#0A0A1A] bg-grid-pattern text-white relative flex flex-col justify-between pb-24 p-4 sm:p-6 overflow-x-hidden">
+      {/* Background Glows */}
+      <div className="absolute top-0 left-1/4 w-96 h-96 bg-[#7C3AED]/15 rounded-full blur-[140px] pointer-events-none" />
+      <div className="absolute bottom-1/4 right-10 w-96 h-96 bg-[#22D3EE]/15 rounded-full blur-[140px] pointer-events-none" />
+
+      <div className="w-full max-w-2xl mx-auto space-y-4 z-10 my-auto">
+        <TopBar
+          title="Adaptive Skill Quest"
+          subtitle={`Module ${activeSkillIndex + 1} of ${course?.skills.length || 5}: ${currentSkill.name}`}
+        />
         {/* Shadow Duel Mode Theme Header */}
         {isShadowDuelMode && (
           <div className="bg-[#12122C] border border-[#FB7185]/40 rounded-3xl p-6 shadow-2xl space-y-4 glow-box-red animate-fadeIn relative overflow-hidden">

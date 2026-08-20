@@ -56,6 +56,7 @@ interface UserProfile {
 
 interface QuestContextType {
   user: UserProfile;
+  isAuthLoading: boolean;
   course: GoalEngineResponse | null;
   activeSkillIndex: number;
   currentQuestion: Question | null;
@@ -125,6 +126,7 @@ const QuestContext = createContext<QuestContextType | undefined>(undefined);
 
 export function QuestProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserProfile>(DEFAULT_USER);
+  const [isAuthLoading, setIsAuthLoading] = useState<boolean>(true);
   const [course, setCourse] = useState<GoalEngineResponse | null>(DEFAULT_COURSE);
   const [goalText, setGoalText] = useState<string>("Python basics for a Zoho job interview");
   const [activeSkillIndex, setActiveSkillIndex] = useState<number>(0);
@@ -313,6 +315,8 @@ export function QuestProvider({ children }: { children: React.ReactNode }) {
         }
       } catch (err) {
         console.warn("Supabase initial load notice:", err);
+      } finally {
+        setIsAuthLoading(false);
       }
     }
 
@@ -602,6 +606,7 @@ export function QuestProvider({ children }: { children: React.ReactNode }) {
     <QuestContext.Provider
       value={{
         user,
+        isAuthLoading,
         course,
         activeSkillIndex,
         currentQuestion,
