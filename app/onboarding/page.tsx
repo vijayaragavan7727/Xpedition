@@ -24,6 +24,10 @@ import {
   Swords,
   Shield,
   ArrowRight,
+  Upload,
+  Paperclip,
+  FileText,
+  X,
 } from "lucide-react";
 
 const POPULAR_QUICKSTART_GOALS = [
@@ -118,6 +122,13 @@ export default function OnboardingPage() {
   const [result, setResult] = useState<GoalEngineResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [nonsenseError, setNonsenseError] = useState<{ message: string; examples: string[] } | null>(null);
+
+  // Syllabus File Upload State
+  const [showFileUpload, setShowFileUpload] = useState(false);
+  const [extractingFile, setExtractingFile] = useState(false);
+  const [fileError, setFileError] = useState<string | null>(null);
+  const [extractedTopics, setExtractedTopics] = useState<string[]>([]);
+  const [newTopicInput, setNewTopicInput] = useState("");
   const router = useRouter();
 
   useEffect(() => {
@@ -153,6 +164,102 @@ export default function OnboardingPage() {
       await setLearningStyle(style);
     }
     setStep("goal");
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // 5MB Size Limit Validation
+    if (file.size > 5 * 1024 * 1024) {
+      setFileError("File is too large (max 5MB). Please upload a smaller file or type your goal manually.");
+      return;
+    }
+
+    setExtractingFile(true);
+    setFileError(null);
+    const isPDF = file.name.toLowerCase().endsWith(".pdf") || file.type === "application/pdf";
+
+    try {
+      if (isPDF) {
+        // PDF client-side text extraction via pdfjs-dist
+        try {
+          const pdfjs = await import("pdfjs-dist");
+          pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.mjs`;
+
+          const arrayBuffer = await file.arrayBuffer();
+          const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise;
+
+          let text = "";
+          for (let i = 1; i <= Math.min(pdf.numPages, 10); i++) {
+            const page = await pdf.getPage(i);
+            const content = await page.getTextContent();
+            const pageText = content.items.map((item: any) => item.str).join(" ");
+            text += ` ${pageText}`;
+          }
+
+          if (!text || text.trim().length < 5) {
+            throw new Error("PDF contains no readable text or scanned images.");
+          }
+
+          const res = await fetch("/api/extract-syllabus", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text, fileName: file.name }),
+          });
+
+          if (res.ok) {
+            const data = await res.json();
+            if (Array.isArray(data.topics) && data.topics.length > 0) {
+              setExtractedTopics(data.topics);
+            } else {
+              throw new Error("Could not detect clear learning topics from PDF.");
+            }
+          } else {
+            throw new Error("Failed to extract syllabus from PDF.");
+          }
+        } catch (pdfErr: any) {
+          if (pdfErr?.name === "PasswordException" || pdfErr?.message?.includes("password")) {
+            throw new Error("PDF is password-protected. Please unlock it or type your goal manually.");
+          }
+          throw pdfErr;
+        }
+      } else {
+        // Image Vision extraction via /api/extract-syllabus (Gemini Vision API / Groq)
+        const reader = new FileReader();
+        const base64Promise = new Promise<string>((resolve, reject) => {
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+
+        const imageBase64 = await base64Promise;
+        const res = await fetch("/api/extract-syllabus", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            imageBase64,
+            mimeType: file.type || "image/png",
+            fileName: file.name,
+          }),
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data.topics) && data.topics.length > 0) {
+            setExtractedTopics(data.topics);
+          } else {
+            throw new Error("Scanned/blurry image or unreadable text. Try typing your goal manually.");
+          }
+        } else {
+          throw new Error("Could not extract topics from image.");
+        }
+      }
+    } catch (err: any) {
+      setFileError(err.message || "Could not extract text from this file. Try typing your goal manually.");
+    } finally {
+      setExtractingFile(false);
+    }
   };
 
   const handleGenerateCourse = async (targetGoal: string) => {
@@ -387,7 +494,7 @@ export default function OnboardingPage() {
         )}
 
         {/* Step 2: Goal Prompt Screen */}
-        {step === "goal" && !result && !loading && (
+        {step === "goal" && !result && !loading && extractedTopics.length === 0 && (
           <div className="text-center space-y-6 animate-fadeIn">
             <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#1B1B3A] border border-[#7C3AED]/40 text-xs text-[#22D3EE] font-mono">
               <CheckCircle2 className="w-3.5 h-3.5 text-[#34D399]" />
@@ -401,11 +508,11 @@ export default function OnboardingPage() {
               State your target role, exam, or skill. Tavily & Groq AI will construct your adaptive curriculum.
             </p>
 
-            <form onSubmit={handleSubmit} className="relative max-w-2xl mx-auto">
+            <form onSubmit={handleSubmit} className="relative max-w-2xl mx-auto space-y-3">
               <div className="relative flex items-center bg-[#1B1B3A] border border-[#7C3AED]/40 rounded-2xl p-2 shadow-2xl focus-within:border-[#22D3EE] focus-within:ring-2 focus-within:ring-[#22D3EE]/30 transition-all glow-box-violet">
                 <input
                   type="text"
-                  required
+                  required={!showFileUpload}
                   value={goal}
                   onChange={(e) => setGoal(e.target.value)}
                   placeholder="e.g. Python basics, or DSA for a FAANG interview"
@@ -418,6 +525,62 @@ export default function OnboardingPage() {
                 >
                   <Send className="w-5 h-5" />
                 </button>
+              </div>
+
+              {/* Optional Syllabus File Upload Link & Inline Input */}
+              <div className="text-center pt-1">
+                {!showFileUpload ? (
+                  <button
+                    type="button"
+                    onClick={() => setShowFileUpload(true)}
+                    className="inline-flex items-center gap-1.5 text-xs text-[#22D3EE] hover:underline font-mono font-bold cursor-pointer"
+                  >
+                    <Paperclip className="w-3.5 h-3.5 text-[#FBBF24]" />
+                    <span>or upload your syllabus (PDF / Image max 5MB)</span>
+                  </button>
+                ) : (
+                  <div className="bg-[#1B1B3A] border border-[#22D3EE]/40 rounded-2xl p-4 space-y-3 max-w-md mx-auto animate-fadeIn">
+                    <div className="flex items-center justify-between text-xs font-mono">
+                      <span className="text-[#22D3EE] font-bold flex items-center gap-1.5">
+                        <Upload className="w-3.5 h-3.5" /> Upload Syllabus File
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowFileUpload(false);
+                          setFileError(null);
+                        }}
+                        className="text-slate-400 hover:text-white"
+                      >
+                        ✕
+                      </button>
+                    </div>
+
+                    <label className="block w-full border-2 border-dashed border-white/20 hover:border-[#22D3EE]/60 rounded-xl p-4 text-center cursor-pointer transition-all bg-[#0A0A1A]">
+                      <FileText className="w-6 h-6 text-[#22D3EE] mx-auto mb-1" />
+                      <span className="text-xs text-slate-300 font-bold block">Select PDF or Image (JPG / PNG)</span>
+                      <span className="text-[10px] text-slate-500 block mt-0.5">Max file size 5MB</span>
+                      <input
+                        type="file"
+                        accept=".pdf,image/png,image/jpeg,image/webp"
+                        onChange={handleFileUpload}
+                        disabled={extractingFile}
+                        className="hidden"
+                      />
+                    </label>
+
+                    {extractingFile && (
+                      <div className="flex items-center justify-center gap-2 text-xs font-mono text-[#22D3EE]">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Parsing syllabus file & extracting topics...</span>
+                      </div>
+                    )}
+
+                    {fileError && (
+                      <p className="text-xs text-red-400 font-bold leading-relaxed">{fileError}</p>
+                    )}
+                  </div>
+                )}
               </div>
             </form>
 
@@ -443,6 +606,88 @@ export default function OnboardingPage() {
                   </button>
                 ))}
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Syllabus Extracted Topics Confirmation Screen */}
+        {extractedTopics.length > 0 && !result && !loading && (
+          <div className="bg-[#1B1B3A] border border-[#22D3EE]/40 rounded-3xl p-6 sm:p-8 text-center space-y-5 max-w-xl mx-auto shadow-2xl animate-fadeIn glow-box-cyan">
+            <div className="space-y-1">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#22D3EE]/20 border border-[#22D3EE]/40 text-[#22D3EE] text-xs font-mono font-bold mb-2">
+                <BookOpen className="w-3.5 h-3.5 text-[#FBBF24]" />
+                Syllabus Topics Extracted ({extractedTopics.length})
+              </div>
+              <h3 className="text-xl font-bold text-white font-heading">
+                We found these topics in your syllabus — look right?
+              </h3>
+              <p className="text-xs text-slate-300">
+                Remove any unwanted topics or add extra ones before generating your course.
+              </p>
+            </div>
+
+            {/* Extracted Topic Chips */}
+            <div className="flex flex-wrap justify-center gap-2 pt-2">
+              {extractedTopics.map((topic, idx) => (
+                <div
+                  key={idx}
+                  className="px-3 py-1.5 rounded-xl bg-[#0A0A1A] border border-[#22D3EE]/40 text-xs font-bold text-slate-200 flex items-center gap-2"
+                >
+                  <span>{topic}</span>
+                  <button
+                    type="button"
+                    onClick={() => setExtractedTopics(extractedTopics.filter((_, i) => i !== idx))}
+                    className="text-slate-400 hover:text-red-400 text-xs font-mono font-bold cursor-pointer"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            {/* Add Custom Topic Input */}
+            <div className="flex items-center gap-2 max-w-md mx-auto pt-2">
+              <input
+                type="text"
+                value={newTopicInput}
+                onChange={(e) => setNewTopicInput(e.target.value)}
+                placeholder="Add another topic..."
+                className="w-full bg-[#0A0A1A] border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-[#22D3EE]"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  if (newTopicInput.trim()) {
+                    setExtractedTopics([...extractedTopics, newTopicInput.trim()]);
+                    setNewTopicInput("");
+                  }
+                }}
+                className="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs cursor-pointer shrink-0"
+              >
+                + Add
+              </button>
+            </div>
+
+            <div className="pt-3 flex flex-col sm:flex-row gap-2">
+              <button
+                type="button"
+                onClick={() => setExtractedTopics([])}
+                className="w-full sm:w-1/3 py-3 rounded-2xl bg-white/5 hover:bg-white/10 text-slate-400 font-bold text-xs cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const combinedGoal = extractedTopics.join(", ");
+                  setGoal(combinedGoal);
+                  handleGenerateCourse(combinedGoal);
+                }}
+                disabled={extractedTopics.length === 0}
+                className="w-full sm:w-2/3 py-3 rounded-2xl bg-gradient-to-r from-[#7C3AED] to-[#22D3EE] hover:from-[#6D28D9] hover:to-[#06B6D4] text-white font-black font-heading text-xs uppercase tracking-wider transition-all cursor-pointer shadow-lg shadow-[#7C3AED]/30"
+              >
+                Generate Course from Syllabus →
+              </button>
             </div>
           </div>
         )}
