@@ -84,27 +84,27 @@ interface QuestContextType {
 }
 
 const DEFAULT_USER: UserProfile = {
-  id: "demo-user-1",
-  shareId: "demo-share-8842",
-  name: "Adventurer",
-  email: "adventurer@xpedition.com",
-  xp: 140,
-  level: levelFromXp(140),
-  streak: 3,
-  longestStreak: 5,
-  streakFreezes: 1,
+  id: "guest-user",
+  shareId: "guest-share",
+  name: "Learner",
+  email: "learner@xpedition.com",
+  xp: 0,
+  level: levelFromXp(0),
+  streak: 0,
+  longestStreak: 0,
+  streakFreezes: 0,
   lastActiveDate: new Date().toISOString().split("T")[0],
   timezone: typeof Intl !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC" : "UTC",
   motivationType: "badge",
   learningStyle: "story",
   styleStats: {
-    story: { attempts: 6, correct: 5 },
-    theory: { attempts: 5, correct: 4 },
-    code: { attempts: 8, correct: 7 },
-    stepwise: { attempts: 4, correct: 2 },
+    story: { attempts: 0, correct: 0 },
+    theory: { attempts: 0, correct: 0 },
+    code: { attempts: 0, correct: 0 },
+    stepwise: { attempts: 0, correct: 0 },
   },
   cohort: "adaptive",
-  unlockedBadges: ["First Quest Victory", "Goal Explorer"],
+  unlockedBadges: [],
 };
 
 const DEFAULT_COURSE: GoalEngineResponse = {
