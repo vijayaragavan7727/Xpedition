@@ -10,6 +10,7 @@ import {
   Code,
   Lightbulb,
   Compass,
+  Download,
 } from "lucide-react";
 import XpAsset from "./XpAsset";
 
@@ -277,8 +278,26 @@ export default function LearningModuleReader({
         )}
       </div>
 
-      {/* START TEST BUTTON — DISABLED UNTIL SCROLLED */}
-      <div className="pt-1">
+      {/* ACTION BUTTONS: DOWNLOAD NOTES + START TEST */}
+      <div className="pt-1 space-y-2">
+        {moduleData && moduleData.sections && moduleData.sections.length > 0 && (
+          <button
+            type="button"
+            onClick={async () => {
+              const { downloadModuleNotesPDF } = await import("@/lib/pdfExport");
+              downloadModuleNotesPDF({
+                skillName,
+                level: currentLevel,
+                moduleData,
+              });
+            }}
+            className="w-full py-3 px-5 rounded-2xl bg-[#0D0D1A] border border-[#00F0FF]/40 text-[#00F0FF] hover:bg-[#00F0FF]/10 font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer font-mono"
+          >
+            <Download className="w-4 h-4 text-[#00FF87]" />
+            <span>Download Module Notes (.PDF)</span>
+          </button>
+        )}
+
         <button
           type="button"
           onClick={onStartTest}

@@ -23,6 +23,7 @@ import {
   Shield,
   HelpCircle,
   Sparkles,
+  Download,
 } from "lucide-react";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { getTopArmInsight, RewardArm } from "@/lib/bandit";
@@ -31,7 +32,7 @@ import XpAsset from "@/components/XpAsset";
 import LearnerOnboardingModal from "@/components/LearnerOnboardingModal";
 
 export default function ProfilePage() {
-  const { user, isAuthLoading, course, goalText, saveUserProfile } = useQuest();
+  const { user, isAuthLoading, course, goalText, activeSkillIndex, saveUserProfile } = useQuest();
   const progress = xpProgress(user.xp);
 
   // Editable display name & onboarding state
@@ -349,6 +350,74 @@ export default function ProfilePage() {
             </div>
           </div>
         )}
+
+        {/* MY MODULE NOTES SECTION */}
+        <section className="bg-[#0D0D1A] border border-[#00F0FF]/30 rounded-3xl p-5 shadow-lg space-y-4 glow-cyan">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xs font-bold text-[#00F0FF] font-mono uppercase tracking-wider flex items-center gap-2">
+              <BookOpen className="w-4 h-4 text-[#00FF87]" />
+              <span>My Module Notes & Downloads</span>
+            </h2>
+            <span className="text-[10px] font-mono text-slate-400">Client PDF</span>
+          </div>
+
+          <p className="text-xs text-slate-300">
+            Download comprehensive study notes & worked examples for your completed skill modules:
+          </p>
+
+          <div className="space-y-2.5">
+            {(course?.skills || []).slice(0, activeSkillIndex + 1).map((skill, idx) => (
+              <div
+                key={skill.id || idx}
+                className="p-3.5 rounded-2xl bg-[#000000] border border-white/10 flex items-center justify-between gap-3 text-xs"
+              >
+                <div className="truncate">
+                  <span className="text-white font-bold font-heading truncate block">
+                    {skill.name}
+                  </span>
+                  <span className="text-[10px] font-mono text-[#00FF87]">
+                    Level 1, Level 2, Level 3 Study Modules
+                  </span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      const res = await fetch("/api/generate-module", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          skillId: skill.id,
+                          skillName: skill.name,
+                          level: 1,
+                          learningStyle: user.learningStyle || "story",
+                          goal: goalText,
+                        }),
+                      });
+                      if (res.ok) {
+                        const mData = await res.json();
+                        const { downloadModuleNotesPDF } = await import("@/lib/pdfExport");
+                        downloadModuleNotesPDF({
+                          skillName: skill.name,
+                          level: 1,
+                          moduleData: mData,
+                          userName: user.name,
+                        });
+                      }
+                    } catch (e) {
+                      console.warn("Failed fetching module for notes download:", e);
+                    }
+                  }}
+                  className="px-3.5 py-2 rounded-xl bg-[#00F0FF]/10 border border-[#00F0FF]/40 text-[#00F0FF] hover:bg-[#00F0FF]/20 font-bold font-mono text-[11px] shrink-0 flex items-center gap-1.5 transition-all cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5 text-[#00FF87]" />
+                  <span>PDF Notes</span>
+                </button>
+              </div>
+            ))}
+          </div>
+        </section>
 
         {/* Learner Context & Preferences Settings Card */}
         <section className="bg-[#0D0D1A] border border-[#00F0FF]/30 rounded-3xl p-5 shadow-lg space-y-3 glow-cyan">
