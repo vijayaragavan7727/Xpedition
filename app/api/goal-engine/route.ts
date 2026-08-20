@@ -91,11 +91,23 @@ Respond with STRICT JSON ONLY. Do not wrap in markdown backticks. The JSON struc
   "firstQuestion": {
     "prompt": "An engaging multiple-choice diagnostic/quest question related to the first skill",
     "options": ["Option A", "Option B", "Option C", "Option D"],
-    "correctIndex": 0
+    "correctIndex": 0,
+    "explanations": [
+      "Why Option A is correct or wrong — be specific to the concept, not generic",
+      "Why Option B is correct or wrong — be specific to the concept, not generic",
+      "Why Option C is correct or wrong — be specific to the concept, not generic",
+      "Why Option D is correct or wrong — be specific to the concept, not generic"
+    ],
+    "conceptSummary": "A 1-2 sentence explanation of the core concept this question tests, giving the learner the key insight they need."
   }
 }
 
-Attribute each generated skill to whichever of the provided sources best covers it in the sourceUrl property. Provide 4 to 6 core skills ordered logically from foundational to advanced.`;
+Rules:
+- explanations must have exactly 4 strings, one per option, in the same order as options[].
+- Each explanation must be specific to why that option is right or wrong — never say just 'this is incorrect'.
+- conceptSummary must teach the underlying principle, not just restate which answer is right.
+- Attribute each generated skill to whichever of the provided sources best covers it in the sourceUrl property.
+- Provide 4 to 6 core skills ordered logically from foundational to advanced.`;
 
         const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
           method: "POST",

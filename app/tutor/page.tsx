@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 
 export default function TutorPage() {
-  const { currentQuestion, course, activeSkillIndex } = useQuest();
+  const { currentQuestion, course, activeSkillIndex, pKnow } = useQuest();
 
   const currentSkillName =
     course?.skills[activeSkillIndex]?.name || "Python Core Syntax & Data Structures";
@@ -28,9 +28,7 @@ export default function TutorPage() {
   const [isSupported, setIsSupported] = useState(true);
   const [activeSpeechText, setActiveSpeechText] = useState("I don't understand the base case");
   const [fallbackInput, setFallbackInput] = useState("");
-  const [tutorHint, setTutorHint] = useState(
-    "The base case is the condition where a recursive function stops calling itself — preventing infinite loops!"
-  );
+  const [tutorHint, setTutorHint] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
 
@@ -73,6 +71,7 @@ export default function TutorPage() {
     if (!transcript.trim()) return;
     setLoading(true);
     setActiveSpeechText(transcript);
+    setTutorHint(null);
 
     try {
       const res = await fetch("/api/tutor", {
@@ -82,20 +81,22 @@ export default function TutorPage() {
           question: { prompt: questionPrompt, options: currentQuestion?.options },
           userTranscript: transcript,
           skillName: currentSkillName,
+          masteryLevel: pKnow,
         }),
       });
 
-      if (res.ok) {
-        const data = await res.json();
-        const hintText = data.hint || "Analyze the core constraints of the question to narrow down your choices.";
-        setTutorHint(hintText);
-        speakText(hintText);
+      const data = await res.json();
+
+      if (res.ok && data.hint) {
+        setTutorHint(data.hint);
+        speakText(data.hint);
+      } else {
+        throw new Error(data.error || "Couldn't reach the tutor, try again");
       }
-    } catch (err) {
+    } catch (err: any) {
       console.warn("Tutor page API error:", err);
-      const fallbackText = "Remember that tuples use parentheses and cannot be modified, whereas lists use square brackets.";
-      setTutorHint(fallbackText);
-      speakText(fallbackText);
+      const errMsg = err.message || "Couldn't reach the tutor, try again";
+      setTutorHint(errMsg);
     } finally {
       setLoading(false);
     }
@@ -277,22 +278,24 @@ export default function TutorPage() {
           </div>
 
           {/* AI Tutor Bubble */}
-          <div className="bg-[#0A0A1A] border border-[#34D399]/40 rounded-2xl p-4 text-xs sm:text-sm text-slate-200 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-mono text-[#34D399] flex items-center gap-1.5 font-bold">
-                <Volume2 className="w-3.5 h-3.5 text-[#34D399]" />
-                XPEDITION TUTOR RESPONSE
-              </span>
-              <button
-                onClick={() => speakText(tutorHint)}
-                className="text-[11px] font-mono text-[#22D3EE] hover:underline flex items-center gap-1 cursor-pointer"
-              >
-                <Play className="w-3 h-3" />
-                <span>{isSpeaking ? "Speaking..." : "Read Aloud"}</span>
-              </button>
+          {tutorHint && (
+            <div className="bg-[#0A0A1A] border border-[#34D399]/40 rounded-2xl p-4 text-xs sm:text-sm text-slate-200 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-mono text-[#34D399] flex items-center gap-1.5 font-bold">
+                  <Volume2 className="w-3.5 h-3.5 text-[#34D399]" />
+                  XPEDITION TUTOR RESPONSE
+                </span>
+                <button
+                  onClick={() => speakText(tutorHint)}
+                  className="text-[11px] font-mono text-[#22D3EE] hover:underline flex items-center gap-1 cursor-pointer"
+                >
+                  <Play className="w-3 h-3" />
+                  <span>{isSpeaking ? "Speaking..." : "Read Aloud"}</span>
+                </button>
+              </div>
+              <p className="leading-relaxed font-medium text-white">{tutorHint}</p>
             </div>
-            <p className="leading-relaxed font-medium text-white">{tutorHint}</p>
-          </div>
+          )}
         </div>
 
         {/* Back to Quest CTA */}

@@ -17,6 +17,11 @@ export interface Question {
   prompt: string;
   options: [string, string, string, string] | string[];
   correctIndex: number;
+  /** Per-option explanations: index matches options[]. Why each wrong option is wrong, why the correct one is right. */
+  explanations?: string[];
+  /** One-paragraph concept summary shown after answering — the core insight behind the question. */
+  conceptSummary?: string;
+  /** Legacy single explanation field (kept for backwards compat with peer quests) */
   explanation?: string;
   isPeerQuest?: boolean;
   authorName?: string;

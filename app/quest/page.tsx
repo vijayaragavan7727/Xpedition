@@ -21,7 +21,6 @@ import {
   CheckCircle2,
   XCircle,
   Loader2,
-  Trophy,
   Flame,
   HelpCircle,
   Info,
@@ -57,6 +56,8 @@ export default function QuestPage() {
 
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [isAnswered, setIsAnswered] = useState(false);
+  // showExplanation stays true until the learner explicitly taps "Continue"
+  const [showExplanation, setShowExplanation] = useState(false);
   const [loadingNext, setLoadingNext] = useState(false);
   const [activeRewardDrop, setActiveRewardDrop] = useState<RewardDrop | null>(null);
   const [userArms, setUserArms] = useState<RewardArm[]>([]);
@@ -71,6 +72,7 @@ export default function QuestPage() {
   useEffect(() => {
     setRenderTimestamp(Date.now());
     setHintsUsedCount(0);
+    setShowExplanation(false);
     fetchUserArms();
   }, [currentQuestion, user]);
 
@@ -176,6 +178,7 @@ export default function QuestPage() {
 
     setSelectedIndex(index);
     setIsAnswered(true);
+    setShowExplanation(true);
 
     const isCorrect = index === question.correctIndex;
     answerQuestion(isCorrect, latencyMs, hintsUsedCount);
@@ -190,18 +193,24 @@ export default function QuestPage() {
       setConfidenceMeter((prev) => Math.min(100, prev + 30));
       setDoubtGrip((prev) => Math.max(0, prev - 30));
       setDoubtDefeated(true);
-
-      setTimeout(() => {
-        setDoubtDefeated(false);
-        const reward = pickBanditRewardDrop();
-        setActiveRewardDrop(reward);
-      }, 1000);
+      setTimeout(() => setDoubtDefeated(false), 1200);
+      // Reward modal will appear when learner taps Continue → handleContinueAfterAnswer
     } else {
       setConfidenceMeter((prev) => Math.max(0, prev - 15));
       setDoubtGrip((prev) => Math.min(100, prev + 20));
-      setTimeout(() => {
-        fetchNextQuestion(false);
-      }, 1500);
+      // No auto-advance — learner must read the explanation and tap Continue
+    }
+  };
+
+  // Called when the learner taps "Continue" in the explanation panel
+  const handleContinueAfterAnswer = async () => {
+    const isCorrect = selectedIndex === question.correctIndex;
+    setShowExplanation(false);
+    if (isCorrect) {
+      const reward = pickBanditRewardDrop();
+      setActiveRewardDrop(reward);
+    } else {
+      await fetchNextQuestion(false);
     }
   };
 
@@ -461,42 +470,105 @@ export default function QuestPage() {
             })}
           </div>
 
-          {/* Feedback & Loading State */}
-          {isAnswered && !activeRewardDrop && (
+          {/* Rich Explanation Panel — stays visible until learner taps Continue */}
+          {showExplanation && !activeRewardDrop && (
             <div className="space-y-3 pt-2 animate-fadeIn">
-              <div
-                className={`p-4 rounded-2xl border flex items-center justify-between ${
-                  isCorrectChoice
-                    ? "bg-[#34D399]/10 border-[#34D399]/40 text-[#34D399]"
-                    : "bg-red-500/10 border-red-500/40 text-red-400"
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  {isCorrectChoice ? (
-                    <Trophy className="w-6 h-6 shrink-0" />
-                  ) : (
-                    <XCircle className="w-6 h-6 shrink-0" />
+              {isCorrectChoice ? (
+                /* ── CORRECT ANSWER PANEL ── */
+                <div className="bg-[#34D399]/10 border border-[#34D399]/40 rounded-2xl p-5 space-y-3">
+                  <div className="flex items-center gap-3 text-[#34D399]">
+                    <CheckCircle2 className="w-6 h-6 shrink-0" />
+                    <p className="font-bold font-heading text-sm">Correct! Well done.</p>
+                  </div>
+                  {/* Per-option explanation for the correct pick */}
+                  {question.explanations?.[question.correctIndex] && (
+                    <p className="text-sm text-[#34D399]/90 leading-relaxed border-l-2 border-[#34D399]/50 pl-3">
+                      {question.explanations[question.correctIndex]}
+                    </p>
                   )}
-                  <div>
-                    <p className="font-bold text-sm font-heading">
-                      {isCorrectChoice ? "Correct! Sampling Bandit Drop..." : "Incorrect Answer"}
-                    </p>
-                    <p className="text-xs opacity-90">
-                      {question.explanation ||
-                        (isCorrectChoice
-                          ? "Thompson Sampling selected optimal reward arm."
-                          : `Correct option: "${question.options[question.correctIndex]}"`)}
-                    </p>
-                  </div>
+                  {/* Concept summary */}
+                  {question.conceptSummary && (
+                    <div className="bg-white/5 rounded-xl p-3 space-y-1">
+                      <p className="text-[10px] font-mono font-bold text-[#22D3EE] uppercase tracking-wider">📚 Core Concept</p>
+                      <p className="text-xs text-slate-300 leading-relaxed">{question.conceptSummary}</p>
+                    </div>
+                  )}
+                  {/* Learn More link */}
+                  {currentSkill.sourceUrl && (
+                    <a
+                      href={currentSkill.sourceUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 text-xs font-mono text-[#22D3EE] hover:underline"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      Learn more about this concept
+                    </a>
+                  )}
+                  <button
+                    onClick={handleContinueAfterAnswer}
+                    disabled={loadingNext}
+                    className="w-full mt-1 py-2.5 rounded-xl bg-[#34D399] hover:bg-[#059669] text-black font-black font-heading text-sm transition-all cursor-pointer flex items-center justify-center gap-2"
+                  >
+                    {loadingNext ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                    Claim Reward & Continue →
+                  </button>
                 </div>
-
-                {loadingNext && (
-                  <div className="flex items-center gap-2 text-xs font-mono text-[#22D3EE]">
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span className="hidden sm:inline">Generating...</span>
+              ) : (
+                /* ── WRONG ANSWER PANEL ── */
+                <div className="bg-red-500/10 border border-red-500/40 rounded-2xl p-5 space-y-3">
+                  <div className="flex items-center gap-3 text-red-400">
+                    <XCircle className="w-6 h-6 shrink-0" />
+                    <p className="font-bold font-heading text-sm">Not quite — here's why:</p>
                   </div>
-                )}
-              </div>
+                  {/* Why THEIR choice was wrong */}
+                  {selectedIndex !== null && question.explanations?.[selectedIndex] && (
+                    <div className="space-y-1">
+                      <p className="text-[10px] font-mono font-bold text-red-400/80 uppercase tracking-wider">Your choice: {String.fromCharCode(65 + selectedIndex)}</p>
+                      <p className="text-sm text-red-300/90 leading-relaxed border-l-2 border-red-500/50 pl-3">
+                        {question.explanations[selectedIndex]}
+                      </p>
+                    </div>
+                  )}
+                  {/* Correct answer highlighted */}
+                  <div className="bg-[#34D399]/10 border border-[#34D399]/30 rounded-xl p-3 space-y-1">
+                    <p className="text-[10px] font-mono font-bold text-[#34D399] uppercase tracking-wider">✓ Correct Answer: {String.fromCharCode(65 + question.correctIndex)}</p>
+                    <p className="text-sm font-semibold text-[#34D399]">{question.options[question.correctIndex]}</p>
+                    {question.explanations?.[question.correctIndex] && (
+                      <p className="text-xs text-[#34D399]/80 leading-relaxed">
+                        {question.explanations[question.correctIndex]}
+                      </p>
+                    )}
+                  </div>
+                  {/* Concept summary */}
+                  {question.conceptSummary && (
+                    <div className="bg-white/5 rounded-xl p-3 space-y-1">
+                      <p className="text-[10px] font-mono font-bold text-[#22D3EE] uppercase tracking-wider">📚 Core Concept</p>
+                      <p className="text-xs text-slate-300 leading-relaxed">{question.conceptSummary}</p>
+                    </div>
+                  )}
+                  {/* Learn More link */}
+                  {currentSkill.sourceUrl && (
+                    <a
+                      href={currentSkill.sourceUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 text-xs font-mono text-[#22D3EE] hover:underline"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      Learn more about this concept
+                    </a>
+                  )}
+                  <button
+                    onClick={handleContinueAfterAnswer}
+                    disabled={loadingNext}
+                    className="w-full mt-1 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-white font-black font-heading text-sm transition-all cursor-pointer flex items-center justify-center gap-2"
+                  >
+                    {loadingNext ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                    Got it — Continue →
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -539,6 +611,7 @@ export default function QuestPage() {
         questionPrompt={question.prompt}
         skillName={currentSkill.name}
         options={question.options}
+        masteryLevel={pKnow}
         onHintRequested={() => setHintsUsedCount((prev) => prev + 1)}
       />
 

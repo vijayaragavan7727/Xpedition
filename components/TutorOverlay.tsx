@@ -9,6 +9,7 @@ interface TutorOverlayProps {
   questionPrompt: string;
   skillName: string;
   options?: string[];
+  masteryLevel?: number;
   onHintRequested?: () => void;
 }
 
@@ -18,6 +19,7 @@ export default function TutorOverlay({
   questionPrompt,
   skillName,
   options,
+  masteryLevel,
   onHintRequested,
 }: TutorOverlayProps) {
   const [isListening, setIsListening] = useState(false);
@@ -71,6 +73,7 @@ export default function TutorOverlay({
     if (!transcript.trim()) return;
     setLoading(true);
     setErrorMsg(null);
+    setAiHint(null);
     if (onHintRequested) onHintRequested();
 
     try {
@@ -81,22 +84,22 @@ export default function TutorOverlay({
           question: { prompt: questionPrompt, options },
           userTranscript: transcript,
           skillName,
+          masteryLevel,
         }),
       });
 
-      if (res.ok) {
-        const data = await res.json();
-        const hintText = data.hint || "Consider comparing the fundamental properties of each option carefully.";
-        setAiHint(hintText);
-        speakText(hintText);
+      const data = await res.json();
+
+      if (res.ok && data.hint) {
+        setAiHint(data.hint);
+        speakText(data.hint);
       } else {
-        throw new Error("Failed to fetch tutor hint");
+        throw new Error(data.error || "Couldn't reach the tutor, try again");
       }
-    } catch (err) {
+    } catch (err: any) {
       console.warn("Tutor API error:", err);
-      const fallbackHint = "Focus on the defining properties of this concept. Eliminate options that violate the given constraints.";
-      setAiHint(fallbackHint);
-      speakText(fallbackHint);
+      setErrorMsg(err.message || "Couldn't reach the tutor, try again");
+      setAiHint(null);
     } finally {
       setLoading(false);
     }
