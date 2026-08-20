@@ -40,6 +40,7 @@ import {
   Globe,
   Scale,
   BookOpen,
+  ShieldAlert,
 } from "lucide-react";
 import TutorOverlay from "@/components/TutorOverlay";
 import SquidAsset from "@/components/SquidAsset";
@@ -723,10 +724,21 @@ export default function QuestPage() {
               {isCorrectChoice ? (
                 /* ── CORRECT ANSWER PANEL ── */
                 <div className="bg-[#34D399]/10 border border-[#34D399]/40 rounded-2xl p-5 space-y-3">
-                  <div className="flex items-center gap-3 text-[#34D399]">
-                    <CheckCircle2 className="w-6 h-6 shrink-0" />
-                    <p className="font-bold font-heading text-sm">Correct! Well done.</p>
+                  <div className="flex items-center justify-between text-[#34D399]">
+                    <div className="flex items-center gap-3">
+                      <CheckCircle2 className="w-6 h-6 shrink-0" />
+                      <p className="font-bold font-heading text-sm">Correct! Well done.</p>
+                    </div>
                   </div>
+
+                  {/* Visible Adaptation Line */}
+                  <div className="bg-[#22D3EE]/15 border border-[#22D3EE]/40 rounded-xl p-2.5 flex items-center gap-2 text-xs font-mono text-[#22D3EE]">
+                    <Sparkles className="w-4 h-4 text-[#FBBF24] shrink-0" />
+                    <span>
+                      Visible Adaptation: Mastery increased to {Math.round(pKnow * 100)}% P(know). Flow calibrated to Level {flowDifficulty}.
+                    </span>
+                  </div>
+
                   {/* Per-option explanation for the correct pick */}
                   {question.explanations?.[question.correctIndex] && (
                     <p className="text-sm text-[#34D399]/90 leading-relaxed border-l-2 border-[#34D399]/50 pl-3">
@@ -767,6 +779,14 @@ export default function QuestPage() {
                   <div className="flex items-center gap-3 text-red-400">
                     <XCircle className="w-6 h-6 shrink-0" />
                     <p className="font-bold font-heading text-sm">Not quite — here's why:</p>
+                  </div>
+
+                  {/* Visible Adaptation Line */}
+                  <div className="bg-[#FB7185]/15 border border-[#FB7185]/40 rounded-xl p-2.5 flex items-center gap-2 text-xs font-mono text-[#FB7185]">
+                    <ShieldAlert className="w-4 h-4 text-[#FB7185] shrink-0" />
+                    <span>
+                      Visible Adaptation: Targeted reinforcement active for {currentSkill.name}. Calibrated to Level {flowDifficulty}.
+                    </span>
                   </div>
                   {/* Why THEIR choice was wrong */}
                   {selectedIndex !== null && question.explanations?.[selectedIndex] && (
