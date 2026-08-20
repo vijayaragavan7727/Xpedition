@@ -227,10 +227,9 @@ export default function RewardModal({ reward, question, onClaim }: RewardModalPr
 
           <button
             onClick={handleFinish}
-            className="flex-1 py-3 px-4 min-h-[44px] rounded-2xl bg-gradient-to-r from-[#7C3AED] via-[#22D3EE] to-[#34D399] hover:opacity-95 text-black font-bold text-xs transition-all shadow-lg shadow-[#7C3AED]/30 flex items-center justify-center gap-1.5 cursor-pointer font-heading tracking-wide"
+            className="flex-1 py-3.5 px-4 min-h-[44px] rounded-2xl bg-gradient-to-r from-[#7C3AED] via-[#22D3EE] to-[#34D399] hover:opacity-95 text-black font-black text-xs transition-all shadow-lg shadow-[#7C3AED]/30 flex items-center justify-center gap-1.5 cursor-pointer font-heading tracking-wide uppercase"
           >
-            <span>Claim & Continue</span>
-            <ChevronRight className="w-4 h-4" />
+            <span>Start Next Quest →</span>
           </button>
         </div>
       </div>
