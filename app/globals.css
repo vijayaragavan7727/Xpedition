@@ -1,24 +1,26 @@
 @import "tailwindcss";
 
 :root {
-  --background: #0A0A1A;
+  --background: #000000;
   --foreground: #F8FAFC;
-  --card-bg: #1B1B3A;
+  --card-bg: #0D0D1A;
   --card-border: rgba(255, 255, 255, 0.08);
-  --accent-violet: #7C3AED;
-  --accent-cyan: #22D3EE;
-  --accent-amber: #FBBF24;
-  --accent-green: #34D399;
+  --accent-cyan: #00F0FF;
+  --accent-green: #00FF87;
+  --accent-purple: #A855F7;
+  --accent-magenta: #FF0055;
+  --accent-gold: #FFB800;
 }
 
 @theme {
-  --color-xp-bg: #0A0A1A;
-  --color-xp-card: #1B1B3A;
+  --color-xp-bg: #000000;
+  --color-xp-card: #0D0D1A;
   --color-xp-border: rgba(255, 255, 255, 0.08);
-  --color-xp-violet: #7C3AED;
-  --color-xp-cyan: #22D3EE;
-  --color-xp-amber: #FBBF24;
-  --color-xp-green: #34D399;
+  --color-xp-cyan: #00F0FF;
+  --color-xp-green: #00FF87;
+  --color-xp-purple: #A855F7;
+  --color-xp-magenta: #FF0055;
+  --color-xp-gold: #FFB800;
   --color-xp-muted: #94A3B8;
   --font-sans: var(--font-inter), 'Inter', sans-serif;
   --font-heading: var(--font-heading), 'Outfit', 'Plus Jakarta Sans', sans-serif;
@@ -36,34 +38,33 @@ body {
 .bg-grid-pattern {
   background-size: 40px 40px;
   background-image: 
-    linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+    linear-gradient(to right, rgba(0, 240, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(0, 240, 255, 0.03) 1px, transparent 1px);
 }
 
-.glow-box-violet {
-  box-shadow: 0 0 30px -5px rgba(124, 58, 237, 0.4);
+.glow-box-cyan, .glow-cyan {
+  box-shadow: 0 0 25px -3px rgba(0, 240, 255, 0.4);
 }
 
-.glow-box-cyan {
-  box-shadow: 0 0 30px -5px rgba(34, 211, 238, 0.4);
+.glow-box-green, .glow-green {
+  box-shadow: 0 0 25px -3px rgba(0, 255, 135, 0.4);
 }
 
-.glow-box-amber {
-  box-shadow: 0 0 30px -5px rgba(251, 191, 36, 0.4);
+.glow-box-purple, .glow-purple, .glow-box-violet {
+  box-shadow: 0 0 25px -3px rgba(168, 85, 247, 0.4);
 }
 
-.glow-box-green {
-  box-shadow: 0 0 30px -5px rgba(52, 211, 153, 0.4);
+.glow-box-magenta, .glow-magenta, .glow-box-red {
+  box-shadow: 0 0 25px -3px rgba(255, 0, 85, 0.4);
 }
 
-.border-glow-violet:hover {
-  border-color: rgba(124, 58, 237, 0.5);
-  box-shadow: 0 0 20px rgba(124, 58, 237, 0.3);
+.glow-box-gold, .glow-gold, .glow-box-amber {
+  box-shadow: 0 0 25px -3px rgba(255, 184, 0, 0.4);
 }
 
 .border-glow-cyan:hover {
-  border-color: rgba(34, 211, 238, 0.5);
-  box-shadow: 0 0 20px rgba(34, 211, 238, 0.3);
+  border-color: rgba(0, 240, 255, 0.6);
+  box-shadow: 0 0 20px rgba(0, 240, 255, 0.3);
 }
 
 @keyframes pulseGlow {

@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 
 import SquidAsset from "@/components/SquidAsset";
+import XpAsset from "@/components/XpAsset";
 
 interface RewardModalProps {
   reward: RewardDrop;
@@ -104,21 +105,21 @@ export default function RewardModal({ reward, question, onClaim }: RewardModalPr
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fadeIn overflow-y-auto">
-      <div className="relative w-full max-w-lg bg-[#1B1B3A] border border-[#7C3AED]/50 rounded-3xl p-5 sm:p-6 text-center shadow-2xl overflow-hidden my-auto space-y-4">
+      <div className="relative w-full max-w-lg bg-[#0D0D1A] border border-[#00F0FF]/50 rounded-3xl p-5 sm:p-6 text-center shadow-2xl overflow-hidden my-auto space-y-4 glow-cyan">
         {/* Background Glows */}
-        <div className="absolute -top-10 -left-10 w-40 h-40 bg-[#7C3AED]/30 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-10 -right-10 w-40 h-40 bg-[#22D3EE]/30 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -top-10 -left-10 w-40 h-40 bg-[#A855F7]/30 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-10 -right-10 w-40 h-40 bg-[#00F0FF]/30 rounded-full blur-3xl pointer-events-none" />
 
         {/* 1. COMPACT REWARD REVEAL (Top 1/3 of modal) */}
-        <section className="bg-[#0A0A1A]/80 border border-white/10 rounded-2xl p-3.5 flex items-center gap-3 text-left">
-          <SquidAsset name="guard_square" alt="Supervisor Guard Inspector" width={40} height={40} className="shrink-0" />
+        <section className="bg-[#000000]/80 border border-white/10 rounded-2xl p-3.5 flex items-center gap-3 text-left">
+          <XpAsset name="crown" alt="Crown Icon" width={40} height={40} className="shrink-0 text-[#FFB800]" />
 
           <div className="flex-1 truncate">
             <div className="flex items-center justify-between gap-2">
-              <span className="text-[10px] font-mono font-bold text-[#22D3EE] uppercase tracking-wider">
+              <span className="text-[10px] font-mono font-bold text-[#00F0FF] uppercase tracking-wider">
                 Bandit Reward Unlocked
               </span>
-              <span className="text-xs font-mono font-bold text-[#FBBF24]">
+              <span className="text-xs font-mono font-bold text-[#FFB800]">
                 +{treatment.xpBonus} XP
               </span>
             </div>
@@ -130,13 +131,13 @@ export default function RewardModal({ reward, question, onClaim }: RewardModalPr
         </section>
 
         {/* 2. REINFORCE LEARNING SECTION */}
-        <section className="bg-[#12122C] border border-[#7C3AED]/40 rounded-2xl p-4 text-left space-y-3">
+        <section className="bg-[#000000] border border-[#A855F7]/40 rounded-2xl p-4 text-left space-y-3">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-xs font-mono font-bold text-[#22D3EE]">
-              <SquidAsset name="dalgona" alt="Dalgona Candy Precision Check" width={22} height={22} />
+            <div className="flex items-center gap-2 text-xs font-mono font-bold text-[#00F0FF]">
+              <XpAsset name="target" alt="Target Check" width={22} height={22} className="text-[#00FF87]" />
               <span>REINFORCE YOUR MASTERY</span>
             </div>
-            <span className="text-[10px] font-mono text-[#34D399] font-bold">
+            <span className="text-[10px] font-mono text-[#00FF87] font-bold">
               Bonus +15 XP Quick-Check
             </span>
           </div>

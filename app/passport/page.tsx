@@ -22,6 +22,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 import SquidAsset from "@/components/SquidAsset";
+import XpAsset from "@/components/XpAsset";
 import { getModuleTheme } from "@/lib/moduleThemes";
 
 interface SkillMasteryItem {
@@ -292,7 +293,7 @@ export default function PassportPage() {
                   <div key={skill.id || idx} className="space-y-1.5 bg-[#0A0A1A]/60 p-3 rounded-2xl border border-white/5">
                     <div className="flex items-center justify-between text-xs font-mono gap-2">
                       <div className="flex items-center gap-2 truncate">
-                        <SquidAsset name={mTheme.assetName} alt={mTheme.themeName} width={20} height={20} className="shrink-0" />
+                        <XpAsset name={mTheme.iconName} alt={mTheme.themeName} width={20} height={20} className="shrink-0 text-[#00F0FF]" />
                         <span className="text-slate-200 font-semibold truncate">{skill.name}</span>
                         <span className={`text-[9px] font-mono font-bold px-2 py-0.2 rounded-full border ${mTheme.badgeStyle} shrink-0 hidden sm:inline-block`}>
                           {mTheme.intensityLabel}

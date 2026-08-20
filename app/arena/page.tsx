@@ -20,6 +20,7 @@ import {
 
 import { getOrRefreshActiveRound, ArenaRound } from "@/lib/arenaEngine";
 import SquidAsset from "@/components/SquidAsset";
+import XpAsset from "@/components/XpAsset";
 
 interface StandingPlayer {
   rank: number;
@@ -100,7 +101,7 @@ export default function EliminationArenaPage() {
 
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <SquidAsset name="vip_mask" alt="Golden VIP Tournament Mask" width={40} height={40} className="shrink-0" />
+              <XpAsset name="crown" alt="Golden Tournament Crown" width={40} height={40} className="shrink-0 text-[#FFB800]" />
               <div>
                 <h1 className="text-2xl sm:text-3xl font-black text-white font-heading">
                   Weekly Tournament

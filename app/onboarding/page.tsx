@@ -30,6 +30,7 @@ import {
   X,
 } from "lucide-react";
 import SquidAsset from "@/components/SquidAsset";
+import XpAsset from "@/components/XpAsset";
 
 const POPULAR_QUICKSTART_GOALS = [
   { id: "python", title: "Python Basics", desc: "Syntax, data structures & functions", icon: "🐍", query: "Python Basics for Beginners" },
@@ -415,7 +416,7 @@ export default function OnboardingPage() {
             </div>
 
             <div className="flex items-center justify-center gap-3">
-              <SquidAsset name="invitation" alt="Game Invitation Card" width={40} height={40} className="shrink-0" />
+              <XpAsset name="sparkles" alt="Goal Analysis Icon" width={40} height={40} className="shrink-0 text-[#00F0FF]" />
               <h1 className="text-3xl sm:text-5xl font-black text-white font-heading tracking-tight">
                 What do you want to learn?
               </h1>

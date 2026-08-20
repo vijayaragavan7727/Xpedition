@@ -82,21 +82,21 @@ export default function LandingPage() {
   };
 
   return (
-    <main className="min-h-screen bg-[#0A0A1A] bg-grid-pattern relative flex flex-col justify-between overflow-hidden">
-      {/* Background Glows */}
-      <div className="absolute top-[-10%] left-[20%] w-[500px] h-[500px] bg-[#7C3AED]/20 rounded-full blur-[140px] pointer-events-none animate-pulse-slow" />
-      <div className="absolute bottom-[-10%] right-[10%] w-[450px] h-[450px] bg-[#22D3EE]/20 rounded-full blur-[140px] pointer-events-none animate-pulse-slow" />
+    <main className="min-h-screen bg-[#000000] bg-grid-pattern text-white relative flex flex-col justify-between overflow-x-hidden">
+      {/* Background Orbs */}
+      <div className="absolute top-0 left-1/4 w-[500px] h-[500px] bg-[#A855F7]/15 rounded-full blur-[160px] pointer-events-none" />
+      <div className="absolute bottom-10 right-10 w-[500px] h-[500px] bg-[#00F0FF]/15 rounded-full blur-[160px] pointer-events-none" />
 
       {/* Header */}
       <header className="w-full max-w-7xl mx-auto px-6 py-6 flex items-center justify-between z-10">
         <div className="flex items-center gap-3">
-          <div className="p-2.5 rounded-xl bg-gradient-to-br from-[#7C3AED] to-[#22D3EE] shadow-lg shadow-[#7C3AED]/30">
-            <Compass className="w-7 h-7 text-white animate-spin-slow" />
+          <div className="p-2.5 rounded-xl bg-gradient-to-br from-[#00F0FF] to-[#A855F7] shadow-lg shadow-[#00F0FF]/30">
+            <Compass className="w-7 h-7 text-black animate-spin-slow" />
           </div>
           <div>
             <h1 className="text-2xl font-extrabold tracking-tight font-heading text-white flex items-center gap-2">
               XPEDITION
-              <span className="text-xs px-2 py-0.5 rounded-full bg-[#7C3AED]/30 border border-[#7C3AED]/50 text-[#22D3EE] font-mono">
+              <span className="text-xs px-2 py-0.5 rounded-full bg-[#A855F7]/20 border border-[#A855F7]/40 text-[#00F0FF] font-mono">
                 v1.0
               </span>
             </h1>
@@ -104,17 +104,17 @@ export default function LandingPage() {
           </div>
         </div>
 
-        <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#1B1B3A] border border-white/10 text-xs text-[#22D3EE]">
-          <Sparkles className="w-4 h-4 text-[#FBBF24]" />
+        <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#0D0D1A] border border-white/10 text-xs text-[#00F0FF]">
+          <Sparkles className="w-4 h-4 text-[#FFB800]" />
           <span>Supabase Auth & DB Active</span>
         </div>
       </header>
 
       {/* Hero Section */}
       <div className="w-full max-w-4xl mx-auto px-6 py-6 text-center z-10 my-auto space-y-6">
-        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#1B1B3A] border border-[#7C3AED]/40 shadow-lg shadow-[#7C3AED]/20">
-          <Flame className="w-4 h-4 text-[#FBBF24] animate-bounce" />
-          <span className="text-xs font-mono font-bold text-[#22D3EE] uppercase tracking-wider">
+        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#0D0D1A] border border-[#00F0FF]/40 shadow-lg glow-cyan">
+          <Flame className="w-4 h-4 text-[#FFB800] animate-bounce" />
+          <span className="text-xs font-mono font-bold text-[#00F0FF] uppercase tracking-wider">
             AI-Powered Adaptive Learning Engine
           </span>
         </div>
@@ -122,7 +122,7 @@ export default function LandingPage() {
         <div className="space-y-3">
           <h2 className="text-4xl sm:text-6xl font-black text-white font-heading tracking-tight leading-tight">
             Turn Any Skill Into <br />
-            <span className="bg-gradient-to-r from-[#22D3EE] via-[#7C3AED] to-[#34D399] bg-clip-text text-transparent">
+            <span className="bg-gradient-to-r from-[#00F0FF] via-[#A855F7] to-[#00FF87] bg-clip-text text-transparent">
               An Adventure.
             </span>
           </h2>
@@ -132,9 +132,9 @@ export default function LandingPage() {
         </div>
 
         {/* Visual Preview of Skill Tree System */}
-        <div className="max-w-2xl mx-auto bg-[#1B1B3A]/80 border border-white/10 rounded-2xl p-4 sm:p-5 flex items-center justify-around gap-2 text-left shadow-xl">
+        <div className="max-w-2xl mx-auto bg-[#0D0D1A]/90 border border-white/10 rounded-2xl p-4 sm:p-5 flex items-center justify-around gap-2 text-left shadow-xl">
           <div className="flex items-center gap-2.5">
-            <div className="w-10 h-10 rounded-xl bg-[#34D399]/20 border border-[#34D399] flex items-center justify-center font-black text-[#34D399] font-mono text-xs">
+            <div className="w-10 h-10 rounded-xl bg-[#00FF87]/20 border border-[#00FF87] flex items-center justify-center font-black text-[#00FF87] font-mono text-xs">
               👑
             </div>
             <div>
@@ -148,25 +148,25 @@ export default function LandingPage() {
           </div>
 
           <div className="flex items-center gap-2.5">
-            <div className="w-10 h-10 rounded-xl bg-[#22D3EE]/20 border border-[#22D3EE] flex items-center justify-center font-black text-[#22D3EE] font-mono text-xs animate-pulse">
+            <div className="w-10 h-10 rounded-xl bg-[#00F0FF]/20 border border-[#00F0FF] flex items-center justify-center font-black text-[#00F0FF] font-mono text-xs animate-pulse">
               ⚡
             </div>
             <div>
-              <span className="text-[10px] font-mono text-[#22D3EE] block uppercase">Active Quest</span>
+              <span className="text-[10px] font-mono text-[#00F0FF] block uppercase">Active Quest</span>
               <span className="text-xs font-bold text-white font-heading">Adaptive Challenge</span>
             </div>
           </div>
         </div>
 
         {/* Login / Auth Form Card */}
-        <div className="max-w-md mx-auto bg-[#1B1B3A]/95 p-6 rounded-3xl border border-white/10 shadow-2xl backdrop-blur-xl glow-box-violet text-left space-y-4">
+        <div className="max-w-md mx-auto bg-[#0D0D1A]/95 p-6 rounded-3xl border border-[#00F0FF]/30 shadow-2xl backdrop-blur-xl glow-cyan text-left space-y-4">
           {/* Toggle Sign In / Sign Up */}
-          <div className="flex border border-white/10 rounded-xl p-1 bg-[#0A0A1A]">
+          <div className="flex border border-white/10 rounded-xl p-1 bg-[#000000]">
             <button
               type="button"
               onClick={() => setIsSignUp(false)}
               className={`flex-1 py-2 text-xs font-bold font-mono rounded-lg transition-all cursor-pointer ${
-                !isSignUp ? "bg-[#7C3AED] text-white shadow-md" : "text-slate-400 hover:text-white"
+                !isSignUp ? "bg-[#00F0FF] text-black font-black shadow-md" : "text-slate-400 hover:text-white"
               }`}
             >
               Sign In
@@ -175,7 +175,7 @@ export default function LandingPage() {
               type="button"
               onClick={() => setIsSignUp(true)}
               className={`flex-1 py-2 text-xs font-bold font-mono rounded-lg transition-all cursor-pointer ${
-                isSignUp ? "bg-[#7C3AED] text-white shadow-md" : "text-slate-400 hover:text-white"
+                isSignUp ? "bg-[#00F0FF] text-black font-black shadow-md" : "text-slate-400 hover:text-white"
               }`}
             >
               Sign Up

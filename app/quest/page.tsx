@@ -272,15 +272,19 @@ export default function QuestPage() {
 
   const handleSelectOption = (index: number) => {
     if (isAnswered || loadingNext || activeRewardDrop) return;
+    setSelectedIndex(index);
+  };
+
+  const handleSubmitAnswer = () => {
+    if (selectedIndex === null || isAnswered || loadingNext || activeRewardDrop) return;
 
     const clickTimestamp = Date.now();
     const latencyMs = Math.max(100, clickTimestamp - renderTimestamp);
 
-    setSelectedIndex(index);
     setIsAnswered(true);
     setShowExplanation(true);
 
-    const isCorrect = index === question.correctIndex;
+    const isCorrect = selectedIndex === question.correctIndex;
     answerQuestion(isCorrect, latencyMs, hintsUsedCount);
 
     if (currentSessionId && currentSkill) {
@@ -293,22 +297,9 @@ export default function QuestPage() {
       );
     }
 
-    // If user previously claimed a reward drop and answered another question, record bandit return success!
     if (lastClaimedArm && user?.id) {
       recordOutcome(user.id, lastClaimedArm, true, userArms);
       setLastClaimedArm(null);
-    }
-
-    if (isCorrect) {
-      setConfidenceMeter((prev) => Math.min(100, prev + 30));
-      setDoubtGrip((prev) => Math.max(0, prev - 30));
-      setDoubtDefeated(true);
-      setTimeout(() => setDoubtDefeated(false), 1200);
-      // Reward modal will appear when learner taps Continue → handleContinueAfterAnswer
-    } else {
-      setConfidenceMeter((prev) => Math.max(0, prev - 15));
-      setDoubtGrip((prev) => Math.min(100, prev + 20));
-      // No auto-advance — learner must read the explanation and tap Continue
     }
   };
 
@@ -493,57 +484,57 @@ export default function QuestPage() {
             )}
           </div>
         )}
-        {/* Header Flow Bar with Module Progression Visual Theme */}
+        {/* Premium Black + Neon Quest Header */}
         {(() => {
           const activeModuleTheme = getModuleTheme(activeSkillIndex);
           return (
-            <header className={`flex items-center justify-between bg-[#1B1B3A] border ${activeModuleTheme.borderColor} rounded-2xl p-4 shadow-xl ${activeModuleTheme.glowClass}`}>
-              <div className="flex items-center gap-2.5 truncate">
-                <SquidAsset name={activeModuleTheme.assetName} alt={activeModuleTheme.themeName} width={28} height={28} className="shrink-0" />
-                <div className="truncate">
+            <header className="bg-[#0D0D1A] border border-[#00F0FF]/30 rounded-3xl p-5 shadow-2xl space-y-3 glow-cyan">
+              <div className="flex items-center justify-between gap-3">
+                <div className="space-y-0.5 truncate">
                   <div className="flex items-center gap-2">
-                    <span className="text-xs text-[#94A3B8] font-mono">Module {activeSkillIndex + 1}:</span>
-                    <span className="text-xs font-bold text-white truncate max-w-[120px] sm:max-w-[180px]">
-                      {currentSkill.name}
+                    <span className="text-xs font-mono font-bold text-[#00F0FF] uppercase tracking-wider">
+                      Module {activeSkillIndex + 1}:
                     </span>
+                    <h1 className="text-base font-black text-white font-heading truncate">
+                      {currentSkill.name.toUpperCase()}
+                    </h1>
                   </div>
-                  <span className={`text-[9px] font-mono font-bold px-2 py-0.2 rounded-full border ${activeModuleTheme.badgeStyle} inline-block mt-0.5`}>
-                    {activeModuleTheme.intensityLabel}
-                  </span>
+                  <div className="flex items-center gap-2 text-xs font-mono text-slate-400">
+                    <span>Adaptive Challenge</span>
+                    <span>•</span>
+                    <span className="text-[#A855F7] font-bold">Flow: Level {flowDifficulty}</span>
+                  </div>
+                </div>
+
+                {/* Available XP Badge */}
+                <div className="px-3.5 py-1.5 rounded-full bg-[#FFB800]/15 border border-[#FFB800]/40 text-[#FFB800] font-mono text-xs font-bold shrink-0 flex items-center gap-1.5 shadow-md">
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>+120 XP available</span>
                 </div>
               </div>
 
-              {/* Flow Level Chip + Why Button */}
-              <div className="flex items-center gap-2 shrink-0">
-                <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-gradient-to-r from-[#7C3AED]/30 to-[#22D3EE]/30 border border-[#22D3EE]/50 text-[#22D3EE] font-mono text-xs font-bold shadow-md shadow-[#22D3EE]/20 animate-pulse">
-                  <SquidAsset name="glass_bridge" alt="Glass Bridge Step" width={18} height={18} />
-                  <span>Flow: Level {flowDifficulty}</span>
+              {/* Progress Bar & Question Counter */}
+              <div className="space-y-1 pt-1">
+                <div className="flex justify-between text-[11px] font-mono font-bold">
+                  <span className="text-slate-300">Question {Math.min(10, activeSkillIndex * 2 + 1)} / 10</span>
+                  <span className="text-[#00F0FF]">P(know): {(pKnow * 100).toFixed(0)}%</span>
                 </div>
-
-            {/* Why? Algorithmic Explanation Button */}
-            <button
-              onClick={() => setShowWhyModal(true)}
-              className="px-2.5 py-1 rounded-full bg-[#1B1B3A] border border-white/20 hover:border-[#22D3EE] text-[11px] font-mono text-slate-300 hover:text-white transition-colors flex items-center gap-1 cursor-pointer"
-            >
-              <Info className="w-3 h-3 text-[#22D3EE]" />
-              <span>Why?</span>
-            </button>
-
-            {/* Streak Counter Chip */}
-            <div className="hidden sm:flex items-center gap-1 text-[11px] font-mono text-[#FBBF24] bg-[#0A0A1A] px-2 py-1 rounded-full border border-[#FBBF24]/30">
-              <Flame className="w-3.5 h-3.5" />
-              <span>P(know): {(pKnow * 100).toFixed(0)}%</span>
-            </div>
-            </div>
-          </header>
-        );
-      })()}
+                <div className="w-full h-2.5 bg-[#000000] rounded-full overflow-hidden border border-white/10">
+                  <div
+                    className="h-full bg-gradient-to-r from-[#00F0FF] via-[#A855F7] to-[#00FF87] transition-all duration-500 rounded-full"
+                    style={{ width: `${Math.min(100, Math.max(10, pKnow * 100))}%` }}
+                  />
+                </div>
+              </div>
+            </header>
+          );
+        })()}
 
         {/* Mastery Threshold Peer-Teach Banner */}
         {pKnow >= 0.85 && (
-          <div className="bg-[#34D399]/15 border border-[#34D399]/40 rounded-2xl p-4 flex items-center justify-between gap-3 text-xs animate-fadeIn glow-box-green">
+          <div className="bg-[#00FF87]/15 border border-[#00FF87]/40 rounded-2xl p-4 flex items-center justify-between gap-3 text-xs animate-fadeIn glow-green">
             <div className="space-y-0.5">
-              <span className="font-bold text-[#34D399] font-heading block">
+              <span className="font-bold text-[#00FF87] font-heading block">
                 🎉 Mastery Threshold Unlocked! (P(know): {(pKnow * 100).toFixed(0)}%)
               </span>
               <p className="text-slate-200">
@@ -552,7 +543,7 @@ export default function QuestPage() {
             </div>
             <Link
               href="/teach"
-              className="px-3.5 py-2 rounded-xl bg-[#34D399] hover:bg-[#059669] text-black font-black font-heading shrink-0 shadow-md transition-all cursor-pointer"
+              className="px-3.5 py-2 rounded-xl bg-[#00FF87] hover:bg-[#00D06C] text-black font-black font-heading shrink-0 shadow-md transition-all cursor-pointer"
             >
               Write a Quest →
             </Link>
@@ -561,12 +552,11 @@ export default function QuestPage() {
 
         {/* Concept Intro Primer Card — Teaches BEFORE Quizzing */}
         {showConceptIntro && conceptIntroText && (
-          <div className="bg-gradient-to-r from-[#7C3AED]/20 via-[#1B1B3A] to-[#22D3EE]/20 border border-[#22D3EE]/50 rounded-3xl p-6 shadow-2xl glow-box-cyan space-y-3 animate-fadeIn relative">
+          <div className="bg-[#0D0D1A] border border-[#00F0FF]/40 rounded-3xl p-6 shadow-2xl glow-cyan space-y-3 animate-fadeIn relative">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-3 truncate">
-                <SquidAsset name="younghee" alt="Red Light Green Light Concept Detector" width={40} height={40} className="shrink-0" />
-                <span className="px-3 py-1 rounded-full bg-[#22D3EE]/20 border border-[#22D3EE]/40 text-[#22D3EE] text-[11px] font-mono font-bold uppercase tracking-wider flex items-center gap-1.5 truncate">
-                  <BookOpen className="w-3.5 h-3.5 text-[#FBBF24] shrink-0" />
+                <span className="px-3 py-1 rounded-full bg-[#00F0FF]/20 border border-[#00F0FF]/40 text-[#00F0FF] text-[11px] font-mono font-bold uppercase tracking-wider flex items-center gap-1.5 truncate">
+                  <BookOpen className="w-3.5 h-3.5 text-[#FFB800] shrink-0" />
                   Concept Primer ({user.learningStyle?.toUpperCase() || "STORY"} STYLE)
                 </span>
               </div>
@@ -582,14 +572,14 @@ export default function QuestPage() {
               <h3 className="text-base font-bold text-white font-heading">
                 Module Primer: {currentSkill.name}
               </h3>
-              <p className="text-xs sm:text-sm text-slate-200 leading-relaxed border-l-2 border-[#22D3EE] pl-3">
+              <p className="text-xs sm:text-sm text-slate-200 leading-relaxed border-l-2 border-[#00F0FF] pl-3">
                 {conceptIntroText}
               </p>
             </div>
 
             <button
               onClick={() => setShowConceptIntro(false)}
-              className="w-full py-2.5 rounded-xl bg-gradient-to-r from-[#7C3AED] to-[#22D3EE] hover:from-[#6D28D9] hover:to-[#06B6D4] text-white font-black font-heading text-xs uppercase tracking-wider transition-all cursor-pointer shadow-md shadow-[#7C3AED]/30 flex items-center justify-center gap-1.5"
+              className="w-full py-3 rounded-xl bg-gradient-to-r from-[#A855F7] to-[#00F0FF] hover:opacity-95 text-black font-black font-heading text-xs uppercase tracking-wider transition-all cursor-pointer shadow-md flex items-center justify-center gap-1.5"
             >
               <span>Got the Concept — Start Skill Quest →</span>
             </button>
@@ -597,20 +587,20 @@ export default function QuestPage() {
         )}
 
         {/* Question Card */}
-        <div className="bg-[#1B1B3A] border border-[#7C3AED]/40 rounded-3xl p-6 sm:p-8 shadow-2xl glow-box-violet relative overflow-hidden">
-          <div className="mb-6 space-y-2">
+        <div className="bg-[#0D0D1A] border border-[#A855F7]/40 rounded-3xl p-6 sm:p-8 shadow-2xl glow-purple relative overflow-hidden">
+          <div className="mb-6 space-y-3">
             <div className="flex items-center justify-between text-xs text-[#94A3B8] font-mono">
-              <span className="flex items-center gap-1 text-[#22D3EE]">
+              <span className="flex items-center gap-1 text-[#00F0FF]">
                 <HelpCircle className="w-4 h-4" />
-                Thompson Sampling Bandit Active
+                Adaptive AI Tutor Active
               </span>
               
               {/* Voice AI Hint Button */}
               <button
                 onClick={() => setShowTutorOverlay(true)}
-                className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#7C3AED]/20 hover:bg-[#7C3AED]/40 border border-[#7C3AED]/50 text-[#22D3EE] text-xs font-mono font-bold transition-all shadow-md shadow-[#7C3AED]/20 cursor-pointer animate-pulse"
+                className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#A855F7]/20 hover:bg-[#A855F7]/40 border border-[#A855F7]/50 text-[#00F0FF] text-xs font-mono font-bold transition-all shadow-md cursor-pointer animate-pulse"
               >
-                <Mic className="w-3.5 h-3.5 text-[#FBBF24]" />
+                <Mic className="w-3.5 h-3.5 text-[#FFB800]" />
                 <span>Voice AI Hint {hintsUsedCount > 0 && `(${hintsUsedCount})`}</span>
               </button>
             </div>
@@ -639,7 +629,7 @@ export default function QuestPage() {
 
               {/* Peer Quest Learner Tag */}
               {question.isPeerQuest && (
-                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#34D399]/20 border border-[#34D399]/40 text-[#34D399] text-[11px] font-mono font-bold uppercase tracking-wider">
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#00FF87]/20 border border-[#00FF87]/40 text-[#00FF87] text-[11px] font-mono font-bold uppercase tracking-wider">
                   <Users className="w-3.5 h-3.5" />
                   Learner ({question.authorName || "Contributor"})
                 </div>
@@ -648,9 +638,9 @@ export default function QuestPage() {
 
             {/* Scenario Setup Block */}
             {question.scenarioSetup && (
-              <div className="bg-[#0A0A1A]/80 border border-[#22D3EE]/30 rounded-2xl p-4 my-2 text-slate-200 text-sm leading-relaxed shadow-inner">
-                <div className="text-[10px] font-mono font-bold text-[#22D3EE] uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-                  <Globe className="w-3.5 h-3.5 text-[#22D3EE]" /> Scenario Background
+              <div className="bg-[#000000]/80 border border-[#00F0FF]/30 rounded-2xl p-4 my-2 text-slate-200 text-sm leading-relaxed shadow-inner">
+                <div className="text-[10px] font-mono font-bold text-[#00F0FF] uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                  <Globe className="w-3.5 h-3.5 text-[#00F0FF]" /> Scenario Background
                 </div>
                 <p className="text-slate-200 text-sm leading-relaxed">{question.scenarioSetup}</p>
               </div>
@@ -658,16 +648,16 @@ export default function QuestPage() {
 
             {/* Code Snippet Block */}
             {question.codeSnippet && (
-              <div className="bg-[#0A0A1A] border border-white/10 rounded-2xl p-4 my-2 font-mono text-xs sm:text-sm text-[#22D3EE] overflow-x-auto shadow-inner">
+              <div className="bg-[#000000] border border-white/10 rounded-2xl p-4 my-2 font-mono text-xs sm:text-sm text-[#00F0FF] overflow-x-auto shadow-inner">
                 <div className="flex items-center justify-between pb-2 mb-2 border-b border-white/10 text-[10px] text-slate-400">
-                  <span className="flex items-center gap-1.5 font-bold uppercase tracking-wider text-[#34D399]">
+                  <span className="flex items-center gap-1.5 font-bold uppercase tracking-wider text-[#00FF87]">
                     <Terminal className="w-3.5 h-3.5" /> Code Snippet
                   </span>
                   <span className="text-[10px] font-mono text-slate-400 font-bold uppercase">
                     {question.questionType === "debug" ? "Find Error" : "Predict Output"}
                   </span>
                 </div>
-                <pre className="whitespace-pre-wrap font-mono text-[#22D3EE]">{question.codeSnippet}</pre>
+                <pre className="whitespace-pre-wrap font-mono text-[#00F0FF]">{question.codeSnippet}</pre>
               </div>
             )}
 
@@ -676,22 +666,25 @@ export default function QuestPage() {
             </h2>
           </div>
 
-          {/* Tappable Option Cards */}
+          {/* Large Clickable Answer Cards (A, B, C, D) */}
           <div className="space-y-3 mb-6">
             {question.options.map((option, idx) => {
+              const isSelected = selectedIndex === idx;
               let optionStyles =
-                "bg-[#0A0A1A] border-white/10 text-slate-200 hover:border-[#22D3EE]/60 hover:bg-[#0A0A1A]/80";
+                "bg-[#000000] border-white/10 text-slate-200 hover:border-[#00F0FF]/50 hover:bg-[#0D0D1A]";
 
-              if (selectedIndex === idx) {
-                if (idx === question.correctIndex) {
-                  optionStyles = "bg-[#34D399]/20 border-[#34D399] text-[#34D399] glow-box-green font-semibold";
+              if (isSelected) {
+                if (!isAnswered) {
+                  optionStyles = "bg-[#0D0D1A] border-[#00F0FF] text-[#00F0FF] glow-cyan font-bold ring-2 ring-[#00F0FF]/50";
+                } else if (idx === question.correctIndex) {
+                  optionStyles = "bg-[#00FF87]/20 border-[#00FF87] text-[#00FF87] glow-green font-bold";
                 } else {
-                  optionStyles = "bg-red-500/20 border-red-500 text-red-400 font-semibold";
+                  optionStyles = "bg-[#FF0055]/20 border-[#FF0055] text-[#FF0055] glow-magenta font-bold";
                 }
               } else if (isAnswered && idx === question.correctIndex) {
-                optionStyles = "bg-[#34D399]/20 border-[#34D399] text-[#34D399] font-semibold";
+                optionStyles = "bg-[#00FF87]/20 border-[#00FF87] text-[#00FF87] font-bold";
               } else if (isAnswered) {
-                optionStyles = "bg-[#0A0A1A]/40 border-white/5 text-slate-600 opacity-50";
+                optionStyles = "bg-[#000000]/40 border-white/5 text-slate-600 opacity-50";
               }
 
               return (
@@ -699,28 +692,41 @@ export default function QuestPage() {
                   key={idx}
                   onClick={() => handleSelectOption(idx)}
                   disabled={isAnswered || loadingNext}
-                  className={`w-full text-left p-4 sm:p-5 rounded-2xl border transition-all duration-200 flex items-center justify-between text-sm sm:text-base cursor-pointer ${optionStyles}`}
+                  className={`w-full text-left p-4 sm:p-5 rounded-2xl border transition-all duration-200 flex items-center justify-between text-sm sm:text-base cursor-pointer min-h-[56px] ${optionStyles}`}
                 >
-                  <div className="flex items-center gap-3">
-                    <span className="w-8 h-8 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center font-mono text-xs font-bold text-slate-300 shrink-0">
+                  <div className="flex items-center gap-3.5">
+                    <span
+                      className={`w-9 h-9 rounded-xl border flex items-center justify-center font-mono text-sm font-black shrink-0 transition-colors ${
+                        isSelected
+                          ? "bg-[#00F0FF] text-black border-[#00F0FF]"
+                          : "bg-white/5 border-white/10 text-slate-300"
+                      }`}
+                    >
                       {String.fromCharCode(65 + idx)}
                     </span>
-                    {idx % 3 === 0 && <SquidAsset name="guard_circle" alt="Circle Guard" width={18} height={18} className="opacity-75 shrink-0" />}
-                    {idx % 3 === 1 && <SquidAsset name="guard_triangle" alt="Triangle Guard" width={18} height={18} className="opacity-75 shrink-0" />}
-                    {idx % 3 === 2 && <SquidAsset name="guard_square" alt="Square Guard" width={18} height={18} className="opacity-75 shrink-0" />}
-                    <span>{option}</span>
+                    <span className="font-medium leading-relaxed">{option}</span>
                   </div>
 
                   {isAnswered && idx === question.correctIndex && (
-                    <CheckCircle2 className="w-6 h-6 text-[#34D399] shrink-0 animate-bounce" />
+                    <CheckCircle2 className="w-6 h-6 text-[#00FF87] shrink-0 animate-bounce" />
                   )}
-                  {isAnswered && selectedIndex === idx && idx !== question.correctIndex && (
-                    <XCircle className="w-6 h-6 text-red-400 shrink-0" />
+                  {isAnswered && isSelected && idx !== question.correctIndex && (
+                    <XCircle className="w-6 h-6 text-[#FF0055] shrink-0" />
                   )}
                 </button>
               );
             })}
           </div>
+
+          {/* Prominent SUBMIT ANSWER Button */}
+          {selectedIndex !== null && !isAnswered && (
+            <button
+              onClick={handleSubmitAnswer}
+              className="w-full py-4 px-6 min-h-[50px] rounded-2xl bg-gradient-to-r from-[#00F0FF] via-[#A855F7] to-[#00FF87] hover:opacity-95 text-black font-black text-sm uppercase tracking-wider transition-all shadow-xl shadow-[#00F0FF]/30 flex items-center justify-center gap-2 cursor-pointer font-heading my-4 animate-fadeIn"
+            >
+              <span>Submit Answer →</span>
+            </button>
+          )}
 
           {/* Rich Explanation Panel — stays visible until learner taps Continue */}
           {showExplanation && !activeRewardDrop && (
@@ -771,16 +777,16 @@ export default function QuestPage() {
                   <button
                     onClick={handleContinueAfterAnswer}
                     disabled={loadingNext}
-                    className="w-full mt-1 py-2.5 rounded-xl bg-[#34D399] hover:bg-[#059669] text-black font-black font-heading text-sm transition-all cursor-pointer flex items-center justify-center gap-2"
+                    className="w-full mt-1 py-3 rounded-xl bg-[#00FF87] hover:bg-[#00D06C] text-black font-black font-heading text-sm uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center gap-2 shadow-lg shadow-[#00FF87]/20"
                   >
                     {loadingNext ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                    Claim Reward & Continue →
+                    Continue Quest →
                   </button>
                 </div>
               ) : (
                 /* ── WRONG ANSWER PANEL ── */
-                <div className="bg-red-500/10 border border-red-500/40 rounded-2xl p-5 space-y-3">
-                  <div className="flex items-center gap-3 text-red-400">
+                <div className="bg-[#FF0055]/10 border border-[#FF0055]/40 rounded-2xl p-5 space-y-3">
+                  <div className="flex items-center gap-3 text-[#FF0055]">
                     <XCircle className="w-6 h-6 shrink-0" />
                     <p className="font-bold font-heading text-sm">Not quite — here's why:</p>
                   </div>

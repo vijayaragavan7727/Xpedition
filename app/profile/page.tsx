@@ -27,6 +27,7 @@ import {
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { getTopArmInsight, RewardArm } from "@/lib/bandit";
 import SquidAsset from "@/components/SquidAsset";
+import XpAsset from "@/components/XpAsset";
 
 export default function ProfilePage() {
   const { user, isAuthLoading, course, goalText, saveUserProfile } = useQuest();
@@ -165,9 +166,9 @@ export default function ProfilePage() {
         />
 
         {/* User Card with Editable Name */}
-        <header className="bg-[#1B1B3A] border border-white/10 rounded-3xl p-5 shadow-lg flex items-center justify-between gap-3">
+        <header className="bg-[#0D0D1A] border border-white/10 rounded-3xl p-5 shadow-lg flex items-center justify-between gap-3">
           <div className="flex items-center gap-3.5 truncate">
-            <SquidAsset name="player_avatar" alt="Player 456 Tracksuit Avatar" width={56} height={56} className="shrink-0" />
+            <XpAsset name="award" alt="Player Badge Icon" width={48} height={48} className="shrink-0 text-[#FFB800]" />
 
             <div className="truncate">
               {isEditingName ? (
