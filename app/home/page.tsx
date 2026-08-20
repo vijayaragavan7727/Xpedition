@@ -232,7 +232,7 @@ export default function HomePage() {
             className="w-full min-h-[52px] py-3.5 px-6 rounded-2xl bg-gradient-to-r from-[#00F0FF] via-[#A855F7] to-[#00FF87] hover:opacity-95 text-black font-black text-sm uppercase tracking-wider transition-all shadow-xl shadow-[#00F0FF]/30 flex items-center justify-center gap-2 group cursor-pointer font-heading"
           >
             <Play className="w-5 h-5 fill-current group-hover:scale-110 transition-transform" />
-            <span>Continue Your Quest</span>
+            <span>Continue Your Quest: Read Module & Take Test</span>
             <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
           </Link>
         </section>

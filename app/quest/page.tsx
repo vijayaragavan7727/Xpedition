@@ -42,6 +42,8 @@ import { getModuleTheme } from "@/lib/moduleThemes";
 import QuestResultsView, { QuestionRecord } from "@/components/QuestResultsView";
 import LearningModuleReader, { LearningModuleData } from "@/components/LearningModuleReader";
 
+import LevelNavigationStrip, { LevelStatus } from "@/components/LevelNavigationStrip";
+
 export default function QuestPage() {
   const {
     user,
@@ -466,6 +468,36 @@ export default function QuestPage() {
           subtitle={`Module ${activeSkillIndex + 1} of ${course?.skills.length || 5}: ${currentSkill.name}`}
         />
 
+        {/* Level Navigation Strip (Level 1 Basics / Level 2 Intermediate / Level 3 Advanced) */}
+        <LevelNavigationStrip
+          currentLevel={currentLevel}
+          levels={[
+            {
+              level: 1,
+              title: "Basics",
+              status: currentLevel > 1 ? "PASSED" : viewMode === "test" ? "TEST_PENDING" : "MODULE_UNREAD",
+              score: currentLevel > 1 ? 8 : undefined,
+            },
+            {
+              level: 2,
+              title: "Intermediate",
+              status: currentLevel > 2 ? "PASSED" : currentLevel === 2 ? (viewMode === "test" ? "TEST_PENDING" : "MODULE_UNREAD") : "LOCKED",
+              score: currentLevel > 2 ? 8 : undefined,
+            },
+            {
+              level: 3,
+              title: "Advanced",
+              status: currentLevel === 3 ? (viewMode === "test" ? "TEST_PENDING" : "MODULE_UNREAD") : "LOCKED",
+            },
+          ]}
+          onSelectLevel={(lvl) => {
+            if (lvl <= currentLevel) {
+              setCurrentLevel(lvl);
+              setViewMode("module");
+            }
+          }}
+        />
+
         {/* 1. RENDER RESULTS SCREEN AFTER QUESTION 10 */}
         {isQuestFinished ? (
           <QuestResultsView
@@ -476,6 +508,7 @@ export default function QuestPage() {
             finalMastery={pKnow}
             onRetryLevel={handleRetryLevel}
             onNextLevel={handleNextLevel}
+            nextSkillName={course?.skills[activeSkillIndex + 1]?.name}
             onReviewSection={(secIdx) => {
               setViewMode("module");
               setTimeout(() => {

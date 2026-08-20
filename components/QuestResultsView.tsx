@@ -33,6 +33,7 @@ interface QuestResultsViewProps {
   onRetryLevel: () => void;
   onNextLevel: () => void;
   onReviewSection?: (sectionIndex: number) => void;
+  nextSkillName?: string;
 }
 
 export default function QuestResultsView({
@@ -44,6 +45,7 @@ export default function QuestResultsView({
   onRetryLevel,
   onNextLevel,
   onReviewSection,
+  nextSkillName,
 }: QuestResultsViewProps) {
   const [filterMode, setFilterMode] = useState<"all" | "wrong">("all");
 
@@ -94,50 +96,97 @@ export default function QuestResultsView({
             : `You scored ${correctCount}/${totalQuestions} (${scorePercentage}%). The pass threshold is 7/10. Review your missed concepts below and retry!`}
         </p>
 
-        {/* Score & Mastery Badges */}
-        <div className="grid grid-cols-2 gap-3 pt-2 max-w-md mx-auto">
+        {/* Score, Mastery & XP Badges */}
+        <div className="grid grid-cols-3 gap-2 pt-2 max-w-md mx-auto">
           <div className="bg-[#000000]/80 p-3 rounded-2xl border border-white/10 text-left">
             <span className="text-[10px] font-mono text-slate-400 uppercase block">Score</span>
-            <div className="flex items-baseline gap-1.5">
-              <span className={`text-2xl font-black font-mono ${isPassed ? "text-[#00FF87]" : "text-[#FF0055]"}`}>
-                {correctCount} / {totalQuestions}
+            <div className="flex items-baseline gap-1">
+              <span className={`text-xl font-black font-mono ${isPassed ? "text-[#00FF87]" : "text-[#FF0055]"}`}>
+                {correctCount}/{totalQuestions}
               </span>
-              <span className="text-xs text-slate-400 font-mono">({scorePercentage}%)</span>
             </div>
           </div>
 
           <div className="bg-[#000000]/80 p-3 rounded-2xl border border-white/10 text-left">
-            <span className="text-[10px] font-mono text-slate-400 uppercase block">BKT Mastery P(know)</span>
-            <div className="flex items-baseline gap-1.5">
-              <span className="text-xl font-black text-white font-mono">{masteryBeforePct}%</span>
-              <span className="text-xs text-slate-400">→</span>
-              <span className={`text-xl font-black font-mono ${masteryDelta >= 0 ? "text-[#00FF87]" : "text-[#FF0055]"}`}>
+            <span className="text-[10px] font-mono text-slate-400 uppercase block">Mastery</span>
+            <div className="flex items-baseline gap-1">
+              <span className="text-sm font-black text-white font-mono">{masteryBeforePct}%</span>
+              <span className="text-[10px] text-slate-400">→</span>
+              <span className={`text-sm font-black font-mono ${masteryDelta >= 0 ? "text-[#00FF87]" : "text-[#FF0055]"}`}>
                 {masteryAfterPct}%
               </span>
             </div>
           </div>
+
+          <div className="bg-[#000000]/80 p-3 rounded-2xl border border-white/10 text-left">
+            <span className="text-[10px] font-mono text-[#FFB800] uppercase block font-bold">XP Earned</span>
+            <span className="text-xl font-black text-[#FFB800] font-mono">+{isPassed ? 120 : 30}</span>
+          </div>
         </div>
 
-        {/* Action Button */}
-        <div className="pt-2">
+        {/* Action Buttons */}
+        <div className="pt-3 space-y-2">
           {isPassed ? (
-            <button
-              type="button"
-              onClick={onNextLevel}
-              className="w-full py-3.5 px-6 rounded-2xl bg-gradient-to-r from-[#00FF87] via-[#00F0FF] to-[#A855F7] text-black font-black text-sm uppercase tracking-wider shadow-lg hover:brightness-110 transition-all flex items-center justify-center gap-2 cursor-pointer"
-            >
-              <span>{currentLevel < 3 ? `Continue to Level ${currentLevel + 1} →` : "Explore Skill Tree →"}</span>
-              <ArrowRight className="w-5 h-5" />
-            </button>
+            currentLevel < 3 ? (
+              <>
+                <button
+                  type="button"
+                  onClick={onNextLevel}
+                  className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-[#00FF87] via-[#00F0FF] to-[#A855F7] text-black font-black text-sm uppercase tracking-wider shadow-lg hover:brightness-110 transition-all flex items-center justify-center gap-2 cursor-pointer glow-cyan"
+                >
+                  <span>Start Level {currentLevel + 1}: {currentLevel === 1 ? "Intermediate" : "Advanced"} →</span>
+                  <ArrowRight className="w-5 h-5" />
+                </button>
+                {onReviewSection && (
+                  <button
+                    type="button"
+                    onClick={() => onReviewSection(0)}
+                    className="w-full py-2.5 px-4 rounded-xl bg-white/5 border border-white/10 hover:border-white/20 text-slate-300 text-xs font-mono font-bold transition-all cursor-pointer"
+                  >
+                    Review this module
+                  </button>
+                )}
+              </>
+            ) : (
+              /* FINAL LEVEL 3 COMPLETE CELEBRATION VIEW */
+              <div className="p-4 rounded-2xl bg-[#000000] border border-[#00FF87]/50 space-y-3">
+                <div className="flex items-center justify-center gap-2 text-[#00FF87] font-bold font-mono text-sm">
+                  <Trophy className="w-5 h-5 text-[#FFB800]" />
+                  <span>SKILL MASTERED! 🎉</span>
+                </div>
+                <p className="text-xs text-slate-300">
+                  Congratulations! You have passed all 3 levels of <span className="text-white font-bold">{skillName}</span>.
+                </p>
+                <button
+                  type="button"
+                  onClick={onNextLevel}
+                  className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-[#00FF87] via-[#00F0FF] to-[#A855F7] text-black font-black text-sm uppercase tracking-wider shadow-lg hover:brightness-110 transition-all flex items-center justify-center gap-2 cursor-pointer glow-cyan"
+                >
+                  <span>Continue to {nextSkillName || "Next Skill"} →</span>
+                  <ArrowRight className="w-5 h-5" />
+                </button>
+              </div>
+            )
           ) : (
-            <button
-              type="button"
-              onClick={onRetryLevel}
-              className="w-full py-3.5 px-6 rounded-2xl bg-[#FF0055] text-white font-black text-sm uppercase tracking-wider shadow-lg hover:brightness-110 transition-all flex items-center justify-center gap-2 cursor-pointer glow-magenta"
-            >
-              <RotateCcw className="w-5 h-5" />
-              <span>Retry Level {currentLevel} (Fresh Questions) →</span>
-            </button>
+            /* FAILED STATE CTAS */
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={() => (onReviewSection ? onReviewSection(0) : onRetryLevel())}
+                className="w-full py-4 px-6 rounded-2xl bg-[#00F0FF] text-black font-black text-sm uppercase tracking-wider shadow-lg hover:brightness-110 transition-all flex items-center justify-center gap-2 cursor-pointer glow-cyan"
+              >
+                <BookOpen className="w-5 h-5" />
+                <span>Review the module →</span>
+              </button>
+              <button
+                type="button"
+                onClick={onRetryLevel}
+                className="w-full py-2.5 px-4 rounded-xl bg-white/5 border border-white/10 hover:border-white/20 text-slate-300 text-xs font-mono font-bold transition-all flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <RotateCcw className="w-4 h-4 text-[#FF0055]" />
+                <span>Retry the test (Fresh Questions)</span>
+              </button>
+            </div>
           )}
         </div>
       </div>
