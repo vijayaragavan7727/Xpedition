@@ -63,11 +63,7 @@ export default function PassportPage() {
   useEffect(() => {
     async function loadPassportData() {
       setLoadingSkills(true);
-      const courseSkills = course?.skills || [
-        { id: "s1", name: "Python Core Syntax & Data Structures", difficulty: 1 },
-        { id: "s2", name: "Object-Oriented Programming (Classes & Decorators)", difficulty: 2 },
-        { id: "s3", name: "Zoho Problem Solving (Arrays & String Matrices)", difficulty: 3 },
-      ];
+      const courseSkills = course?.skills || [];
 
       let masteryItems: SkillMasteryItem[] = [];
 
@@ -84,7 +80,7 @@ export default function PassportPage() {
           masteryItems = courseSkills.map((s, idx) => {
             let pk = pKnowMap.get(s.id);
             if (pk === undefined) {
-              pk = idx === activeSkillIndex ? currentPKnow : 0.15;
+              pk = idx === activeSkillIndex ? currentPKnow : 0.0;
             }
             return {
               id: s.id,
@@ -98,11 +94,11 @@ export default function PassportPage() {
         }
       }
 
-      if (masteryItems.length === 0) {
+      if (masteryItems.length === 0 && courseSkills.length > 0) {
         masteryItems = courseSkills.map((s, idx) => ({
           id: s.id,
           name: s.name,
-          pKnow: idx === activeSkillIndex ? currentPKnow : idx === 0 ? 0.75 : 0.40,
+          pKnow: idx === activeSkillIndex ? currentPKnow : 0.0,
           difficulty: s.difficulty,
         }));
       }

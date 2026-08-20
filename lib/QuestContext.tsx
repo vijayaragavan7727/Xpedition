@@ -249,13 +249,13 @@ export function QuestProvider({ children }: { children: React.ReactNode }) {
               motivationType,
               learningStyle,
               styleStats: {
-                story: { attempts: 6, correct: 5 },
-                theory: { attempts: 5, correct: 4 },
-                code: { attempts: 8, correct: 7 },
-                stepwise: { attempts: 4, correct: 2 },
+                story: { attempts: 0, correct: 0 },
+                theory: { attempts: 0, correct: 0 },
+                code: { attempts: 0, correct: 0 },
+                stepwise: { attempts: 0, correct: 0 },
               },
               cohort,
-              unlockedBadges: ["First Quest Victory", "Goal Explorer"],
+              unlockedBadges: [],
             });
 
             // Fetch active goal & skills

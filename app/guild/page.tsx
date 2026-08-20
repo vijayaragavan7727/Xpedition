@@ -36,16 +36,49 @@ interface GuildData {
 export default function GuildPage() {
   const { user } = useQuest();
 
-  const [activeGuild, setActiveGuild] = useState<GuildData | null>({
-    id: "g1",
-    name: "Cyber Knights Guild",
-    code: "CYBER-9482",
-    members: [
-      { id: user.id || "u1", name: user.name, level: user.level, xp: user.xp, role: "Leader" },
-      { id: "u2", name: "Aria Shadow", level: 3, xp: 480, role: "Member" },
-      { id: "u3", name: "Vikram Tech", level: 2, xp: 260, role: "Member" },
-    ],
-  });
+  const [activeGuild, setActiveGuild] = useState<GuildData | null>(null);
+
+  useEffect(() => {
+    async function fetchUserGuild() {
+      if (isSupabaseConfigured() && user?.id) {
+        try {
+          const { data: memberRec } = await supabase
+            .from("guild_members")
+            .select("guild_id, role, guilds(id, name, code)")
+            .eq("user_id", user.id)
+            .limit(1);
+
+          if (memberRec && memberRec.length > 0) {
+            const g = memberRec[0].guilds as any;
+            if (g) {
+              const { data: allMembers } = await supabase
+                .from("guild_members")
+                .select("user_id, role, users(display_name, email)")
+                .eq("guild_id", g.id);
+
+              const mappedMembers: GuildMember[] = (allMembers || []).map((m: any) => ({
+                id: m.user_id,
+                name: m.users?.display_name || m.users?.email?.split("@")[0] || "Squadmate",
+                level: user.level,
+                xp: user.xp,
+                role: m.role === "leader" ? "Leader" : "Member",
+              }));
+
+              setActiveGuild({
+                id: g.id,
+                name: g.name,
+                code: g.code,
+                members: mappedMembers,
+              });
+            }
+          }
+        } catch (err) {
+          console.warn("Fetch guild notice:", err);
+        }
+      }
+    }
+    fetchUserGuild();
+  }, [user]);
 
   const [createName, setCreateName] = useState("");
   const [joinCode, setJoinCode] = useState("");
@@ -209,6 +242,35 @@ export default function GuildPage() {
             Join by Code
           </button>
         </div>
+
+        {/* Empty State when No Active Guild */}
+        {mode === "view" && !activeGuild && (
+          <div className="bg-[#1B1B3A] border border-white/10 rounded-3xl p-8 text-center space-y-4 glow-box-violet animate-fadeIn">
+            <div className="w-16 h-16 rounded-full bg-[#7C3AED]/20 border border-[#7C3AED]/40 flex items-center justify-center text-[#22D3EE] mx-auto">
+              <Shield className="w-8 h-8 text-[#FBBF24]" />
+            </div>
+            <div className="space-y-1">
+              <h3 className="text-xl font-bold text-white font-heading">No Squad Joined Yet</h3>
+              <p className="text-xs text-[#94A3B8] max-w-sm mx-auto">
+                Create your own Squad or join your peers using a squad code to unlock co-op XP bonuses.
+              </p>
+            </div>
+            <div className="flex justify-center gap-3 pt-2">
+              <button
+                onClick={() => setMode("create")}
+                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#7C3AED] to-[#22D3EE] text-white font-bold text-xs shadow-md cursor-pointer"
+              >
+                Create a Squad
+              </button>
+              <button
+                onClick={() => setMode("join")}
+                className="px-5 py-2.5 rounded-xl bg-[#0A0A1A] border border-white/20 text-slate-300 hover:text-white font-bold text-xs cursor-pointer"
+              >
+                Join by Code
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* View Active Guild */}
         {mode === "view" && activeGuild && (

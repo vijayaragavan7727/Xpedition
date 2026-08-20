@@ -35,22 +35,22 @@ interface CohortMetrics {
 export default async function ResearchPage() {
   let adaptiveMetrics: CohortMetrics = {
     cohortName: "Adaptive (Hysteresis Flow Controller)",
-    n: 14,
-    meanGain: 0.68,
-    meanPre: 2.1,
-    meanPost: 4.1,
-    meanTimeInFlowRatio: 0.84,
-    meanReturnSessions: 4.6,
+    n: 0,
+    meanGain: 0.0,
+    meanPre: 0.0,
+    meanPost: 0.0,
+    meanTimeInFlowRatio: 0.0,
+    meanReturnSessions: 0.0,
   };
 
   let controlMetrics: CohortMetrics = {
     cohortName: "Control (Fixed Level 3 Medium Difficulty)",
-    n: 12,
-    meanGain: 0.35,
-    meanPre: 2.0,
-    meanPost: 3.1,
-    meanTimeInFlowRatio: 0.52,
-    meanReturnSessions: 2.3,
+    n: 0,
+    meanGain: 0.0,
+    meanPre: 0.0,
+    meanPost: 0.0,
+    meanTimeInFlowRatio: 0.0,
+    meanReturnSessions: 0.0,
   };
 
   if (isSupabaseConfigured()) {

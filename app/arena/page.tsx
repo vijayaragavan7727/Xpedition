@@ -31,15 +31,7 @@ export default function EliminationArenaPage() {
 
   const [timer, setTimer] = useState(108); // 01:48
   const [activeRound, setActiveRound] = useState<ArenaRound | null>(null);
-  const [standings, setStandings] = useState<StandingPlayer[]>([
-    { rank: 1, name: "Arjun_K", avatarColor: "from-[#FBBF24] to-[#F472B6]", status: "ADVANCING" },
-    { rank: 2, name: user.name, avatarColor: "from-[#7C3AED] to-[#22D3EE]", status: "ADVANCING", isUser: true },
-    { rank: 3, name: "Priya_28", avatarColor: "from-[#22D3EE] to-[#34D399]", status: "ON THE LINE" },
-    { rank: 4, name: "Aria_Shadow", avatarColor: "from-[#7C3AED] to-[#F472B6]", status: "ON THE LINE" },
-    { rank: 5, name: "Vikram_Tech", avatarColor: "from-[#34D399] to-[#22D3EE]", status: "ON THE LINE" },
-    { rank: 61, name: "Rahul_M", avatarColor: "from-slate-700 to-slate-800", status: "ELIMINATED" },
-    { rank: 73, name: "Sneha_V", avatarColor: "from-slate-700 to-slate-800", status: "ELIMINATED" },
-  ]);
+  const [standings, setStandings] = useState<StandingPlayer[]>([]);
 
   useEffect(() => {
     async function loadArenaRound() {
@@ -97,7 +89,9 @@ export default function EliminationArenaPage() {
                 Weekly Tournament
               </h1>
               <p className="text-xs text-[#A9A9C4] mt-0.5">
-                84 learners entered • top 42 advance each round
+                {standings.length > 0
+                  ? `${standings.length} learners entered • top ${Math.ceil(standings.length / 2)} advance each round`
+                  : "Round Registration Open • Enter to compete"}
               </p>
             </div>
 
@@ -152,11 +146,13 @@ export default function EliminationArenaPage() {
             <div>
               <h3 className="text-sm font-bold text-white font-heading">Live Standings</h3>
               <span className="text-[10px] font-mono text-[#6E6E85]">
-                42 of 84 advancing (50% cut-off)
+                {standings.length > 0
+                  ? `${Math.ceil(standings.length / 2)} of ${standings.length} advancing (50% cut-off)`
+                  : "0 of 0 advancing (50% cut-off)"}
               </span>
             </div>
             <span className="px-2.5 py-1 rounded-full bg-[#FB7185]/15 border border-[#FB7185]/30 text-[#FB7185] text-[10px] font-mono font-bold">
-              ROUND 3
+              ROUND {activeRound?.id || "1"}
             </span>
           </div>
 
@@ -172,7 +168,17 @@ export default function EliminationArenaPage() {
           </div>
 
           {/* Standings List */}
-          <div className="space-y-2">
+          {standings.length === 0 ? (
+            <div className="bg-[#1C1C24] border border-white/10 rounded-2xl p-6 text-center space-y-2">
+              <p className="text-xs text-slate-300 font-bold font-heading">
+                No tournament entries recorded for Round {activeRound?.id || "1"} yet
+              </p>
+              <p className="text-[11px] text-slate-500 font-mono">
+                Answer your first quest question to automatically log your live standing on the leaderboard!
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2">
             {standings.map((player) => {
               let rowStyle = "bg-[#1C1C24] border-white/10";
               let badgeStyle = "bg-white/5 text-slate-400";
@@ -219,6 +225,7 @@ export default function EliminationArenaPage() {
               );
             })}
           </div>
+          )}
         </div>
 
         {/* Enter Arena CTA */}

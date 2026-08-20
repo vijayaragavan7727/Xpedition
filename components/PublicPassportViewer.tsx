@@ -124,23 +124,32 @@ export default function PublicPassportViewer({ snapshot }: { snapshot: PassportS
             </h3>
 
             <div className="space-y-3">
-              {snapshot.skills.map((skill, idx) => {
-                const percent = Math.round(skill.pKnow * 100);
-                return (
-                  <div key={idx} className="space-y-1.5 bg-[#0A0A1A]/60 p-3 rounded-2xl border border-white/5">
-                    <div className="flex justify-between text-xs font-mono">
-                      <span className="text-slate-200 font-bold">{skill.name}</span>
-                      <span className="text-[#34D399] font-bold">{percent}%</span>
+              {snapshot.skills.length === 0 ? (
+                <div className="bg-[#0A0A1A] border border-white/10 rounded-2xl p-6 text-center space-y-2">
+                  <p className="text-xs text-white font-bold font-heading">No Verified Skills Recorded Yet</p>
+                  <p className="text-[11px] text-slate-400">
+                    This learner has not completed any skill quests on this passport yet. Complete quests to populate verified BKT mastery scores.
+                  </p>
+                </div>
+              ) : (
+                snapshot.skills.map((skill, idx) => {
+                  const percent = Math.round(skill.pKnow * 100);
+                  return (
+                    <div key={idx} className="space-y-1.5 bg-[#0A0A1A]/60 p-3 rounded-2xl border border-white/5">
+                      <div className="flex justify-between text-xs font-mono">
+                        <span className="text-slate-200 font-bold">{skill.name}</span>
+                        <span className="text-[#34D399] font-bold">{percent}%</span>
+                      </div>
+                      <div className="w-full h-2.5 bg-[#0A0A1A] rounded-full overflow-hidden border border-white/10 p-0.5">
+                        <div
+                          className="h-full bg-gradient-to-r from-[#7C3AED] via-[#22D3EE] to-[#34D399] rounded-full"
+                          style={{ width: `${percent}%` }}
+                        />
+                      </div>
                     </div>
-                    <div className="w-full h-2.5 bg-[#0A0A1A] rounded-full overflow-hidden border border-white/10 p-0.5">
-                      <div
-                        className="h-full bg-gradient-to-r from-[#7C3AED] via-[#22D3EE] to-[#34D399] rounded-full"
-                        style={{ width: `${percent}%` }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
+                  );
+                })
+              )}
             </div>
           </div>
 

@@ -17,17 +17,12 @@ export default async function PublicPassportPage({ params }: SharePageProps) {
   const { shareId } = resolvedParams;
 
   let snapshot = {
-    snapshotId: "demo-snapshot-01",
+    snapshotId: shareId,
     shareId,
-    userName: "Adventurer",
-    goalTitle: "Python Mastery for Tech Roles",
-    skills: [
-      { name: "Python Core Syntax & Data Structures", pKnow: 0.88 },
-      { name: "Object-Oriented Programming (Classes & Decorators)", pKnow: 0.76 },
-      { name: "Zoho Problem Solving (Arrays & String Matrices)", pKnow: 0.65 },
-      { name: "Algorithms & Time Complexity (Recursion & Sorting)", pKnow: 0.54 },
-    ],
-    overallReadiness: 0.7075,
+    userName: "Learner",
+    goalTitle: "Adaptive Learning Passport",
+    skills: [] as { name: string; pKnow: number }[],
+    overallReadiness: 0.0,
     issuedAt: new Date().toISOString(),
     signature: "",
   };

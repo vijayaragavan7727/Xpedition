@@ -22,9 +22,12 @@ import {
   ShieldAlert,
 } from "lucide-react";
 
+import { supabase, isSupabaseConfigured } from "@/lib/supabase";
+
 export default function HomePage() {
   const { user, course, activeSkillIndex } = useQuest();
   const [dueCount, setDueCount] = useState<number>(0);
+  const [courseProgressPct, setCourseProgressPct] = useState<number>(0);
   const router = useRouter();
 
   useEffect(() => {
@@ -40,8 +43,41 @@ export default function HomePage() {
       setDueCount(skills.length);
     }
 
+    async function computeCourseProgress() {
+      if (!course?.skills || course.skills.length === 0) {
+        setCourseProgressPct(0);
+        return;
+      }
+
+      let masteredCount = 0;
+
+      if (isSupabaseConfigured() && user?.id) {
+        try {
+          const { data: masteryRecords } = await supabase
+            .from("mastery")
+            .select("skill_id, p_know")
+            .eq("user_id", user.id);
+
+          if (masteryRecords) {
+            const masteredSet = new Set(
+              masteryRecords
+                .filter((m) => (m.p_know || 0) > 0.85)
+                .map((m) => m.skill_id)
+            );
+            masteredCount = course.skills.filter((s) => masteredSet.has(s.id)).length;
+          }
+        } catch (e) {
+          console.warn("Error calculating course progress:", e);
+        }
+      }
+
+      const pct = Math.round((masteredCount / course.skills.length) * 100);
+      setCourseProgressPct(pct);
+    }
+
     checkDueSkills();
-  }, [user, router]);
+    computeCourseProgress();
+  }, [user, course, router]);
 
   const currentSkill = course?.skills[activeSkillIndex] || {
     id: "s1",
@@ -158,12 +194,14 @@ export default function HomePage() {
           <div className="space-y-2 mb-6">
             <div className="flex items-center justify-between text-xs font-mono text-[#94A3B8]">
               <span>Quest Progression</span>
-              <span className="text-[#34D399] font-bold">40% Complete</span>
+              <span className="text-[#34D399] font-bold">
+                {courseProgressPct > 0 ? `${courseProgressPct}% Complete` : "0% Complete (No progress yet)"}
+              </span>
             </div>
             <div className="w-full h-3 bg-[#0A0A1A] rounded-full overflow-hidden border border-white/10 p-0.5">
               <div
                 className="h-full bg-gradient-to-r from-[#22D3EE] via-[#7C3AED] to-[#34D399] rounded-full transition-all duration-500 shadow-md shadow-[#22D3EE]/30"
-                style={{ width: "40%" }}
+                style={{ width: `${courseProgressPct}%` }}
               />
             </div>
           </div>

@@ -45,23 +45,7 @@ export default function PeerTeachPage() {
   const [validating, setValidating] = useState(false);
   const [aiFeedback, setAiFeedback] = useState<{ approved: boolean; text: string } | null>(null);
 
-  const [publishedQuests, setPublishedQuests] = useState<PeerQuestItem[]>([
-    {
-      id: "pq-1",
-      skill_name: "Python Core Syntax & Data Structures",
-      prompt: "What is the difference between list.append(x) and list.extend(x) in Python?",
-      options: [
-        "append adds x as a single element; extend iterates over x adding each element",
-        "extend adds x as a single element; append iterates over x",
-        "They are exact aliases for the same method",
-        "append only works on numbers; extend works on strings",
-      ],
-      correct_index: 0,
-      approved: true,
-      plays: 14,
-      author_name: "Aria Shadow",
-    },
-  ]);
+  const [publishedQuests, setPublishedQuests] = useState<PeerQuestItem[]>([]);
 
   useEffect(() => {
     fetchPeerQuests();
@@ -328,22 +312,31 @@ export default function PeerTeachPage() {
           </div>
 
           <div className="space-y-3">
-            {publishedQuests.map((q) => (
-              <div
-                key={q.id}
-                className="bg-[#0A0A1A] border border-[#34D399]/30 rounded-2xl p-4 space-y-2"
-              >
-                <div className="flex items-center justify-between text-[10px] font-mono">
-                  <span className="text-[#34D399] font-bold">Skill: {q.skill_name}</span>
-                  <span className="text-slate-400">Written by {q.author_name} • {q.plays} Plays</span>
-                </div>
-                <p className="text-xs text-white font-medium">"{q.prompt}"</p>
-                <div className="flex items-center gap-1.5 text-[10px] font-mono text-[#34D399]">
-                  <CheckCircle2 className="w-3 h-3" />
-                  <span>Approved by Groq AI Validator</span>
-                </div>
+            {publishedQuests.length === 0 ? (
+              <div className="bg-[#0A0A1A] border border-white/10 rounded-2xl p-6 text-center space-y-2">
+                <p className="text-xs text-white font-bold font-heading">No Published Peer Quests Yet</p>
+                <p className="text-[11px] text-slate-400">
+                  Be the first learner to author and publish a quest to the peer learning pool above!
+                </p>
               </div>
-            ))}
+            ) : (
+              publishedQuests.map((q) => (
+                <div
+                  key={q.id}
+                  className="bg-[#0A0A1A] border border-[#34D399]/30 rounded-2xl p-4 space-y-2"
+                >
+                  <div className="flex items-center justify-between text-[10px] font-mono">
+                    <span className="text-[#34D399] font-bold">Skill: {q.skill_name}</span>
+                    <span className="text-slate-400">Written by {q.author_name} • {q.plays} Plays</span>
+                  </div>
+                  <p className="text-xs text-white font-medium">"{q.prompt}"</p>
+                  <div className="flex items-center gap-1.5 text-[10px] font-mono text-[#34D399]">
+                    <CheckCircle2 className="w-3 h-3" />
+                    <span>Approved by Groq AI Validator</span>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
       </div>
