@@ -19,6 +19,7 @@ import {
   UserPlus,
   Loader2,
 } from "lucide-react";
+import SquidAsset from "@/components/SquidAsset";
 
 interface GuildMember {
   id: string;
@@ -211,9 +212,9 @@ export default function GuildPage() {
         />
         {/* Top Header */}
         <header className="bg-[#1B1B3A] border border-white/10 rounded-3xl p-5 shadow-lg text-center space-y-2">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#7C3AED]/20 border border-[#7C3AED]/40 text-[#22D3EE] text-xs font-mono font-bold">
-            <Shield className="w-3.5 h-3.5" />
-            GUILD CITADEL & CO-OP ALLIANCE
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#7C3AED]/20 border border-[#7C3AED]/40 text-[#22D3EE] text-xs font-mono font-bold">
+            <SquidAsset name="tug_of_war" alt="Tug of War Co-op Alliance" width={20} height={20} />
+            <span>GUILD CITADEL & CO-OP ALLIANCE</span>
           </div>
           <h1 className="text-xl sm:text-2xl font-bold text-white font-heading">
             {activeGuild ? activeGuild.name : "Join or Create a Guild"}

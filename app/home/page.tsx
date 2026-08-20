@@ -24,6 +24,7 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { getResumeSession, StudySession } from "@/lib/studySessions";
+import SquidAsset from "@/components/SquidAsset";
 
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 
@@ -193,13 +194,16 @@ export default function HomePage() {
             </span>
           </div>
 
-          <div>
-            <h2 className="text-lg sm:text-xl font-bold text-white font-heading truncate">
-              {currentSkill.name}
-            </h2>
-            <p className="text-xs text-[#94A3B8] mt-1 truncate">
-              Goal: <span className="text-slate-300 font-semibold">{course?.title || "Python Mastery"}</span>
-            </p>
+          <div className="flex items-center justify-between gap-3">
+            <div className="truncate">
+              <h2 className="text-lg sm:text-xl font-bold text-white font-heading truncate">
+                {currentSkill.name}
+              </h2>
+              <p className="text-xs text-[#94A3B8] mt-1 truncate">
+                Goal: <span className="text-slate-300 font-semibold">{course?.title || "Python Mastery"}</span>
+              </p>
+            </div>
+            <SquidAsset name="piggybank" alt="XP Pot Piggy Bank" width={48} height={48} className="shrink-0" />
           </div>
 
           <div className="space-y-1.5">

@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
+  <defs>
+    <radialGradient id="fmGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#7C3AED" stop-opacity="0.6"/>
+      <stop offset="100%" stop-color="#0A0A1A" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="facetGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3F3F46"/>
+      <stop offset="50%" stop-color="#18181B"/>
+      <stop offset="100%" stop-color="#09090B"/>
+    </linearGradient>
+  </defs>
+  <circle cx="100" cy="100" r="90" fill="url(#fmGlow)"/>
+  <!-- Frontman Geometric Polygon Mask -->
+  <polygon points="100,30 145,55 145,130 100,170 55,130 55,55" fill="url(#facetGrad)" stroke="#71717A" stroke-width="3"/>
+  <!-- Eye slits -->
+  <polygon points="65,80 88,80 82,90 65,90" fill="#000000" stroke="#A1A1AA" stroke-width="1.5"/>
+  <polygon points="112,80 135,80 135,90 118,90" fill="#000000" stroke="#A1A1AA" stroke-width="1.5"/>
+  <!-- Nose ridge facet lines -->
+  <line x1="100" y1="30" x2="100" y2="170" stroke="#52525B" stroke-width="2"/>
+  <line x1="100" y1="80" x2="70" y2="120" stroke="#52525B" stroke-width="1.5"/>
+  <line x1="100" y1="80" x2="130" y2="120" stroke="#52525B" stroke-width="1.5"/>
+  <!-- Glowing Gold/Purple aura eyes -->
+  <circle cx="77" cy="85" r="2.5" fill="#22D3EE"/>
+  <circle cx="123" cy="85" r="2.5" fill="#22D3EE"/>
+</svg>

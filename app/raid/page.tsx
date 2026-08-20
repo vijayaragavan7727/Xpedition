@@ -23,6 +23,8 @@ import {
   Award,
 } from "lucide-react";
 
+import SquidAsset from "@/components/SquidAsset";
+
 export default function RaidPage() {
   const { user, isAuthLoading, claimReward, goalText } = useQuest();
   const [dueSkills, setDueSkills] = useState<DueSkill[]>([]);
@@ -191,7 +193,7 @@ export default function RaidPage() {
         <div className="bg-[#1B1B3A] border border-red-500/50 rounded-3xl p-5 shadow-2xl space-y-3 glow-box-violet">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 text-xs font-bold text-white font-heading">
-              <ShieldAlert className="w-4 h-4 text-red-400" />
+              <SquidAsset name="frontman" alt="Front Man Metallic Boss Mask" width={32} height={32} />
               <span>MEMORY RAID BOSS HEALTH</span>
             </div>
             <span className="text-xs font-mono font-bold text-red-400">{bossHealth}% HP</span>

@@ -42,6 +42,7 @@ import {
   BookOpen,
 } from "lucide-react";
 import TutorOverlay from "@/components/TutorOverlay";
+import SquidAsset from "@/components/SquidAsset";
 
 export default function QuestPage() {
   const {
@@ -494,7 +495,7 @@ export default function QuestPage() {
           {/* Flow Level Chip + Why Button */}
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-gradient-to-r from-[#7C3AED]/30 to-[#22D3EE]/30 border border-[#22D3EE]/50 text-[#22D3EE] font-mono text-xs font-bold shadow-md shadow-[#22D3EE]/20 animate-pulse">
-              <Zap className="w-3.5 h-3.5 text-[#FBBF24]" />
+              <SquidAsset name="glass_bridge" alt="Glass Bridge Step" width={20} height={20} />
               <span>Flow: Level {flowDifficulty}</span>
             </div>
 

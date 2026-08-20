@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
+  <defs>
+    <radialGradient id="cardGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#D97706" stop-opacity="0.4"/>
+      <stop offset="100%" stop-color="#0A0A1A" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="kraftGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#D97706"/>
+      <stop offset="50%" stop-color="#B45309"/>
+      <stop offset="100%" stop-color="#78350F"/>
+    </linearGradient>
+  </defs>
+  <circle cx="100" cy="100" r="90" fill="url(#cardGlow)"/>
+  <!-- Kraft Paper Card -->
+  <rect x="30" y="55" width="140" height="90" rx="8" fill="url(#kraftGrad)" stroke="#FEF3C7" stroke-width="2"/>
+  <!-- Three Symbols: Circle Triangle Square -->
+  <circle cx="65" cy="100" r="14" stroke="#1E1E24" stroke-width="4.5" fill="none"/>
+  <polygon points="100,84 116,114 84,114" stroke="#1E1E24" stroke-width="4.5" stroke-linejoin="round" fill="none"/>
+  <rect x="121" y="86" width="28" height="28" rx="2" stroke="#1E1E24" stroke-width="4.5" fill="none"/>
+</svg>

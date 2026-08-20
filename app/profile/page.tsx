@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { getTopArmInsight, RewardArm } from "@/lib/bandit";
+import SquidAsset from "@/components/SquidAsset";
 
 export default function ProfilePage() {
   const { user, isAuthLoading, course, goalText, saveUserProfile } = useQuest();
@@ -166,9 +167,7 @@ export default function ProfilePage() {
         {/* User Card with Editable Name */}
         <header className="bg-[#1B1B3A] border border-white/10 rounded-3xl p-5 shadow-lg flex items-center justify-between gap-3">
           <div className="flex items-center gap-3.5 truncate">
-            <div className="w-14 h-14 min-w-[56px] min-h-[56px] rounded-full bg-gradient-to-br from-[#7C3AED] to-[#22D3EE] flex items-center justify-center text-white font-bold text-xl font-heading ring-2 ring-[#22D3EE]/30 shrink-0">
-              {user.name.charAt(0).toUpperCase()}
-            </div>
+            <SquidAsset name="player_avatar" alt="Player 456 Tracksuit Avatar" width={56} height={56} className="shrink-0" />
 
             <div className="truncate">
               {isEditingName ? (

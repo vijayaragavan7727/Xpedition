@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
+  <defs>
+    <radialGradient id="dollBg" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#FB7185" stop-opacity="0.6"/>
+      <stop offset="100%" stop-color="#1B1B3A" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="orangeShirt" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FF7A00"/>
+      <stop offset="100%" stop-color="#CC4E00"/>
+    </linearGradient>
+    <linearGradient id="yellowDress" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFDD00"/>
+      <stop offset="100%" stop-color="#D4B200"/>
+    </linearGradient>
+  </defs>
+  <circle cx="100" cy="100" r="90" fill="url(#dollBg)"/>
+  <!-- Young-hee head & pigtails -->
+  <!-- Hair back -->
+  <path d="M50 70C45 100 35 110 35 110M150 70C155 100 165 110 165 110" stroke="#1E1E24" stroke-width="12" stroke-linecap="round"/>
+  <!-- Face -->
+  <circle cx="100" cy="75" r="35" fill="#FFE0BD"/>
+  <!-- Hair front bangs -->
+  <path d="M65 70C65 50 135 50 135 70C135 55 65 55 65 70Z" fill="#1E1E24"/>
+  <!-- Red clips -->
+  <circle cx="68" cy="65" r="5" fill="#FB7185"/>
+  <circle cx="132" cy="65" r="5" fill="#FB7185"/>
+  <!-- Robot Eyes (Glowing red/cyan detector) -->
+  <circle cx="85" cy="75" r="5" fill="#1E1E24"/>
+  <circle cx="85" cy="75" r="2" fill="#22D3EE"/>
+  <circle cx="115" cy="75" r="5" fill="#1E1E24"/>
+  <circle cx="115" cy="75" r="2" fill="#22D3EE"/>
+  <!-- Rosy cheeks -->
+  <circle cx="78" cy="85" r="5" fill="#FF8A8A" opacity="0.6"/>
+  <circle cx="122" cy="85" r="5" fill="#FF8A8A" opacity="0.6"/>
+  <!-- Mouth -->
+  <path d="M95 90Q100 93 105 90" stroke="#D14343" stroke-width="2" stroke-linecap="round"/>
+  <!-- Dress & Body -->
+  <path d="M85 108L70 165L130 165L115 108Z" fill="url(#yellowDress)"/>
+  <path d="M80 108C80 100 120 100 120 108L115 135L85 135Z" fill="url(#orangeShirt)"/>
+  <!-- Sensor tree in background -->
+  <rect x="180" y="30" width="6" height="140" fill="#3F3F46" rx="3"/>
+  <circle cx="183" cy="40" r="8" fill="#22D3EE"/>
+  <circle cx="183" cy="60" r="8" fill="#FB7185"/>
+</svg>

@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
+  <defs>
+    <radialGradient id="pinkGuardBgTri" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#E11D48" stop-opacity="0.5"/>
+      <stop offset="100%" stop-color="#0A0A1A" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="pinkSuitTri" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#F43F5E"/>
+      <stop offset="100%" stop-color="#BE123C"/>
+    </linearGradient>
+  </defs>
+  <circle cx="100" cy="100" r="90" fill="url(#pinkGuardBgTri)"/>
+  <!-- Hooded pink jumpsuit -->
+  <path d="M45 180C45 130 65 105 100 105C135 105 155 130 155 180Z" fill="url(#pinkSuitTri)"/>
+  <!-- Zipper -->
+  <line x1="100" y1="115" x2="100" y2="180" stroke="#881337" stroke-width="3"/>
+  <!-- Mask Head -->
+  <ellipse cx="100" cy="75" rx="35" ry="42" fill="#18181B"/>
+  <ellipse cx="100" cy="75" rx="33" ry="40" fill="#09090B" stroke="#27272A" stroke-width="2"/>
+  <!-- Triangle Mesh Symbol (Armed Guard) -->
+  <polygon points="100,52 120,86 80,86" stroke="#FFFFFF" stroke-width="4.5" stroke-linejoin="round" fill="none"/>
+</svg>

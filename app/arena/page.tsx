@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 
 import { getOrRefreshActiveRound, ArenaRound } from "@/lib/arenaEngine";
+import SquidAsset from "@/components/SquidAsset";
 
 interface StandingPlayer {
   rank: number;
@@ -97,16 +98,19 @@ export default function EliminationArenaPage() {
             <span>ELIMINATION ARENA</span>
           </div>
 
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl sm:text-3xl font-black text-white font-heading">
-                Weekly Tournament
-              </h1>
-              <p className="text-xs text-[#A9A9C4] mt-0.5">
-                {standings.length > 0
-                  ? `${standings.length} learners entered • top ${Math.ceil(standings.length / 2)} advance each round`
-                  : "Round Registration Open • Enter to compete"}
-              </p>
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <SquidAsset name="vip_mask" alt="Golden VIP Tournament Mask" width={40} height={40} className="shrink-0" />
+              <div>
+                <h1 className="text-2xl sm:text-3xl font-black text-white font-heading">
+                  Weekly Tournament
+                </h1>
+                <p className="text-xs text-[#A9A9C4] mt-0.5">
+                  {standings.length > 0
+                    ? `${standings.length} learners entered • top ${Math.ceil(standings.length / 2)} advance each round`
+                    : "Round Registration Open • Enter to compete"}
+                </p>
+              </div>
             </div>
 
             {/* Timer Chip */}

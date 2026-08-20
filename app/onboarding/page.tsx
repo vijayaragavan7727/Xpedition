@@ -29,6 +29,7 @@ import {
   FileText,
   X,
 } from "lucide-react";
+import SquidAsset from "@/components/SquidAsset";
 
 const POPULAR_QUICKSTART_GOALS = [
   { id: "python", title: "Python Basics", desc: "Syntax, data structures & functions", icon: "🐍", query: "Python Basics for Beginners" },
@@ -413,9 +414,12 @@ export default function OnboardingPage() {
               THOMPSON SAMPLING BANDIT ARMS READY
             </div>
 
-            <h1 className="text-3xl sm:text-5xl font-black text-white font-heading tracking-tight">
-              What's your goal?
-            </h1>
+            <div className="flex items-center justify-center gap-3">
+              <SquidAsset name="invitation" alt="Game Invitation Card" width={40} height={40} className="shrink-0" />
+              <h1 className="text-3xl sm:text-5xl font-black text-white font-heading tracking-tight">
+                What do you want to learn?
+              </h1>
+            </div>
             <p className="text-sm sm:text-base text-[#94A3B8] max-w-lg mx-auto">
               State your target role, exam, or skill. Tavily & Groq AI will construct your adaptive curriculum.
             </p>

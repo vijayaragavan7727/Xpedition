@@ -19,6 +19,8 @@ import {
   Forward,
 } from "lucide-react";
 
+import SquidAsset from "@/components/SquidAsset";
+
 interface RewardModalProps {
   reward: RewardDrop;
   question?: Question | null;
@@ -72,9 +74,9 @@ export default function RewardModal({ reward, question, onClaim }: RewardModalPr
       default:
         return {
           icon: Trophy,
-          title: reward.title || "Rare Badge Unlocked",
-          xpBonus: 50,
-          description: reward.description || "Unlocked rare achievement credential on your Skill Passport!",
+          title: "Cyber Master Badge",
+          xpBonus: 25,
+          description: "Unlocked shiny collectible badge for your public profile.",
           color: "text-[#34D399]",
           bg: "bg-[#34D399]/20 border-[#34D399]/60",
         };
@@ -84,7 +86,7 @@ export default function RewardModal({ reward, question, onClaim }: RewardModalPr
   const treatment = getRewardTreatment();
   const Icon = treatment.icon;
 
-  const handleSelectReinforcement = (idx: number) => {
+  const handleReinforcementSelect = (idx: number) => {
     if (isReinforcementAnswered) return;
     setSelectedReinforcementIndex(idx);
     setIsReinforcementAnswered(true);
@@ -109,9 +111,7 @@ export default function RewardModal({ reward, question, onClaim }: RewardModalPr
 
         {/* 1. COMPACT REWARD REVEAL (Top 1/3 of modal) */}
         <section className="bg-[#0A0A1A]/80 border border-white/10 rounded-2xl p-3.5 flex items-center gap-3 text-left">
-          <div className={`w-12 h-12 min-w-[48px] rounded-2xl ${treatment.bg} border flex items-center justify-center shrink-0 shadow-lg`}>
-            <Icon className={`w-6 h-6 ${treatment.color}`} />
-          </div>
+          <SquidAsset name="guard_square" alt="Supervisor Guard Inspector" width={40} height={40} className="shrink-0" />
 
           <div className="flex-1 truncate">
             <div className="flex items-center justify-between gap-2">
@@ -132,8 +132,8 @@ export default function RewardModal({ reward, question, onClaim }: RewardModalPr
         {/* 2. REINFORCE LEARNING SECTION */}
         <section className="bg-[#12122C] border border-[#7C3AED]/40 rounded-2xl p-4 text-left space-y-3">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1.5 text-xs font-mono font-bold text-[#22D3EE]">
-              <Lightbulb className="w-4 h-4 text-[#FBBF24]" />
+            <div className="flex items-center gap-2 text-xs font-mono font-bold text-[#22D3EE]">
+              <SquidAsset name="dalgona" alt="Dalgona Candy Precision Check" width={22} height={22} />
               <span>REINFORCE YOUR MASTERY</span>
             </div>
             <span className="text-[10px] font-mono text-[#34D399] font-bold">
@@ -182,7 +182,7 @@ export default function RewardModal({ reward, question, onClaim }: RewardModalPr
                 return (
                   <button
                     key={idx}
-                    onClick={() => handleSelectReinforcement(idx)}
+                    onClick={() => handleReinforcementSelect(idx)}
                     disabled={isReinforcementAnswered}
                     className={`py-2.5 px-3 min-h-[44px] rounded-xl border text-xs font-mono font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${btnStyle}`}
                   >

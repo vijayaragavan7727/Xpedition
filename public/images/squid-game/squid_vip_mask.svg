@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
+  <defs>
+    <radialGradient id="vipGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#FBBF24" stop-opacity="0.5"/>
+      <stop offset="100%" stop-color="#0A0A1A" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="goldVip" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FEF08A"/>
+      <stop offset="50%" stop-color="#FBBF24"/>
+      <stop offset="100%" stop-color="#B45309"/>
+    </linearGradient>
+  </defs>
+  <circle cx="100" cy="100" r="90" fill="url(#vipGlow)"/>
+  <!-- Golden Lion / Panther VIP Mask -->
+  <path d="M50 80C50 50 75 35 100 35C125 35 150 50 150 80C150 115 130 145 100 160C70 145 50 115 50 80Z" fill="url(#goldVip)" stroke="#FFFBEB" stroke-width="2.5"/>
+  <!-- Ornate Filigree & Eyes -->
+  <ellipse cx="78" cy="80" rx="12" ry="7" fill="#09090B" stroke="#FDE047" stroke-width="2"/>
+  <ellipse cx="122" cy="80" rx="12" ry="7" fill="#09090B" stroke="#FDE047" stroke-width="2"/>
+  <path d="M100 85L93 110L107 110Z" fill="#B45309"/>
+  <!-- Crown / Mane Filigree -->
+  <path d="M70 45L80 60L100 42L120 60L130 45" stroke="#FEF08A" stroke-width="3" fill="none"/>
+</svg>

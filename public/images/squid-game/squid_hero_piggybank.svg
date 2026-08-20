@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
+  <defs>
+    <radialGradient id="piggyGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#FBBF24" stop-opacity="0.8"/>
+      <stop offset="70%" stop-color="#D97706" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#7C3AED" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFE885"/>
+      <stop offset="40%" stop-color="#FBBF24"/>
+      <stop offset="80%" stop-color="#D97706"/>
+      <stop offset="100%" stop-color="#78350F"/>
+    </linearGradient>
+    <filter id="shadowFilter" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="8" stdDeviation="6" flood-color="#FBBF24" flood-opacity="0.4"/>
+    </filter>
+  </defs>
+  <circle cx="100" cy="100" r="90" fill="url(#piggyGlow)"/>
+  <!-- Glass Globe outline -->
+  <circle cx="100" cy="95" r="70" fill="#1B1B3A" fill-opacity="0.7" stroke="#FBBF24" stroke-width="3" filter="url(#shadowFilter)"/>
+  <!-- Piggy Bank silhouette with golden glow -->
+  <path d="M140 90C140 70 120 60 100 60C80 60 60 70 60 90C60 110 70 125 90 130L90 145C90 148 93 150 96 150L104 150C107 150 110 148 110 145L110 130C130 125 140 110 140 90Z" fill="url(#goldGrad)"/>
+  <!-- Snout -->
+  <ellipse cx="60" cy="90" rx="8" ry="12" fill="#FFE885"/>
+  <circle cx="58" cy="87" r="2.5" fill="#78350F"/>
+  <circle cx="58" cy="93" r="2.5" fill="#78350F"/>
+  <!-- Ears -->
+  <path d="M85 62L95 45L105 60Z" fill="url(#goldGrad)"/>
+  <!-- Coin slot & glowing XP coins dropping in -->
+  <rect x="92" y="65" width="16" height="4" rx="2" fill="#78350F"/>
+  <circle cx="100" cy="45" r="10" fill="#FFE885" stroke="#FBBF24" stroke-width="2"/>
+  <text x="100" y="49" font-family="sans-serif" font-size="10" font-weight="900" text-anchor="middle" fill="#78350F">XP</text>
+  <!-- Squid Game shapes on globe base -->
+  <circle cx="85" cy="165" r="4" stroke="#22D3EE" stroke-width="1.5"/>
+  <polygon points="100,161 104,169 96,169" stroke="#FB7185" stroke-width="1.5" fill="none"/>
+  <rect x="111" y="161" width="8" height="8" stroke="#34D399" stroke-width="1.5" fill="none"/>
+</svg>
