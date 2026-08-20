@@ -32,6 +32,7 @@ import {
 import SquidAsset from "@/components/SquidAsset";
 import XpAsset from "@/components/XpAsset";
 import PlacementTestModal from "@/components/PlacementTestModal";
+import LearnerOnboardingModal from "@/components/LearnerOnboardingModal";
 
 const POPULAR_QUICKSTART_GOALS = [
   { id: "python", title: "Python Basics", desc: "Syntax, data structures & functions", icon: "🐍", query: "Python Basics for Beginners" },
@@ -227,6 +228,7 @@ export default function OnboardingPage() {
 
   const [showPlacementModal, setShowPlacementModal] = useState(false);
   const [pendingGoal, setPendingGoal] = useState("");
+  const [showContextModal, setShowContextModal] = useState(false);
 
   const triggerGoalPlacement = (targetGoal: string) => {
     if (!targetGoal.trim()) return;
@@ -868,6 +870,11 @@ export default function OnboardingPage() {
           }}
         />
       )}
+
+      <LearnerOnboardingModal
+        isOpen={showContextModal}
+        onClose={() => setShowContextModal(false)}
+      />
 
       <footer className="w-full max-w-5xl mx-auto text-center text-xs text-slate-500 z-10 py-2">
         XPedition Goal Engine • Thompson Sampling Bandit & Groq AI Active

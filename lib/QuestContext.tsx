@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect } from "react";
-import { GoalEngineResponse, Question, Skill, LearningStyle } from "./types";
+import { GoalEngineResponse, Question, Skill, LearningStyle, LearnerProfile } from "./types";
 import { supabase, isSupabaseConfigured } from "./supabase";
 import { updateMastery, predictCorrect, BKT_PARAMS } from "./bkt";
 import {
@@ -53,6 +53,7 @@ interface UserProfile {
   styleStats?: Record<LearningStyle, { attempts: number; correct: number }>;
   cohort: CohortType;
   unlockedBadges: string[];
+  profile?: LearnerProfile;
 }
 
 interface QuestContextType {

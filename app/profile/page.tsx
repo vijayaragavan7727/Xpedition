@@ -28,15 +28,17 @@ import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { getTopArmInsight, RewardArm } from "@/lib/bandit";
 import SquidAsset from "@/components/SquidAsset";
 import XpAsset from "@/components/XpAsset";
+import LearnerOnboardingModal from "@/components/LearnerOnboardingModal";
 
 export default function ProfilePage() {
   const { user, isAuthLoading, course, goalText, saveUserProfile } = useQuest();
   const progress = xpProgress(user.xp);
 
-  // Editable display name
+  // Editable display name & onboarding state
   const [displayName, setDisplayName] = useState(user.name);
   const [isEditingName, setIsEditingName] = useState(false);
   const [savingName, setSavingName] = useState(false);
+  const [showOnboardingModal, setShowOnboardingModal] = useState(false);
 
   // Live DB queried real stats
   const [masteredCount, setMasteredCount] = useState<number>(0);
@@ -348,6 +350,45 @@ export default function ProfilePage() {
           </div>
         )}
 
+        {/* Learner Context & Preferences Settings Card */}
+        <section className="bg-[#0D0D1A] border border-[#00F0FF]/30 rounded-3xl p-5 shadow-lg space-y-3 glow-cyan">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xs font-bold text-[#00F0FF] font-mono uppercase tracking-wider flex items-center gap-2">
+              <User className="w-4 h-4 text-[#FFB800]" />
+              <span>Learner Context & Preferences</span>
+            </h2>
+            <button
+              type="button"
+              onClick={() => setShowOnboardingModal(true)}
+              className="text-xs font-mono font-bold text-[#00F0FF] hover:underline flex items-center gap-1 cursor-pointer"
+            >
+              <Edit2 className="w-3.5 h-3.5" /> Edit Context
+            </button>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 text-xs font-mono">
+            <div className="p-3 rounded-2xl bg-[#000000] border border-white/10">
+              <span className="text-slate-400 block text-[10px]">Current Status</span>
+              <span className="text-white font-bold capitalize">{user.profile?.currentStatus || "College Student"}</span>
+            </div>
+
+            <div className="p-3 rounded-2xl bg-[#000000] border border-white/10">
+              <span className="text-slate-400 block text-[10px]">Self Rating</span>
+              <span className="text-white font-bold capitalize">{user.profile?.learnerRating?.replace("_", " ") || "Getting There"}</span>
+            </div>
+
+            <div className="p-3 rounded-2xl bg-[#000000] border border-white/10">
+              <span className="text-slate-400 block text-[10px]">Learning Style</span>
+              <span className="text-[#00FF87] font-bold capitalize">{user.learningStyle || "Story & Analogy"}</span>
+            </div>
+
+            <div className="p-3 rounded-2xl bg-[#000000] border border-white/10">
+              <span className="text-slate-400 block text-[10px]">Daily Target</span>
+              <span className="text-[#A855F7] font-bold">{user.profile?.dailyTime || "30 min"}</span>
+            </div>
+          </div>
+        </section>
+
         {/* Quick Link to Settings */}
         <div className="pt-2 text-center">
           <Link
@@ -359,6 +400,11 @@ export default function ProfilePage() {
           </Link>
         </div>
       </div>
+
+      <LearnerOnboardingModal
+        isOpen={showOnboardingModal}
+        onClose={() => setShowOnboardingModal(false)}
+      />
 
       <BottomNav />
     </main>

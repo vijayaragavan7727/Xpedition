@@ -57,7 +57,19 @@ export interface GoalEngineResponse {
   sources?: SourceItem[];
 }
 
+export interface LearnerProfile {
+  name?: string;
+  currentStatus?: string;
+  yearAndBranch?: string;
+  learnerRating?: string;
+  lastExamMarks?: string;
+  learningStyle?: LearningStyle;
+  dailyTime?: string;
+  interests?: string[];
+}
+
 export interface UserSession {
   email: string;
   name: string;
+  profile?: LearnerProfile;
 }

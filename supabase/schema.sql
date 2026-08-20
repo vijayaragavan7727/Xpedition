@@ -11,6 +11,13 @@ CREATE TABLE IF NOT EXISTS public.users (
   share_id UUID DEFAULT gen_random_uuid(),
   timezone TEXT DEFAULT 'UTC',
   motivation_type TEXT DEFAULT 'trophy',
+  current_status TEXT,
+  year_and_branch TEXT,
+  learner_rating TEXT,
+  last_exam_marks TEXT,
+  learning_style TEXT DEFAULT 'story',
+  daily_time TEXT DEFAULT '30 min',
+  interests JSONB DEFAULT '[]'::jsonb,
   accessibility_settings JSONB DEFAULT '{"focusMode": false, "dyslexiaFriendly": false, "reducedMotion": false}'::jsonb,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
