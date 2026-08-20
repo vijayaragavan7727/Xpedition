@@ -13,10 +13,15 @@ export interface Skill {
   sourceUrl?: string;
 }
 
+export type QuestionType = "concept" | "code_output" | "debug" | "scenario" | "compare";
+
 export interface Question {
   prompt: string;
   options: [string, string, string, string] | string[];
   correctIndex: number;
+  questionType?: QuestionType;
+  codeSnippet?: string;
+  scenarioSetup?: string;
   /** Per-option explanations: index matches options[]. Why each wrong option is wrong, why the correct one is right. */
   explanations?: string[];
   /** One-paragraph concept summary shown after answering — the core insight behind the question. */

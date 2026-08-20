@@ -5,7 +5,7 @@ import { useQuest, RewardDrop } from "@/lib/QuestContext";
 import BottomNav from "@/components/BottomNav";
 import RewardModal from "@/components/RewardModal";
 import FlowExplanationModal from "@/components/FlowExplanationModal";
-import { Question } from "@/lib/types";
+import { Question, QuestionType } from "@/lib/types";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import {
   selectArm,
@@ -28,6 +28,11 @@ import {
   Mic,
   Users,
   ExternalLink,
+  Lightbulb,
+  Terminal,
+  Bug,
+  Globe,
+  Scale,
 } from "lucide-react";
 import TutorOverlay from "@/components/TutorOverlay";
 
@@ -69,11 +74,23 @@ export default function QuestPage() {
   const [showTutorOverlay, setShowTutorOverlay] = useState(false);
   const [hintsUsedCount, setHintsUsedCount] = useState(0);
 
+  // Question type rotation and anti-repetition tracking
+  const [recentTypes, setRecentTypes] = useState<QuestionType[]>([]);
+  const [recentPrompts, setRecentPrompts] = useState<string[]>([]);
+
   useEffect(() => {
     setRenderTimestamp(Date.now());
     setHintsUsedCount(0);
     setShowExplanation(false);
     fetchUserArms();
+
+    if (currentQuestion) {
+      const qType = currentQuestion.questionType || "concept";
+      setRecentTypes((prev) => (prev.includes(qType) ? prev : [...prev.slice(-2), qType]));
+      if (currentQuestion.prompt) {
+        setRecentPrompts((prev) => (prev.includes(currentQuestion.prompt) ? prev : [...prev.slice(-19), currentQuestion.prompt]));
+      }
+    }
   }, [currentQuestion, user]);
 
   const fetchUserArms = async () => {
@@ -237,12 +254,17 @@ export default function QuestPage() {
           difficulty: flowDifficulty,
           wasCorrect,
           goal: goalText,
+          recentTypes: recentTypes.slice(-3),
+          recentPrompts: recentPrompts.slice(-20),
         }),
       });
 
       if (res.ok) {
         const nextQ: Question = await res.json();
         if (nextQ && nextQ.prompt && Array.isArray(nextQ.options)) {
+          const qType = nextQ.questionType || "concept";
+          setRecentTypes((prev) => [...prev.slice(-2), qType]);
+          setRecentPrompts((prev) => [...prev.slice(-19), nextQ.prompt]);
           setNextQuestion(nextQ);
         }
       }
@@ -414,11 +436,59 @@ export default function QuestPage() {
               </button>
             </div>
 
-            {/* Peer Quest Learner Tag */}
-            {question.isPeerQuest && (
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#34D399]/20 border border-[#34D399]/40 text-[#34D399] text-[11px] font-mono font-bold">
-                <Users className="w-3.5 h-3.5" />
-                Written by a learner ({question.authorName || "Learner"})
+            {/* Question Type Badge Tag */}
+            <div className="flex items-center gap-2 pt-1 pb-1">
+              {(() => {
+                const qType = question.questionType || "concept";
+                const typeBadges: Record<QuestionType, { label: string; icon: any; color: string }> = {
+                  concept: { label: "Concept & Definition", icon: Lightbulb, color: "bg-amber-500/20 border-amber-500/40 text-amber-300" },
+                  code_output: { label: "Code Output Prediction", icon: Terminal, color: "bg-cyan-500/20 border-cyan-500/40 text-cyan-300" },
+                  debug: { label: "Debug & Error Finding", icon: Bug, color: "bg-rose-500/20 border-rose-500/40 text-rose-300" },
+                  scenario: { label: "Real-World Scenario", icon: Globe, color: "bg-emerald-500/20 border-emerald-500/40 text-emerald-300" },
+                  compare: { label: "Concept Comparison", icon: Scale, color: "bg-violet-500/20 border-violet-500/40 text-violet-300" },
+                };
+                const b = typeBadges[qType] || typeBadges.concept;
+                const IconComponent = b.icon;
+
+                return (
+                  <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-[11px] font-mono font-bold uppercase tracking-wider ${b.color}`}>
+                    <IconComponent className="w-3.5 h-3.5" />
+                    {b.label}
+                  </span>
+                );
+              })()}
+
+              {/* Peer Quest Learner Tag */}
+              {question.isPeerQuest && (
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#34D399]/20 border border-[#34D399]/40 text-[#34D399] text-[11px] font-mono font-bold uppercase tracking-wider">
+                  <Users className="w-3.5 h-3.5" />
+                  Learner ({question.authorName || "Contributor"})
+                </div>
+              )}
+            </div>
+
+            {/* Scenario Setup Block */}
+            {question.scenarioSetup && (
+              <div className="bg-[#0A0A1A]/80 border border-[#22D3EE]/30 rounded-2xl p-4 my-2 text-slate-200 text-sm leading-relaxed shadow-inner">
+                <div className="text-[10px] font-mono font-bold text-[#22D3EE] uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                  <Globe className="w-3.5 h-3.5 text-[#22D3EE]" /> Scenario Background
+                </div>
+                <p className="text-slate-200 text-sm leading-relaxed">{question.scenarioSetup}</p>
+              </div>
+            )}
+
+            {/* Code Snippet Block */}
+            {question.codeSnippet && (
+              <div className="bg-[#0A0A1A] border border-white/10 rounded-2xl p-4 my-2 font-mono text-xs sm:text-sm text-[#22D3EE] overflow-x-auto shadow-inner">
+                <div className="flex items-center justify-between pb-2 mb-2 border-b border-white/10 text-[10px] text-slate-400">
+                  <span className="flex items-center gap-1.5 font-bold uppercase tracking-wider text-[#34D399]">
+                    <Terminal className="w-3.5 h-3.5" /> Code Snippet
+                  </span>
+                  <span className="text-[10px] font-mono text-slate-400 font-bold uppercase">
+                    {question.questionType === "debug" ? "Find Error" : "Predict Output"}
+                  </span>
+                </div>
+                <pre className="whitespace-pre-wrap font-mono text-[#22D3EE]">{question.codeSnippet}</pre>
               </div>
             )}
 

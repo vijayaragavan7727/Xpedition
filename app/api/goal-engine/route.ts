@@ -89,7 +89,10 @@ Respond with STRICT JSON ONLY. Do not wrap in markdown backticks. The JSON struc
     }
   ],
   "firstQuestion": {
+    "questionType": "concept" | "code_output" | "debug" | "scenario" | "compare",
     "prompt": "An engaging multiple-choice diagnostic/quest question related to the first skill",
+    "scenarioSetup": "Optional 2-sentence scenario background if questionType is 'scenario', otherwise omit or set null",
+    "codeSnippet": "Optional clean formatted code block if questionType is 'code_output' or 'debug', otherwise omit or set null",
     "options": ["Option A", "Option B", "Option C", "Option D"],
     "correctIndex": 0,
     "explanations": [
@@ -103,6 +106,7 @@ Respond with STRICT JSON ONLY. Do not wrap in markdown backticks. The JSON struc
 }
 
 Rules:
+- questionType MUST be one of: "concept", "code_output", "debug", "scenario", "compare".
 - explanations must have exactly 4 strings, one per option, in the same order as options[].
 - Each explanation must be specific to why that option is right or wrong — never say just 'this is incorrect'.
 - conceptSummary must teach the underlying principle, not just restate which answer is right.
@@ -170,9 +174,17 @@ function generateSmartFallback(goal: string): GoalEngineResponse {
         { id: "p5", name: "System Design & Coding Interview Live Practice", difficulty: 5 }
       ],
       firstQuestion: {
+        questionType: "concept",
         prompt: "In Python, which of the following data structures is immutable and defined using parentheses?",
         options: ["List", "Tuple", "Dictionary", "Set"],
-        correctIndex: 1
+        correctIndex: 1,
+        explanations: [
+          "Lists are mutable and defined using square brackets [], not parentheses.",
+          "✓ Tuples are defined using parentheses () and cannot be modified after creation (immutable).",
+          "Dictionaries store key-value pairs using curly braces {}, not parentheses.",
+          "Sets store unique unordered elements using curly braces {}, not parentheses."
+        ],
+        conceptSummary: "Tuples are immutable sequence types in Python defined with parentheses. Once instantiated, elements cannot be added, removed, or reassigned."
       }
     };
   } else if (lowerGoal.includes("dsa") || lowerGoal.includes("faang") || lowerGoal.includes("algorithm")) {
@@ -186,9 +198,17 @@ function generateSmartFallback(goal: string): GoalEngineResponse {
         { id: "d5", name: "Mock FAANG Coding Interview Simulations", difficulty: 5 }
       ],
       firstQuestion: {
+        questionType: "concept",
         prompt: "What is the worst-case time complexity of finding an element in a balanced Binary Search Tree (BST)?",
         options: ["O(1)", "O(log n)", "O(n)", "O(n log n)"],
-        correctIndex: 1
+        correctIndex: 1,
+        explanations: [
+          "O(1) constant time is achieved by Hash Tables, not BST searches.",
+          "✓ Balanced BSTs halve the search space at each level, taking O(log n) time.",
+          "O(n) occurs only in unbalanced / degenerate BSTs (like linked lists), not balanced BSTs.",
+          "O(n log n) is standard sorting algorithm complexity, not tree lookup complexity."
+        ],
+        conceptSummary: "Searching a balanced BST takes O(log n) time because each comparison eliminates half of the remaining subtree."
       }
     };
   }
