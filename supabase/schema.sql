@@ -158,8 +158,38 @@ CREATE TABLE IF NOT EXISTS public.passport_snapshots (
   skills_json JSONB NOT NULL,
   overall_readiness FLOAT NOT NULL,
   signature TEXT NOT NULL,
-  issued_at TIMESTAMPTZ DEFAULT NOW()
+  created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- 14. Learning Modules Table (Learn-Then-Test Platform)
+CREATE TABLE IF NOT EXISTS public.modules (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  skill_id TEXT NOT NULL,
+  level INT NOT NULL DEFAULT 1,
+  learning_style TEXT NOT NULL DEFAULT 'story',
+  title TEXT NOT NULL,
+  content JSONB NOT NULL,
+  takeaways JSONB NOT NULL,
+  sources JSONB NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_modules_skill_level_style ON public.modules(skill_id, level, learning_style);
+
+-- 15. User Module Progress Table
+CREATE TABLE IF NOT EXISTS public.user_module_progress (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id TEXT NOT NULL,
+  skill_id TEXT NOT NULL,
+  level INT NOT NULL DEFAULT 1,
+  read_completed BOOLEAN DEFAULT FALSE,
+  test_passed BOOLEAN DEFAULT FALSE,
+  score INT DEFAULT 0,
+  attempts INT DEFAULT 0,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_user_module_progress ON public.user_module_progress(user_id, skill_id, level);
 
 -- 14. Experiment Assignments Table (A/B Learning Gain Harness)
 CREATE TABLE IF NOT EXISTS public.experiment_assignments (

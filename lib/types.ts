@@ -43,6 +43,7 @@ export interface Question {
   explanation?: string;
   isPeerQuest?: boolean;
   authorName?: string;
+  difficulty?: number;
   reinforcement?: ReinforcementQuestion;
 }
 

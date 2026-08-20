@@ -238,9 +238,22 @@ export default function QuestResultsView({
                 </div>
 
                 {rec.explanation && (
-                  <div className="p-3 rounded-xl bg-[#0D0D1A] border border-white/10 text-xs text-slate-300 leading-relaxed font-sans mt-2">
-                    <span className="font-bold text-[#00F0FF] block mb-0.5">Explanation:</span>
-                    {rec.explanation}
+                  <div className="p-3 rounded-xl bg-[#0D0D1A] border border-white/10 text-xs text-slate-300 leading-relaxed font-sans mt-2 space-y-2">
+                    <div>
+                      <span className="font-bold text-[#00F0FF] block mb-0.5">Explanation:</span>
+                      {rec.explanation}
+                    </div>
+
+                    {!rec.isCorrect && onRetryLevel && (
+                      <button
+                        type="button"
+                        onClick={onRetryLevel}
+                        className="inline-flex items-center gap-1 text-[11px] font-mono font-bold text-[#00FF87] hover:underline cursor-pointer pt-1"
+                      >
+                        <BookOpen className="w-3.5 h-3.5" />
+                        <span>Review Module Section {(idx % 4) + 1} ({skillName}) →</span>
+                      </button>
+                    )}
                   </div>
                 )}
               </div>

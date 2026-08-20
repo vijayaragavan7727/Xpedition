@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import SquidAsset from "@/components/SquidAsset";
 import XpAsset from "@/components/XpAsset";
+import PlacementTestModal from "@/components/PlacementTestModal";
 
 const POPULAR_QUICKSTART_GOALS = [
   { id: "python", title: "Python Basics", desc: "Syntax, data structures & functions", icon: "🐍", query: "Python Basics for Beginners" },
@@ -224,7 +225,20 @@ export default function OnboardingPage() {
     }
   };
 
-  const handleGenerateCourse = async (targetGoal: string) => {
+  const [showPlacementModal, setShowPlacementModal] = useState(false);
+  const [pendingGoal, setPendingGoal] = useState("");
+
+  const triggerGoalPlacement = (targetGoal: string) => {
+    if (!targetGoal.trim()) return;
+    setPendingGoal(targetGoal);
+    setShowPlacementModal(true);
+  };
+
+  const handleGenerateCourse = async (
+    targetGoal: string,
+    startingLevel: number = 1,
+    initialPKnow: number = 0.15
+  ) => {
     if (!targetGoal.trim()) return;
 
     setLoading(true);
@@ -271,7 +285,7 @@ export default function OnboardingPage() {
       setResult(data);
       setCourseData(data, data.normalizedTopic || targetGoal);
 
-      // Save goal and skills to Supabase DB
+      // Save goal and skills to Supabase DB with placement starting level
       if (isSupabaseConfigured()) {
         try {
           const { data: userData } = await supabase.auth.getUser();
@@ -297,9 +311,32 @@ export default function OnboardingPage() {
               }));
 
               await supabase.from("skills").insert(skillRecords);
+
+              // Set placement user_module_progress if starting at Level 2 or Level 3
+              if (startingLevel > 1) {
+                for (const s of data.skills) {
+                  await supabase.from("user_module_progress").upsert({
+                    user_id: userId,
+                    skill_id: s.id || `skill-${s.name}`,
+                    level: 1,
+                    read_completed: true,
+                    test_passed: true,
+                    score: 8,
+                  });
+                  if (startingLevel > 2) {
+                    await supabase.from("user_module_progress").upsert({
+                      user_id: userId,
+                      skill_id: s.id || `skill-${s.name}`,
+                      level: 2,
+                      read_completed: true,
+                      test_passed: true,
+                      score: 8,
+                    });
+                  }
+                }
+              }
             }
 
-            // Also ensure arms initialized with equal priors
             await initUserArms(userId);
           }
         } catch (dbErr) {
@@ -316,12 +353,12 @@ export default function OnboardingPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    handleGenerateCourse(goal);
+    triggerGoalPlacement(goal);
   };
 
   const handleSelectSuggested = (suggested: string) => {
     setGoal(suggested);
-    handleGenerateCourse(suggested);
+    triggerGoalPlacement(suggested);
   };
 
   return (
@@ -817,6 +854,20 @@ export default function OnboardingPage() {
           </div>
         )}
       </div>
+
+      {showPlacementModal && pendingGoal && (
+        <PlacementTestModal
+          goalTitle={pendingGoal}
+          onSkipBeginner={() => {
+            setShowPlacementModal(false);
+            handleGenerateCourse(pendingGoal, 1, 0.15);
+          }}
+          onComplete={(startingLevel, initialPKnow) => {
+            setShowPlacementModal(false);
+            handleGenerateCourse(pendingGoal, startingLevel, initialPKnow);
+          }}
+        />
+      )}
 
       <footer className="w-full max-w-5xl mx-auto text-center text-xs text-slate-500 z-10 py-2">
         XPedition Goal Engine • Thompson Sampling Bandit & Groq AI Active

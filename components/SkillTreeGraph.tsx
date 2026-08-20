@@ -133,6 +133,41 @@ export default function SkillTreeGraph({
                       <span>•</span>
                       <span>Reward: +{xpReward} XP</span>
                     </div>
+
+                    {/* 3 Sub-Levels (Basics, Intermediate, Advanced) */}
+                    <div className="flex items-center gap-1.5 pt-1">
+                      <span
+                        className={`text-[9px] font-mono font-bold px-2 py-0.5 rounded-md border ${
+                          nodePKnow >= 0.35
+                            ? "bg-[#00FF87]/20 border-[#00FF87]/50 text-[#00FF87]"
+                            : "bg-[#00F0FF]/10 border-[#00F0FF]/30 text-[#00F0FF]"
+                        }`}
+                      >
+                        L1 Basics: {nodePKnow >= 0.35 ? "TEST PASSED" : "MODULE READ"}
+                      </span>
+
+                      <span
+                        className={`text-[9px] font-mono font-bold px-2 py-0.5 rounded-md border ${
+                          nodePKnow >= 0.65
+                            ? "bg-[#00FF87]/20 border-[#00FF87]/50 text-[#00FF87]"
+                            : nodePKnow >= 0.35
+                            ? "bg-[#A855F7]/20 border-[#A855F7]/40 text-[#00F0FF]"
+                            : "bg-white/5 border-white/10 text-slate-500"
+                        }`}
+                      >
+                        L2 Inter: {nodePKnow >= 0.65 ? "TEST PASSED" : nodePKnow >= 0.35 ? "AVAILABLE" : "LOCKED"}
+                      </span>
+
+                      <span
+                        className={`text-[9px] font-mono font-bold px-2 py-0.5 rounded-md border ${
+                          nodePKnow >= 0.85
+                            ? "bg-[#00FF87]/20 border-[#00FF87]/50 text-[#00FF87]"
+                            : "bg-white/5 border-white/10 text-slate-500"
+                        }`}
+                      >
+                        L3 Adv: {nodePKnow >= 0.85 ? "TEST PASSED" : "LOCKED"}
+                      </span>
+                    </div>
                   </div>
                 </div>
 

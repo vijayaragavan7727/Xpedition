@@ -40,6 +40,7 @@ import TutorOverlay from "@/components/TutorOverlay";
 import XpAsset from "@/components/XpAsset";
 import { getModuleTheme } from "@/lib/moduleThemes";
 import QuestResultsView, { QuestionRecord } from "@/components/QuestResultsView";
+import LearningModuleReader, { LearningModuleData } from "@/components/LearningModuleReader";
 
 export default function QuestPage() {
   const {
@@ -56,6 +57,11 @@ export default function QuestPage() {
     claimReward,
     setNextQuestion,
   } = useQuest();
+
+  // Learn-Then-Test Platform State
+  const [viewMode, setViewMode] = useState<"module" | "test">("module");
+  const [moduleData, setModuleData] = useState<LearningModuleData | null>(null);
+  const [loadingModule, setLoadingModule] = useState<boolean>(false);
 
   // Level & Quest Progression State
   const [currentLevel, setCurrentLevel] = useState<number>(1);
@@ -365,11 +371,46 @@ export default function QuestPage() {
     }
   };
 
+  // Fetch Teaching Module Data
+  useEffect(() => {
+    async function fetchModule() {
+      if (!currentSkill?.name) return;
+      setLoadingModule(true);
+      try {
+        const res = await fetch("/api/generate-module", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            skillId: currentSkill.id,
+            skillName: currentSkill.name,
+            level: currentLevel,
+            learningStyle: user.learningStyle || "story",
+            goal: goalText,
+          }),
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          setModuleData(data);
+        }
+      } catch (err) {
+        console.warn("Failed fetching learning module:", err);
+      } finally {
+        setLoadingModule(false);
+      }
+    }
+
+    if (viewMode === "module") {
+      fetchModule();
+    }
+  }, [currentSkill.id, currentLevel, viewMode, user.learningStyle, goalText]);
+
   const handleRetryLevel = () => {
     localStorage.removeItem(storageKey);
     setSessionAnswers([]);
     setQuestionNumber(1);
     setIsQuestFinished(false);
+    setViewMode("module");
     setSelectedIndex(null);
     setIsAnswered(false);
     setShowExplanation(false);
@@ -383,6 +424,7 @@ export default function QuestPage() {
     setSessionAnswers([]);
     setQuestionNumber(1);
     setIsQuestFinished(false);
+    setViewMode("module");
     setSelectedIndex(null);
     setIsAnswered(false);
     setShowExplanation(false);
@@ -426,8 +468,31 @@ export default function QuestPage() {
             onRetryLevel={handleRetryLevel}
             onNextLevel={handleNextLevel}
           />
+        ) : viewMode === "module" ? (
+          /* 2. RENDER TEACHING MODULE READER FIRST BEFORE TEST */
+          loadingModule || !moduleData ? (
+            <div className="p-12 text-center bg-[#0D0D1A] border border-white/10 rounded-3xl shadow-2xl space-y-4">
+              <Loader2 className="w-8 h-8 text-[#00F0FF] animate-spin mx-auto" />
+              <div className="space-y-1">
+                <p className="text-sm font-bold text-white font-heading">
+                  Generating Grounded Learning Module...
+                </p>
+                <p className="text-xs text-slate-400 font-mono">
+                  Fetching Tavily Web Sources for Level {currentLevel}: {currentSkill.name}
+                </p>
+              </div>
+            </div>
+          ) : (
+            <LearningModuleReader
+              skillName={currentSkill.name}
+              currentLevel={currentLevel}
+              learningStyle={user.learningStyle || "story"}
+              moduleData={moduleData}
+              onStartTest={() => setViewMode("test")}
+            />
+          )
         ) : (
-          /* 2. RENDER ACTIVE SINGLE-QUESTION QUEST VIEW (1 of 10) */
+          /* 3. RENDER 10-QUESTION LEVEL TEST VIEW (1 of 10) */
           <>
             {/* BLACK + NEON QUEST HEADER */}
             <div className="bg-[#0D0D1A] border border-[#00F0FF]/30 rounded-3xl p-4 sm:p-5 shadow-2xl space-y-3 glow-cyan">
