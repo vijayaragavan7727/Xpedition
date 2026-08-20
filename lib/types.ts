@@ -74,3 +74,33 @@ export interface UserSession {
   name: string;
   profile?: LearnerProfile;
 }
+
+export interface CodingExample {
+  input: string;
+  expectedOutput: string;
+  explanation: string;
+}
+
+export interface CodingTestCase {
+  input: string;
+  expectedOutput: string;
+  hidden?: boolean;
+}
+
+export interface CodingChallenge {
+  id: string;
+  title: string;
+  problemStatement: string;
+  inputFormat: string;
+  outputFormat: string;
+  examples: CodingExample[];
+  testCases: CodingTestCase[];
+  starterCode: {
+    python: string;
+    java: string;
+    cpp: string;
+  };
+  difficulty: number;
+  xpReward: number;
+  conceptTested: string;
+}

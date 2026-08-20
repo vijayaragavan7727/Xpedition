@@ -35,6 +35,7 @@ import {
   RotateCcw,
   BookOpen,
   Trophy,
+  Code,
 } from "lucide-react";
 import TutorOverlay from "@/components/TutorOverlay";
 import XpAsset from "@/components/XpAsset";
@@ -602,6 +603,30 @@ export default function QuestPage() {
                     <span>Voice AI Tutor</span>
                   </button>
                 </div>
+
+                {/* CODING LAB PROMPT BANNER FOR CODING SKILLS */}
+                {(currentSkill.name.toLowerCase().includes("python") ||
+                  currentSkill.name.toLowerCase().includes("sql") ||
+                  currentSkill.name.toLowerCase().includes("code") ||
+                  currentSkill.name.toLowerCase().includes("java") ||
+                  currentSkill.name.toLowerCase().includes("c++") ||
+                  currentSkill.name.toLowerCase().includes("algorithm")) && (
+                  <div className="p-3.5 rounded-2xl bg-[#000000] border border-[#00F0FF]/40 flex items-center justify-between gap-3 text-xs font-mono glow-cyan">
+                    <div className="flex items-center gap-2 truncate">
+                      <Code className="w-4 h-4 text-[#00FF87] shrink-0" />
+                      <span className="text-white font-bold truncate">
+                        Hands-on Coding Challenge Available
+                      </span>
+                    </div>
+                    <Link
+                      href={`/lab/c1`}
+                      className="px-3 py-1.5 rounded-xl bg-[#00F0FF] text-black font-bold font-mono text-[11px] shrink-0 hover:brightness-110 flex items-center gap-1 transition-all"
+                    >
+                      <span>Open Code Lab</span>
+                      <ArrowRight className="w-3 h-3" />
+                    </Link>
+                  </div>
+                )}
 
                 {currentQuestion.scenarioSetup && (
                   <div className="p-3.5 rounded-2xl bg-[#000000]/60 border border-white/10 text-xs text-slate-300 leading-relaxed font-sans">

@@ -180,16 +180,33 @@ CRITICAL FORMAT REQUIREMENTS:
    - "codeExample": Object { "code": string, "explanation": string } or null.
 2. "takeaways": Array of 3 to 5 key bullet strings.
 3. "questions": EXACTLY 12 questions derived DIRECTLY from the sections above.
-   - EVERY question must test something EXPLICITLY taught in the sections above. Do not test anything not covered!
-   - Distribute questions across ALL sections — at least 2 questions per section.
-   - Each question object must have:
-     - "prompt": Question prompt string
-     - "options": Array of 4 distinct option strings
-     - "correctIndex": Integer (0 to 3)
-     - "explanations": Array of 4 explanation strings (index matching options)
-     - "sourceSection": Integer (0-indexed index of the section that taught this concept)
-     - "questionType": "concept" | "code_output" | "debug" | "scenario" | "compare"
-     - "difficulty": Integer (1 to 5, ascending difficulty across the 12 questions)
+   - EVERY question must test something EXPLICITLY taught in the sections above.
+   - Each question has: "prompt", "options" [4], "correctIndex", "explanations" [4], "sourceSection", "questionType", "difficulty".
+4. "challenges": If this topic is programming/coding related, generate 2 coding challenges matching this schema:
+   {
+     "id": "c1",
+     "title": "Title of Challenge",
+     "problemStatement": "Detailed description...",
+     "inputFormat": "Input format spec...",
+     "outputFormat": "Output format spec...",
+     "examples": [{ "input": "...", "expectedOutput": "...", "explanation": "..." }],
+     "testCases": [
+       { "input": "...", "expectedOutput": "...", "hidden": false },
+       { "input": "...", "expectedOutput": "...", "hidden": false },
+       { "input": "...", "expectedOutput": "...", "hidden": true },
+       { "input": "...", "expectedOutput": "...", "hidden": true },
+       { "input": "...", "expectedOutput": "...", "hidden": true }
+     ],
+     "starterCode": {
+       "python": "# Python starter code",
+       "java": "// Java starter code",
+       "cpp": "// C++ starter code"
+     },
+     "difficulty": 2,
+     "xpReward": 150,
+     "conceptTested": "Concept"
+   }
+   If non-coding topic, return empty array [].
 
 Return STRICT JSON ONLY matching this structure:
 {
@@ -202,18 +219,39 @@ Return STRICT JSON ONLY matching this structure:
       "codeExample": null
     }
   ],
-  "takeaways": [
-    "Key Takeaway 1..."
-  ],
+  "takeaways": ["Key Takeaway 1..."],
   "questions": [
     {
-      "prompt": "Question prompt testing exact concept from section...",
+      "prompt": "Question prompt testing exact concept...",
       "options": ["Option A", "Option B", "Option C", "Option D"],
       "correctIndex": 0,
       "explanations": ["Why A is right...", "Why B is wrong...", "Why C is wrong...", "Why D is wrong..."],
       "sourceSection": 0,
       "questionType": "concept",
       "difficulty": 1
+    }
+  ],
+  "challenges": [
+    {
+      "id": "c1",
+      "title": "Reverse String",
+      "problemStatement": "Problem statement...",
+      "inputFormat": "Input format...",
+      "outputFormat": "Output format...",
+      "examples": [{ "input": "hello", "expectedOutput": "olleh", "explanation": "..." }],
+      "testCases": [
+        { "input": "hello", "expectedOutput": "olleh", "hidden": false },
+        { "input": "world", "expectedOutput": "dlrow", "hidden": false },
+        { "input": "python", "expectedOutput": "nohtyp", "hidden": true }
+      ],
+      "starterCode": {
+        "python": "# Python code",
+        "java": "// Java code",
+        "cpp": "// C++ code"
+      },
+      "difficulty": 2,
+      "xpReward": 150,
+      "conceptTested": "Concept"
     }
   ]
 }`;
