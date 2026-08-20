@@ -11,7 +11,6 @@ import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import {
   selectArm,
   recordOutcome,
-  sampleBeta,
   ArmType,
   RewardArm,
   BANDIT_ARMS,
@@ -32,20 +31,15 @@ import {
   Info,
   Sparkles,
   Mic,
-  Users,
-  ExternalLink,
-  Lightbulb,
-  Terminal,
-  Bug,
-  Globe,
-  Scale,
+  ArrowRight,
+  RotateCcw,
   BookOpen,
-  ShieldAlert,
+  Trophy,
 } from "lucide-react";
 import TutorOverlay from "@/components/TutorOverlay";
-import SquidAsset from "@/components/SquidAsset";
+import XpAsset from "@/components/XpAsset";
 import { getModuleTheme } from "@/lib/moduleThemes";
-import ModuleTransitionModal from "@/components/ModuleTransitionModal";
+import QuestResultsView, { QuestionRecord } from "@/components/QuestResultsView";
 
 export default function QuestPage() {
   const {
@@ -56,47 +50,92 @@ export default function QuestPage() {
     currentQuestion,
     flowDifficulty,
     pKnow,
-    correctStreak,
-    wrongStreak,
     goalText,
     flowExplanation,
-    visualTheme,
     answerQuestion,
     claimReward,
     setNextQuestion,
   } = useQuest();
 
-  // Shadow Duel Theme State (Confidence Meter & Doubt's Grip)
-  const [confidenceMeter, setConfidenceMeter] = useState(40);
-  const [doubtGrip, setDoubtGrip] = useState(60);
-  const [doubtDefeated, setDoubtDefeated] = useState(false);
+  // Level & Quest Progression State
+  const [currentLevel, setCurrentLevel] = useState<number>(1);
+  const [questionNumber, setQuestionNumber] = useState<number>(1); // 1 to 10
+  const [sessionAnswers, setSessionAnswers] = useState<QuestionRecord[]>([]);
+  const [initialMastery, setInitialMastery] = useState<number>(pKnow || 0.15);
+  const [isQuestFinished, setIsQuestFinished] = useState<boolean>(false);
 
+  // Question UI Interaction state
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [isAnswered, setIsAnswered] = useState(false);
-  // showExplanation stays true until the learner explicitly taps "Continue"
   const [showExplanation, setShowExplanation] = useState(false);
   const [loadingNext, setLoadingNext] = useState(false);
   const [activeRewardDrop, setActiveRewardDrop] = useState<RewardDrop | null>(null);
   const [userArms, setUserArms] = useState<RewardArm[]>([]);
   const [lastClaimedArm, setLastClaimedArm] = useState<ArmType | null>(null);
 
-  // Latency tracking
+  // Latency & Overlays
   const [renderTimestamp, setRenderTimestamp] = useState<number>(Date.now());
   const [showWhyModal, setShowWhyModal] = useState(false);
   const [showTutorOverlay, setShowTutorOverlay] = useState(false);
   const [hintsUsedCount, setHintsUsedCount] = useState(0);
 
-  // Question type rotation and anti-repetition tracking
+  // Question rotation history
   const [recentTypes, setRecentTypes] = useState<QuestionType[]>([]);
   const [recentPrompts, setRecentPrompts] = useState<string[]>([]);
-  const [conceptIntroText, setConceptIntroText] = useState<string | null>(null);
-  const [showConceptIntro, setShowConceptIntro] = useState<boolean>(true);
-  const [showModuleTransition, setShowModuleTransition] = useState<boolean>(true);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
 
+  const currentSkill = course?.skills[activeSkillIndex] || {
+    id: "s1",
+    name: "Python Core Syntax & Data Structures",
+    difficulty: 1,
+  };
+
+  const storageKey = `xpedition_quest_${user?.id || "anon"}_${currentSkill.id}`;
+
+  // 1. Restore Persisted Quest State on Mount / Skill Change
   useEffect(() => {
-    setShowModuleTransition(true);
-  }, [activeSkillIndex]);
+    if (typeof window === "undefined") return;
+    try {
+      const savedStr = localStorage.getItem(storageKey);
+      if (savedStr) {
+        const saved = JSON.parse(savedStr);
+        if (saved && typeof saved.questionNumber === "number" && !saved.isCompleted) {
+          setQuestionNumber(saved.questionNumber);
+          setSessionAnswers(saved.sessionAnswers || []);
+          setCurrentLevel(saved.currentLevel || 1);
+          setInitialMastery(saved.initialMastery ?? pKnow);
+        }
+      } else {
+        setInitialMastery(pKnow);
+      }
+    } catch (e) {
+      console.warn("Failed restoring quest state:", e);
+    }
+  }, [currentSkill.id, user?.id]);
+
+  // 2. Persist Quest State to LocalStorage on progress updates
+  const persistQuestState = (
+    qNum: number,
+    answers: QuestionRecord[],
+    lvl: number,
+    completed: boolean = false
+  ) => {
+    if (typeof window === "undefined") return;
+    try {
+      localStorage.setItem(
+        storageKey,
+        JSON.stringify({
+          questionNumber: qNum,
+          sessionAnswers: answers,
+          currentLevel: lvl,
+          initialMastery,
+          isCompleted: completed,
+        })
+      );
+    } catch (e) {
+      console.warn("Failed persisting quest state:", e);
+    }
+  };
 
   useEffect(() => {
     setRenderTimestamp(Date.now());
@@ -113,34 +152,7 @@ export default function QuestPage() {
     }
   }, [currentQuestion, user]);
 
-  useEffect(() => {
-    async function fetchConceptPrimer() {
-      if (!currentSkill?.name) return;
-      try {
-        const res = await fetch("/api/concept-intro", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            skillName: currentSkill.name,
-            goal: goalText,
-            learningStyle: user.learningStyle || "story",
-          }),
-        });
-        if (res.ok) {
-          const data = await res.json();
-          if (data.conceptIntro) {
-            setConceptIntroText(data.conceptIntro);
-            setShowConceptIntro(true);
-          }
-        }
-      } catch (e) {
-        console.warn("Concept primer fetch notice:", e);
-      }
-    }
-    fetchConceptPrimer();
-  }, [activeSkillIndex, user.learningStyle]);
-
-  // Init / Resume Study Session for current quest
+  // Init Study Session
   useEffect(() => {
     let sessId: string | null = null;
     async function initSession() {
@@ -201,7 +213,6 @@ export default function QuestPage() {
       }
     }
 
-    // Default fallback arms with equal priors (alpha = 1, beta = 1)
     setUserArms(
       BANDIT_ARMS.map((arm) => ({
         arm,
@@ -213,73 +224,13 @@ export default function QuestPage() {
     );
   };
 
-  const currentSkill = course?.skills[activeSkillIndex] || {
-    id: "s1",
-    name: "Python Core Syntax & Data Structures",
-    difficulty: 1,
-  };
-
-  const question: Question = currentQuestion || {
-    prompt: "In Python, which data structure is defined using parentheses and is immutable?",
-    options: ["List", "Tuple", "Dictionary", "Set"],
-    correctIndex: 1,
-    explanation: "Tuples are defined with parentheses and cannot be modified after creation.",
-  };
-
-  // Thompson Sampling arm picker (First 8 rewards force exploration across all 4 arms twice)
-  const pickBanditRewardDrop = (): RewardDrop => {
-    const selected = selectArm(userArms);
-    const arm: ArmType = user?.cohort === "control" ? "badge" : selected.arm;
-
-    // Increment pulls count state for selected arm
-    setUserArms((prev) =>
-      prev.map((a) => (a.arm === arm ? { ...a, pulls: (a.pulls || 0) + 1 } : a))
-    );
-
-    const armDetails: Record<ArmType, { title: string; xpBonus: number; description: string }> = {
-      badge: {
-        title: "Rare Badge: Cyber Knight",
-        xpBonus: 50,
-        description: "Unlocked rare achievement credential on your Skill Passport!",
-      },
-      lore: {
-        title: "Secret Cyber Lore Fragment",
-        xpBonus: 30,
-        description: "Unlocked Chapter 3: 'Origins of the Quantum Grid'. Read in Passport.",
-      },
-      guild_invite: {
-        title: "Guild Raid Pass",
-        xpBonus: 40,
-        description: "Earned an exclusive Pass for Co-op Boss Raids with matched peers!",
-      },
-      leaderboard: {
-        title: "Leaderboard XP Multiplier",
-        xpBonus: 45,
-        description: "Active +1.5x Multiplier pushing your rank up the global standings!",
-      },
-    };
-
-    const details = armDetails[arm] || armDetails.badge;
-
-    return {
-      type: "+20 XP",
-      arm,
-      title: details.title,
-      xpBonus: details.xpBonus,
-      description: details.description,
-    };
-  };
-
-  const [sessionCorrectCount, setSessionCorrectCount] = useState<number>(0);
-  const [sessionTotalCount, setSessionTotalCount] = useState<number>(0);
-
   const handleSelectOption = (index: number) => {
-    if (isAnswered || loadingNext || activeRewardDrop) return;
+    if (isAnswered || loadingNext || activeRewardDrop || isQuestFinished) return;
     setSelectedIndex(index);
   };
 
   const handleSubmitAnswer = async () => {
-    if (selectedIndex === null || isAnswered || loadingNext || activeRewardDrop) return;
+    if (selectedIndex === null || isAnswered || loadingNext || activeRewardDrop || !currentQuestion) return;
 
     const clickTimestamp = Date.now();
     const latencyMs = Math.max(100, clickTimestamp - renderTimestamp);
@@ -287,8 +238,8 @@ export default function QuestPage() {
     setIsAnswered(true);
     setShowExplanation(true);
 
-    const clientIsCorrect = Number(selectedIndex) === Number(question.correctIndex);
-    setSessionTotalCount((prev) => prev + 1);
+    const clientIsCorrect = Number(selectedIndex) === Number(currentQuestion.correctIndex);
+    let finalIsCorrect = clientIsCorrect;
 
     // Call server-side answer verification guard
     try {
@@ -300,7 +251,7 @@ export default function QuestPage() {
           skillId: currentSkill.id,
           skillName: currentSkill.name,
           selectedIndex: Number(selectedIndex),
-          correctIndex: Number(question.correctIndex),
+          correctIndex: Number(currentQuestion.correctIndex),
           currentPKnow: pKnow,
           latencyMs,
           hintsUsed: hintsUsedCount,
@@ -309,28 +260,40 @@ export default function QuestPage() {
 
       if (res.ok) {
         const data = await res.json();
-        const isServerCorrect = Boolean(data.verifiedCorrect);
-        if (isServerCorrect) {
-          setSessionCorrectCount((prev) => prev + 1);
-        }
-        answerQuestion(isServerCorrect, latencyMs, hintsUsedCount);
+        finalIsCorrect = Boolean(data.verifiedCorrect);
+        answerQuestion(finalIsCorrect, latencyMs, hintsUsedCount);
       } else {
-        if (clientIsCorrect) setSessionCorrectCount((prev) => prev + 1);
         answerQuestion(clientIsCorrect, latencyMs, hintsUsedCount);
       }
     } catch (err) {
       console.warn("Fallback to client answer evaluation notice:", err);
-      if (clientIsCorrect) setSessionCorrectCount((prev) => prev + 1);
       answerQuestion(clientIsCorrect, latencyMs, hintsUsedCount);
     }
+
+    // Record question answer record for session review
+    const explanationText =
+      Array.isArray(currentQuestion.explanations) && currentQuestion.explanations[selectedIndex]
+        ? currentQuestion.explanations[selectedIndex]
+        : currentQuestion.conceptSummary || "Evaluation specific to concept.";
+
+    const newRecord: QuestionRecord = {
+      question: currentQuestion,
+      userAnswerIndex: selectedIndex,
+      isCorrect: finalIsCorrect,
+      explanation: explanationText,
+    };
+
+    const updatedAnswers = [...sessionAnswers, newRecord];
+    setSessionAnswers(updatedAnswers);
+    persistQuestState(questionNumber, updatedAnswers, currentLevel, false);
 
     if (currentSessionId && currentSkill) {
       updateSessionProgress(
         currentSessionId,
         currentSkill.id,
         currentSkill.name,
-        clientIsCorrect,
-        clientIsCorrect ? 30 : 0
+        finalIsCorrect,
+        finalIsCorrect ? 30 : 0
       );
     }
 
@@ -340,46 +303,28 @@ export default function QuestPage() {
     }
   };
 
-  // Called when the learner taps "Continue" in the explanation panel
-  const handleContinueAfterAnswer = async () => {
-    const isCorrect = Number(selectedIndex) === Number(question.correctIndex);
+  // Learner taps "NEXT QUESTION" or "FINISH QUEST" button (NO AUTO-ADVANCING)
+  const handleNextQuestionClick = async () => {
     setShowExplanation(false);
-    if (isCorrect) {
-      const reward = pickBanditRewardDrop();
-      setActiveRewardDrop(reward);
+
+    if (questionNumber >= 10) {
+      // Finished all 10 questions -> trigger Results Screen
+      setIsQuestFinished(true);
+      persistQuestState(10, sessionAnswers, currentLevel, true);
+
+      if (currentSessionId) {
+        const correctCount = sessionAnswers.filter((a) => a.isCorrect).length;
+        const status = correctCount >= 7 ? "completed" : "eliminated";
+        closeSession(currentSessionId, status);
+      }
     } else {
-      await fetchNextQuestion(false);
-    }
-  };
+      // Advance to next question (Question N of 10)
+      const nextNum = questionNumber + 1;
+      setQuestionNumber(nextNum);
+      persistQuestState(nextNum, sessionAnswers, currentLevel, false);
 
-  const handleClaimReward = async (bonusXp: number = 0) => {
-    if (activeRewardDrop) {
-      const dropWithBonus =
-        bonusXp > 0
-          ? { ...activeRewardDrop, xpBonus: (activeRewardDrop.xpBonus || 30) + bonusXp }
-          : activeRewardDrop;
-      claimReward(dropWithBonus);
-      if (activeRewardDrop.arm) {
-        setLastClaimedArm(activeRewardDrop.arm);
-      }
-      setActiveRewardDrop(null);
-
-      // Persist reinforcement attempt to DB with is_reinforcement flag
-      if (isSupabaseConfigured() && user?.id) {
-        try {
-          await supabase.from("attempts").insert({
-            user_id: user.id,
-            skill_id: currentSkill.id,
-            is_correct: bonusXp > 0,
-            is_reinforcement: true,
-            created_at: new Date().toISOString(),
-          });
-        } catch (e) {
-          console.warn("Reinforcement attempt logging notice:", e);
-        }
-      }
-
-      await fetchNextQuestion(true);
+      const lastAns = sessionAnswers[sessionAnswers.length - 1];
+      await fetchNextQuestion(lastAns ? lastAns.isCorrect : true);
     }
   };
 
@@ -393,7 +338,7 @@ export default function QuestPage() {
           userId: user?.id || user?.email || "anonymous-learner",
           skillId: currentSkill.id,
           skillName: currentSkill.name,
-          difficulty: flowDifficulty,
+          difficulty: Math.min(5, Math.max(1, currentLevel + (wasCorrect ? 1 : 0))),
           wasCorrect,
           goal: goalText,
           learningStyle: user.learningStyle || "story",
@@ -420,526 +365,323 @@ export default function QuestPage() {
     }
   };
 
-  const isCorrectChoice = selectedIndex !== null && selectedIndex === question.correctIndex;
+  const handleRetryLevel = () => {
+    localStorage.removeItem(storageKey);
+    setSessionAnswers([]);
+    setQuestionNumber(1);
+    setIsQuestFinished(false);
+    setSelectedIndex(null);
+    setIsAnswered(false);
+    setShowExplanation(false);
+    fetchNextQuestion(true);
+  };
 
-  const isShadowDuelMode = flowDifficulty >= 4 || visualTheme === "Shadow Duel";
+  const handleNextLevel = () => {
+    localStorage.removeItem(storageKey);
+    const nextLvl = currentLevel < 3 ? currentLevel + 1 : 3;
+    setCurrentLevel(nextLvl);
+    setSessionAnswers([]);
+    setQuestionNumber(1);
+    setIsQuestFinished(false);
+    setSelectedIndex(null);
+    setIsAnswered(false);
+    setShowExplanation(false);
+    fetchNextQuestion(true);
+  };
 
   if (isAuthLoading) {
     return (
-      <main className="min-h-screen bg-[#0A0A1A] bg-grid-pattern p-4 sm:p-6 space-y-4">
+      <main className="min-h-screen bg-[#000000] bg-grid-pattern p-4 sm:p-6 space-y-4">
         <div className="w-full max-w-2xl mx-auto space-y-4">
-          <div className="h-14 bg-[#1B1B3A] border border-white/10 rounded-2xl animate-pulse" />
-          <div className="h-20 bg-[#1B1B3A] border border-white/10 rounded-3xl animate-pulse" />
-          <div className="h-80 bg-[#1B1B3A] border border-white/10 rounded-3xl animate-pulse" />
+          <div className="h-14 bg-[#0D0D1A] border border-white/10 rounded-2xl animate-pulse" />
+          <div className="h-20 bg-[#0D0D1A] border border-white/10 rounded-3xl animate-pulse" />
+          <div className="h-80 bg-[#0D0D1A] border border-white/10 rounded-3xl animate-pulse" />
         </div>
       </main>
     );
   }
 
+  const mTheme = getModuleTheme(activeSkillIndex + 1);
+
   return (
-    <main className="min-h-screen bg-[#0A0A1A] bg-grid-pattern text-white relative flex flex-col justify-between pb-24 p-4 sm:p-6 overflow-x-hidden">
-      {/* Background Glows */}
-      <div className="absolute top-0 left-1/4 w-96 h-96 bg-[#7C3AED]/15 rounded-full blur-[140px] pointer-events-none" />
-      <div className="absolute bottom-1/4 right-10 w-96 h-96 bg-[#22D3EE]/15 rounded-full blur-[140px] pointer-events-none" />
+    <main className="min-h-screen bg-[#000000] bg-grid-pattern text-white relative flex flex-col justify-between pb-24 p-4 sm:p-6 overflow-x-hidden">
+      {/* Background Orbs */}
+      <div className="absolute top-0 left-1/4 w-96 h-96 bg-[#A855F7]/15 rounded-full blur-[140px] pointer-events-none" />
+      <div className="absolute bottom-1/4 right-10 w-96 h-96 bg-[#00F0FF]/15 rounded-full blur-[140px] pointer-events-none" />
 
       <div className="w-full max-w-2xl mx-auto space-y-4 z-10 my-auto">
         <TopBar
           title="Adaptive Skill Quest"
           subtitle={`Module ${activeSkillIndex + 1} of ${course?.skills.length || 5}: ${currentSkill.name}`}
         />
-        {/* Shadow Duel Mode Theme Header */}
-        {isShadowDuelMode && (
-          <div className="bg-[#12122C] border border-[#FB7185]/40 rounded-3xl p-6 shadow-2xl space-y-4 glow-box-red animate-fadeIn relative overflow-hidden">
-            <div className="flex items-center justify-between">
-              <span className="px-3 py-1 rounded-full bg-[#FB7185]/20 border border-[#FB7185]/40 text-[#FB7185] text-xs font-mono font-bold uppercase tracking-wider flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5 text-[#FBBF24]" />
-                SHADOW DUEL MODE ACTIVE (LEVEL {flowDifficulty})
-              </span>
-              <span className="text-xs font-mono text-slate-400 font-bold">VS DOUBT SILHOUETTE</span>
-            </div>
 
-            {/* Backlit Silhouette Arena Graphic */}
-            <div className="flex items-center justify-around py-3 relative bg-[#0A0A1A]/80 border border-white/10 rounded-2xl">
-              {/* Learner Avatar Silhouette */}
-              <div className="flex flex-col items-center space-y-1">
-                <SquidAsset name="player_avatar" alt="Player 456 Tracksuit Avatar" width={56} height={56} className="shrink-0" />
-                <span className="text-[10px] font-mono text-[#22D3EE] font-bold">Confidence</span>
-              </div>
-
-              {/* VS Marker */}
-              <div className="text-xl font-black font-heading text-[#FBBF24] animate-bounce">
-                VS
-              </div>
-
-              {/* Doubt Silhouette (Red Rim Light) */}
-              <div className="flex flex-col items-center space-y-1">
-                <div
-                  className={`w-16 h-16 rounded-full bg-[#FB7185]/20 border-2 border-[#FB7185] shadow-lg shadow-[#FB7185]/40 flex items-center justify-center text-[#FB7185] font-black text-xs font-heading transition-all duration-500 ${
-                    doubtDefeated ? "scale-0 opacity-0 animate-ping" : "scale-100 opacity-100"
-                  }`}
-                >
-                  DOUBT
+        {/* 1. RENDER RESULTS SCREEN AFTER QUESTION 10 */}
+        {isQuestFinished ? (
+          <QuestResultsView
+            skillName={currentSkill.name}
+            currentLevel={currentLevel}
+            sessionAnswers={sessionAnswers}
+            initialMastery={initialMastery}
+            finalMastery={pKnow}
+            onRetryLevel={handleRetryLevel}
+            onNextLevel={handleNextLevel}
+          />
+        ) : (
+          /* 2. RENDER ACTIVE SINGLE-QUESTION QUEST VIEW (1 of 10) */
+          <>
+            {/* BLACK + NEON QUEST HEADER */}
+            <div className="bg-[#0D0D1A] border border-[#00F0FF]/30 rounded-3xl p-4 sm:p-5 shadow-2xl space-y-3 glow-cyan">
+              <div className="flex items-center justify-between flex-wrap gap-2 text-xs font-mono">
+                <div className="flex items-center gap-2">
+                  <span className="px-2.5 py-1 rounded-full bg-[#00F0FF]/10 border border-[#00F0FF]/40 text-[#00F0FF] font-bold">
+                    Level {currentLevel} of 3
+                  </span>
+                  <span className="text-white font-bold">{currentSkill.name}</span>
                 </div>
-                <span className="text-[10px] font-mono text-[#FB7185] font-bold">
-                  {doubtDefeated ? "DEFEATED!" : "Doubt's Grip"}
-                </span>
-              </div>
-            </div>
 
-            {/* Confidence Meter vs Doubt's Grip Meter */}
-            <div className="grid grid-cols-2 gap-3 pt-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-[#FFB800] font-bold flex items-center gap-1">
+                    <Sparkles className="w-3.5 h-3.5" /> +120 XP
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowWhyModal(true)}
+                    className="p-1 rounded-lg bg-white/5 border border-white/10 text-slate-400 hover:text-white transition-all cursor-pointer"
+                    title="View Adaptive AI Engine Status"
+                  >
+                    <Info className="w-4 h-4 text-[#A855F7]" />
+                  </button>
+                </div>
+              </div>
+
+              {/* 10-Step Progress Bar Indicator */}
               <div className="space-y-1">
-                <div className="flex justify-between text-[10px] font-mono text-[#22D3EE] font-bold">
-                  <span>Confidence Meter</span>
-                  <span>{confidenceMeter}%</span>
+                <div className="flex items-center justify-between text-xs font-mono text-slate-400">
+                  <span className="text-white font-bold">Question {questionNumber} of 10</span>
+                  <span className="text-[#00F0FF]">{Math.round((questionNumber / 10) * 100)}%</span>
                 </div>
-                <div className="w-full h-2 bg-[#0A0A1A] rounded-full overflow-hidden border border-white/10">
+                <div className="w-full h-2.5 bg-[#000000] border border-white/10 rounded-full overflow-hidden p-0.5">
                   <div
-                    className="h-full bg-gradient-to-r from-[#7C3AED] to-[#22D3EE] transition-all duration-500"
-                    style={{ width: `${confidenceMeter}%` }}
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <div className="flex justify-between text-[10px] font-mono text-[#FB7185] font-bold">
-                  <span>Doubt's Grip</span>
-                  <span>{doubtGrip}%</span>
-                </div>
-                <div className="w-full h-2 bg-[#0A0A1A] rounded-full overflow-hidden border border-white/10">
-                  <div
-                    className="h-full bg-gradient-to-r from-red-600 to-[#FB7185] transition-all duration-500"
-                    style={{ width: `${doubtGrip}%` }}
+                    className="h-full bg-gradient-to-r from-[#00F0FF] via-[#A855F7] to-[#00FF87] rounded-full transition-all duration-500 shadow-[0_0_10px_rgba(0,240,255,0.5)]"
+                    style={{ width: `${(questionNumber / 10) * 100}%` }}
                   />
                 </div>
               </div>
             </div>
 
-            {doubtDefeated && (
-              <div className="text-center p-2 rounded-xl bg-[#34D399]/20 border border-[#34D399] text-[#34D399] font-bold text-xs font-heading animate-bounce">
-                ✨ DOUBT DEFEATED! Particle Scatter Unlocked!
+            {/* SINGLE QUESTION CARD */}
+            {currentQuestion && (
+              <div className="bg-[#0D0D1A] border border-white/10 rounded-3xl p-5 sm:p-6 shadow-2xl space-y-5">
+                {/* Scenario Setup or Question Type Badge */}
+                <div className="flex items-center justify-between text-xs font-mono">
+                  <span className="px-2.5 py-0.5 rounded-full bg-[#A855F7]/10 border border-[#A855F7]/40 text-[#A855F7] font-bold uppercase">
+                    {currentQuestion.questionType || "Concept Challenge"}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowTutorOverlay(true)}
+                    className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#00F0FF]/10 border border-[#00F0FF]/40 text-[#00F0FF] font-bold text-xs hover:bg-[#00F0FF]/20 transition-all cursor-pointer shadow-[0_0_10px_rgba(0,240,255,0.2)]"
+                  >
+                    <Mic className="w-3.5 h-3.5 animate-pulse" />
+                    <span>Voice AI Tutor</span>
+                  </button>
+                </div>
+
+                {currentQuestion.scenarioSetup && (
+                  <div className="p-3.5 rounded-2xl bg-[#000000]/60 border border-white/10 text-xs text-slate-300 leading-relaxed font-sans">
+                    <span className="font-bold text-[#00F0FF] block mb-1 font-mono uppercase text-[10px]">
+                      Scenario Context:
+                    </span>
+                    {currentQuestion.scenarioSetup}
+                  </div>
+                )}
+
+                {/* Prompt Title */}
+                <h2 className="text-lg sm:text-xl font-bold text-white font-heading leading-snug">
+                  {currentQuestion.prompt}
+                </h2>
+
+                {/* Code Snippet Block (If Applicable) */}
+                {currentQuestion.codeSnippet && (
+                  <pre className="p-4 rounded-2xl bg-[#000000] border border-[#00F0FF]/30 text-xs font-mono text-[#00F0FF] overflow-x-auto shadow-inner">
+                    <code>{currentQuestion.codeSnippet}</code>
+                  </pre>
+                )}
+
+                {/* LARGE CLICKABLE ANSWER CARDS (A, B, C, D) */}
+                <div className="space-y-3 pt-2">
+                  {currentQuestion.options?.map((optionText, idx) => {
+                    const isSelected = selectedIndex === idx;
+                    const letter = String.fromCharCode(65 + idx); // A, B, C, D
+
+                    let cardStyle = "bg-[#0D0D1A] border-white/10 text-slate-200 hover:border-[#00F0FF]/50";
+                    if (isSelected) {
+                      cardStyle = "bg-[#0D0D1A] border-[#00F0FF] text-white shadow-[0_0_20px_rgba(0,240,255,0.3)] glow-cyan";
+                    }
+
+                    if (isAnswered) {
+                      if (idx === currentQuestion.correctIndex) {
+                        cardStyle = "bg-[#0D0D1A] border-[#00FF87] text-white shadow-[0_0_20px_rgba(0,255,135,0.3)] glow-green";
+                      } else if (isSelected) {
+                        cardStyle = "bg-[#0D0D1A] border-[#FF0055] text-white shadow-[0_0_20px_rgba(255,0,85,0.3)] glow-magenta";
+                      }
+                    }
+
+                    return (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => handleSelectOption(idx)}
+                        disabled={isAnswered || loadingNext}
+                        className={`w-full min-h-[56px] p-4 rounded-2xl border text-left flex items-center justify-between gap-3 transition-all cursor-pointer ${cardStyle}`}
+                      >
+                        <div className="flex items-center gap-3.5">
+                          <span
+                            className={`w-8 h-8 rounded-xl border flex items-center justify-center font-mono font-black text-xs shrink-0 ${
+                              isSelected
+                                ? "bg-[#00F0FF] text-black border-[#00F0FF]"
+                                : "bg-black/40 border-white/10 text-slate-400"
+                            }`}
+                          >
+                            {letter}
+                          </span>
+                          <span className="text-sm font-medium leading-normal">{optionText}</span>
+                        </div>
+
+                        {isAnswered && idx === currentQuestion.correctIndex && (
+                          <CheckCircle2 className="w-5 h-5 text-[#00FF87] shrink-0" />
+                        )}
+                        {isAnswered && isSelected && idx !== currentQuestion.correctIndex && (
+                          <XCircle className="w-5 h-5 text-[#FF0055] shrink-0" />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* PROMINENT SUBMIT ANSWER BUTTON */}
+                {selectedIndex !== null && !isAnswered && (
+                  <button
+                    type="button"
+                    onClick={handleSubmitAnswer}
+                    className="w-full py-4 rounded-2xl bg-gradient-to-r from-[#00F0FF] via-[#A855F7] to-[#00FF87] text-black font-black font-heading text-sm uppercase tracking-wider shadow-lg hover:brightness-110 transition-all cursor-pointer mt-3 glow-cyan"
+                  >
+                    Submit Answer →
+                  </button>
+                )}
               </div>
             )}
-          </div>
-        )}
-        {/* Premium Black + Neon Quest Header */}
-        {(() => {
-          const activeModuleTheme = getModuleTheme(activeSkillIndex);
-          return (
-            <header className="bg-[#0D0D1A] border border-[#00F0FF]/30 rounded-3xl p-5 shadow-2xl space-y-3 glow-cyan">
-              <div className="flex items-center justify-between gap-3">
-                <div className="space-y-0.5 truncate">
+
+            {/* FEEDBACK PANEL & EXPLICIT "NEXT QUESTION" ADVANCE BUTTON */}
+            {isAnswered && showExplanation && currentQuestion && (
+              <div
+                className={`p-5 rounded-3xl border text-left space-y-4 shadow-2xl animate-fadeIn ${
+                  selectedIndex === currentQuestion.correctIndex
+                    ? "bg-[#0D0D1A] border-[#00FF87]/50 glow-green"
+                    : "bg-[#0D0D1A] border-[#FF0055]/50 glow-magenta"
+                }`}
+              >
+                <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-mono font-bold text-[#00F0FF] uppercase tracking-wider">
-                      Module {activeSkillIndex + 1}:
+                    {selectedIndex === currentQuestion.correctIndex ? (
+                      <CheckCircle2 className="w-6 h-6 text-[#00FF87]" />
+                    ) : (
+                      <XCircle className="w-6 h-6 text-[#FF0055]" />
+                    )}
+                    <span className="text-base font-bold font-heading text-white">
+                      {selectedIndex === currentQuestion.correctIndex
+                        ? "Correct Answer!"
+                        : "Incorrect"}
                     </span>
-                    <h1 className="text-base font-black text-white font-heading truncate">
-                      {currentSkill.name.toUpperCase()}
-                    </h1>
                   </div>
-                  <div className="flex items-center gap-2 text-xs font-mono text-slate-400">
-                    <span>Adaptive Challenge</span>
-                    <span>•</span>
-                    <span className="text-[#A855F7] font-bold">Flow: Level {flowDifficulty}</span>
+
+                  <span
+                    className={`text-xs font-mono font-bold px-3 py-1 rounded-full border ${
+                      selectedIndex === currentQuestion.correctIndex
+                        ? "bg-[#00FF87]/10 border-[#00FF87]/40 text-[#00FF87]"
+                        : "bg-[#FF0055]/10 border-[#FF0055]/40 text-[#FF0055]"
+                    }`}
+                  >
+                    {selectedIndex === currentQuestion.correctIndex ? "+120 XP" : "+0 XP"}
+                  </span>
+                </div>
+
+                {/* Educational Explanation */}
+                <p className="text-sm text-slate-200 font-sans leading-relaxed">
+                  {selectedIndex !== null && Array.isArray(currentQuestion.explanations)
+                    ? currentQuestion.explanations[selectedIndex]
+                    : currentQuestion.conceptSummary}
+                </p>
+
+                {/* Visible BKT Adaptation Feedback Line */}
+                <div className="p-3 rounded-2xl bg-[#000000] border border-white/10 text-xs font-mono text-slate-300 space-y-1">
+                  <div className="flex items-center justify-between text-[#00F0FF] font-bold">
+                    <span>Adaptive BKT Mastery Update:</span>
+                    <span>P(know): {Math.round(pKnow * 100)}%</span>
                   </div>
+                  <p className="text-[11px] text-slate-400">
+                    {selectedIndex === currentQuestion.correctIndex
+                      ? `✓ Mastery increased to ${Math.round(pKnow * 100)}%. Next challenge calibrated for Level ${currentLevel}.`
+                      : `⚠️ Mastery decreased to ${Math.round(pKnow * 100)}%. System queued target reinforcement.`}
+                  </p>
                 </div>
 
-                {/* Available XP Badge */}
-                <div className="px-3.5 py-1.5 rounded-full bg-[#FFB800]/15 border border-[#FFB800]/40 text-[#FFB800] font-mono text-xs font-bold shrink-0 flex items-center gap-1.5 shadow-md">
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>+120 XP available</span>
-                </div>
-              </div>
-
-              {/* Progress Bar & Question Counter */}
-              <div className="space-y-1 pt-1">
-                <div className="flex justify-between text-[11px] font-mono font-bold">
-                  <span className="text-slate-300">Question {Math.min(10, activeSkillIndex * 2 + 1)} / 10</span>
-                  <span className="text-[#00F0FF]">P(know): {(pKnow * 100).toFixed(0)}%</span>
-                </div>
-                <div className="w-full h-2.5 bg-[#000000] rounded-full overflow-hidden border border-white/10">
-                  <div
-                    className="h-full bg-gradient-to-r from-[#00F0FF] via-[#A855F7] to-[#00FF87] transition-all duration-500 rounded-full"
-                    style={{ width: `${Math.min(100, Math.max(10, pKnow * 100))}%` }}
-                  />
-                </div>
-              </div>
-            </header>
-          );
-        })()}
-
-        {/* Mastery Threshold Peer-Teach Banner */}
-        {pKnow >= 0.85 && (
-          <div className="bg-[#00FF87]/15 border border-[#00FF87]/40 rounded-2xl p-4 flex items-center justify-between gap-3 text-xs animate-fadeIn glow-green">
-            <div className="space-y-0.5">
-              <span className="font-bold text-[#00FF87] font-heading block">
-                🎉 Mastery Threshold Unlocked! (P(know): {(pKnow * 100).toFixed(0)}%)
-              </span>
-              <p className="text-slate-200">
-                You've mastered this concept! Write a quest question for fellow learners.
-              </p>
-            </div>
-            <Link
-              href="/teach"
-              className="px-3.5 py-2 rounded-xl bg-[#00FF87] hover:bg-[#00D06C] text-black font-black font-heading shrink-0 shadow-md transition-all cursor-pointer"
-            >
-              Write a Quest →
-            </Link>
-          </div>
-        )}
-
-        {/* Concept Intro Primer Card — Teaches BEFORE Quizzing */}
-        {showConceptIntro && conceptIntroText && (
-          <div className="bg-[#0D0D1A] border border-[#00F0FF]/40 rounded-3xl p-6 shadow-2xl glow-cyan space-y-3 animate-fadeIn relative">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-3 truncate">
-                <span className="px-3 py-1 rounded-full bg-[#00F0FF]/20 border border-[#00F0FF]/40 text-[#00F0FF] text-[11px] font-mono font-bold uppercase tracking-wider flex items-center gap-1.5 truncate">
-                  <BookOpen className="w-3.5 h-3.5 text-[#FFB800] shrink-0" />
-                  Concept Primer ({user.learningStyle?.toUpperCase() || "STORY"} STYLE)
-                </span>
-              </div>
-              <button
-                onClick={() => setShowConceptIntro(false)}
-                className="text-xs font-mono text-slate-400 hover:text-white cursor-pointer px-2 py-0.5 rounded bg-white/5 shrink-0"
-              >
-                Dismiss ✕
-              </button>
-            </div>
-
-            <div className="space-y-1">
-              <h3 className="text-base font-bold text-white font-heading">
-                Module Primer: {currentSkill.name}
-              </h3>
-              <p className="text-xs sm:text-sm text-slate-200 leading-relaxed border-l-2 border-[#00F0FF] pl-3">
-                {conceptIntroText}
-              </p>
-            </div>
-
-            <button
-              onClick={() => setShowConceptIntro(false)}
-              className="w-full py-3 rounded-xl bg-gradient-to-r from-[#A855F7] to-[#00F0FF] hover:opacity-95 text-black font-black font-heading text-xs uppercase tracking-wider transition-all cursor-pointer shadow-md flex items-center justify-center gap-1.5"
-            >
-              <span>Got the Concept — Start Skill Quest →</span>
-            </button>
-          </div>
-        )}
-
-        {/* Question Card */}
-        <div className="bg-[#0D0D1A] border border-[#A855F7]/40 rounded-3xl p-6 sm:p-8 shadow-2xl glow-purple relative overflow-hidden">
-          <div className="mb-6 space-y-3">
-            <div className="flex items-center justify-between text-xs text-[#94A3B8] font-mono">
-              <span className="flex items-center gap-1 text-[#00F0FF]">
-                <HelpCircle className="w-4 h-4" />
-                Adaptive AI Tutor Active
-              </span>
-              
-              {/* Voice AI Hint Button */}
-              <button
-                onClick={() => setShowTutorOverlay(true)}
-                className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#A855F7]/20 hover:bg-[#A855F7]/40 border border-[#A855F7]/50 text-[#00F0FF] text-xs font-mono font-bold transition-all shadow-md cursor-pointer animate-pulse"
-              >
-                <Mic className="w-3.5 h-3.5 text-[#FFB800]" />
-                <span>Voice AI Hint {hintsUsedCount > 0 && `(${hintsUsedCount})`}</span>
-              </button>
-            </div>
-
-            {/* Question Type Badge Tag */}
-            <div className="flex items-center gap-2 pt-1 pb-1">
-              {(() => {
-                const qType = question.questionType || "concept";
-                const typeBadges: Record<QuestionType, { label: string; icon: any; color: string }> = {
-                  concept: { label: "Concept & Definition", icon: Lightbulb, color: "bg-amber-500/20 border-amber-500/40 text-amber-300" },
-                  code_output: { label: "Code Output Prediction", icon: Terminal, color: "bg-cyan-500/20 border-cyan-500/40 text-cyan-300" },
-                  debug: { label: "Debug & Error Finding", icon: Bug, color: "bg-rose-500/20 border-rose-500/40 text-rose-300" },
-                  scenario: { label: "Real-World Scenario", icon: Globe, color: "bg-emerald-500/20 border-emerald-500/40 text-emerald-300" },
-                  compare: { label: "Concept Comparison", icon: Scale, color: "bg-violet-500/20 border-violet-500/40 text-violet-300" },
-                };
-                const b = typeBadges[qType] || typeBadges.concept;
-                const IconComponent = b.icon;
-
-                return (
-                  <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-[11px] font-mono font-bold uppercase tracking-wider ${b.color}`}>
-                    <IconComponent className="w-3.5 h-3.5" />
-                    {b.label}
-                  </span>
-                );
-              })()}
-
-              {/* Peer Quest Learner Tag */}
-              {question.isPeerQuest && (
-                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#00FF87]/20 border border-[#00FF87]/40 text-[#00FF87] text-[11px] font-mono font-bold uppercase tracking-wider">
-                  <Users className="w-3.5 h-3.5" />
-                  Learner ({question.authorName || "Contributor"})
-                </div>
-              )}
-            </div>
-
-            {/* Scenario Setup Block */}
-            {question.scenarioSetup && (
-              <div className="bg-[#000000]/80 border border-[#00F0FF]/30 rounded-2xl p-4 my-2 text-slate-200 text-sm leading-relaxed shadow-inner">
-                <div className="text-[10px] font-mono font-bold text-[#00F0FF] uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-                  <Globe className="w-3.5 h-3.5 text-[#00F0FF]" /> Scenario Background
-                </div>
-                <p className="text-slate-200 text-sm leading-relaxed">{question.scenarioSetup}</p>
-              </div>
-            )}
-
-            {/* Code Snippet Block */}
-            {question.codeSnippet && (
-              <div className="bg-[#000000] border border-white/10 rounded-2xl p-4 my-2 font-mono text-xs sm:text-sm text-[#00F0FF] overflow-x-auto shadow-inner">
-                <div className="flex items-center justify-between pb-2 mb-2 border-b border-white/10 text-[10px] text-slate-400">
-                  <span className="flex items-center gap-1.5 font-bold uppercase tracking-wider text-[#00FF87]">
-                    <Terminal className="w-3.5 h-3.5" /> Code Snippet
-                  </span>
-                  <span className="text-[10px] font-mono text-slate-400 font-bold uppercase">
-                    {question.questionType === "debug" ? "Find Error" : "Predict Output"}
-                  </span>
-                </div>
-                <pre className="whitespace-pre-wrap font-mono text-[#00F0FF]">{question.codeSnippet}</pre>
-              </div>
-            )}
-
-            <h2 className="text-xl sm:text-2xl font-black text-white font-heading leading-snug">
-              {question.prompt}
-            </h2>
-          </div>
-
-          {/* Large Clickable Answer Cards (A, B, C, D) */}
-          <div className="space-y-3 mb-6">
-            {question.options.map((option, idx) => {
-              const isSelected = selectedIndex === idx;
-              let optionStyles =
-                "bg-[#000000] border-white/10 text-slate-200 hover:border-[#00F0FF]/50 hover:bg-[#0D0D1A]";
-
-              if (isSelected) {
-                if (!isAnswered) {
-                  optionStyles = "bg-[#0D0D1A] border-[#00F0FF] text-[#00F0FF] glow-cyan font-bold ring-2 ring-[#00F0FF]/50";
-                } else if (idx === question.correctIndex) {
-                  optionStyles = "bg-[#00FF87]/20 border-[#00FF87] text-[#00FF87] glow-green font-bold";
-                } else {
-                  optionStyles = "bg-[#FF0055]/20 border-[#FF0055] text-[#FF0055] glow-magenta font-bold";
-                }
-              } else if (isAnswered && idx === question.correctIndex) {
-                optionStyles = "bg-[#00FF87]/20 border-[#00FF87] text-[#00FF87] font-bold";
-              } else if (isAnswered) {
-                optionStyles = "bg-[#000000]/40 border-white/5 text-slate-600 opacity-50";
-              }
-
-              return (
+                {/* EXPLICIT NEXT BUTTON — NO AUTO-ADVANCE */}
                 <button
-                  key={idx}
-                  onClick={() => handleSelectOption(idx)}
-                  disabled={isAnswered || loadingNext}
-                  className={`w-full text-left p-4 sm:p-5 rounded-2xl border transition-all duration-200 flex items-center justify-between text-sm sm:text-base cursor-pointer min-h-[56px] ${optionStyles}`}
+                  type="button"
+                  onClick={handleNextQuestionClick}
+                  disabled={loadingNext}
+                  className="w-full py-4 rounded-2xl bg-[#00F0FF] text-black font-black font-heading text-sm uppercase tracking-wider shadow-lg hover:brightness-110 transition-all flex items-center justify-center gap-2 cursor-pointer glow-cyan"
                 >
-                  <div className="flex items-center gap-3.5">
-                    <span
-                      className={`w-9 h-9 rounded-xl border flex items-center justify-center font-mono text-sm font-black shrink-0 transition-colors ${
-                        isSelected
-                          ? "bg-[#00F0FF] text-black border-[#00F0FF]"
-                          : "bg-white/5 border-white/10 text-slate-300"
-                      }`}
-                    >
-                      {String.fromCharCode(65 + idx)}
-                    </span>
-                    <span className="font-medium leading-relaxed">{option}</span>
-                  </div>
-
-                  {isAnswered && idx === question.correctIndex && (
-                    <CheckCircle2 className="w-6 h-6 text-[#00FF87] shrink-0 animate-bounce" />
-                  )}
-                  {isAnswered && isSelected && idx !== question.correctIndex && (
-                    <XCircle className="w-6 h-6 text-[#FF0055] shrink-0" />
+                  {loadingNext ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      <span>Generating Challenge...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>{questionNumber >= 10 ? "Finish Quest & View Results →" : "Next Question →"}</span>
+                      <ArrowRight className="w-5 h-5" />
+                    </>
                   )}
                 </button>
-              );
-            })}
-          </div>
-
-          {/* Prominent SUBMIT ANSWER Button */}
-          {selectedIndex !== null && !isAnswered && (
-            <button
-              onClick={handleSubmitAnswer}
-              className="w-full py-4 px-6 min-h-[50px] rounded-2xl bg-gradient-to-r from-[#00F0FF] via-[#A855F7] to-[#00FF87] hover:opacity-95 text-black font-black text-sm uppercase tracking-wider transition-all shadow-xl shadow-[#00F0FF]/30 flex items-center justify-center gap-2 cursor-pointer font-heading my-4 animate-fadeIn"
-            >
-              <span>Submit Answer →</span>
-            </button>
-          )}
-
-          {/* Rich Explanation Panel — stays visible until learner taps Continue */}
-          {showExplanation && !activeRewardDrop && (
-            <div className="space-y-3 pt-2 animate-fadeIn">
-              {isCorrectChoice ? (
-                /* ── CORRECT ANSWER PANEL ── */
-                <div className="bg-[#34D399]/10 border border-[#34D399]/40 rounded-2xl p-5 space-y-3">
-                  <div className="flex items-center justify-between text-[#34D399]">
-                    <div className="flex items-center gap-3">
-                      <CheckCircle2 className="w-6 h-6 shrink-0" />
-                      <p className="font-bold font-heading text-sm">Correct! Well done.</p>
-                    </div>
-                  </div>
-
-                  {/* Visible Adaptation Line */}
-                  <div className="bg-[#22D3EE]/15 border border-[#22D3EE]/40 rounded-xl p-2.5 flex items-center gap-2 text-xs font-mono text-[#22D3EE]">
-                    <Sparkles className="w-4 h-4 text-[#FBBF24] shrink-0" />
-                    <span>
-                      Visible Adaptation: Mastery increased to {Math.round(pKnow * 100)}% P(know). Flow calibrated to Level {flowDifficulty}.
-                    </span>
-                  </div>
-
-                  {/* Per-option explanation for the correct pick */}
-                  {question.explanations?.[question.correctIndex] && (
-                    <p className="text-sm text-[#34D399]/90 leading-relaxed border-l-2 border-[#34D399]/50 pl-3">
-                      {question.explanations[question.correctIndex]}
-                    </p>
-                  )}
-                  {/* Concept summary */}
-                  {question.conceptSummary && (
-                    <div className="bg-white/5 rounded-xl p-3 space-y-1">
-                      <p className="text-[10px] font-mono font-bold text-[#22D3EE] uppercase tracking-wider">📚 Core Concept</p>
-                      <p className="text-xs text-slate-300 leading-relaxed">{question.conceptSummary}</p>
-                    </div>
-                  )}
-                  {/* Learn More link */}
-                  {currentSkill.sourceUrl && (
-                    <a
-                      href={currentSkill.sourceUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 text-xs font-mono text-[#22D3EE] hover:underline"
-                    >
-                      <ExternalLink className="w-3.5 h-3.5" />
-                      Learn more about this concept
-                    </a>
-                  )}
-                  <button
-                    onClick={handleContinueAfterAnswer}
-                    disabled={loadingNext}
-                    className="w-full mt-1 py-3 rounded-xl bg-[#00FF87] hover:bg-[#00D06C] text-black font-black font-heading text-sm uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center gap-2 shadow-lg shadow-[#00FF87]/20"
-                  >
-                    {loadingNext ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                    Continue Quest →
-                  </button>
-                </div>
-              ) : (
-                /* ── WRONG ANSWER PANEL ── */
-                <div className="bg-[#FF0055]/10 border border-[#FF0055]/40 rounded-2xl p-5 space-y-3">
-                  <div className="flex items-center gap-3 text-[#FF0055]">
-                    <XCircle className="w-6 h-6 shrink-0" />
-                    <p className="font-bold font-heading text-sm">Not quite — here's why:</p>
-                  </div>
-
-                  {/* Visible Adaptation Line */}
-                  <div className="bg-[#FB7185]/15 border border-[#FB7185]/40 rounded-xl p-2.5 flex items-center gap-2 text-xs font-mono text-[#FB7185]">
-                    <ShieldAlert className="w-4 h-4 text-[#FB7185] shrink-0" />
-                    <span>
-                      Visible Adaptation: Targeted reinforcement active for {currentSkill.name}. Calibrated to Level {flowDifficulty}.
-                    </span>
-                  </div>
-                  {/* Why THEIR choice was wrong */}
-                  {selectedIndex !== null && question.explanations?.[selectedIndex] && (
-                    <div className="space-y-1">
-                      <p className="text-[10px] font-mono font-bold text-red-400/80 uppercase tracking-wider">Your choice: {String.fromCharCode(65 + selectedIndex)}</p>
-                      <p className="text-sm text-red-300/90 leading-relaxed border-l-2 border-red-500/50 pl-3">
-                        {question.explanations[selectedIndex]}
-                      </p>
-                    </div>
-                  )}
-                  {/* Correct answer highlighted */}
-                  <div className="bg-[#34D399]/10 border border-[#34D399]/30 rounded-xl p-3 space-y-1">
-                    <p className="text-[10px] font-mono font-bold text-[#34D399] uppercase tracking-wider">✓ Correct Answer: {String.fromCharCode(65 + question.correctIndex)}</p>
-                    <p className="text-sm font-semibold text-[#34D399]">{question.options[question.correctIndex]}</p>
-                    {question.explanations?.[question.correctIndex] && (
-                      <p className="text-xs text-[#34D399]/80 leading-relaxed">
-                        {question.explanations[question.correctIndex]}
-                      </p>
-                    )}
-                  </div>
-                  {/* Concept summary */}
-                  {question.conceptSummary && (
-                    <div className="bg-white/5 rounded-xl p-3 space-y-1">
-                      <p className="text-[10px] font-mono font-bold text-[#22D3EE] uppercase tracking-wider">📚 Core Concept</p>
-                      <p className="text-xs text-slate-300 leading-relaxed">{question.conceptSummary}</p>
-                    </div>
-                  )}
-                  {/* Learn More link */}
-                  {currentSkill.sourceUrl && (
-                    <a
-                      href={currentSkill.sourceUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 text-xs font-mono text-[#22D3EE] hover:underline"
-                    >
-                      <ExternalLink className="w-3.5 h-3.5" />
-                      Learn more about this concept
-                    </a>
-                  )}
-                  <button
-                    onClick={handleContinueAfterAnswer}
-                    disabled={loadingNext}
-                    className="w-full mt-1 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-white font-black font-heading text-sm transition-all cursor-pointer flex items-center justify-center gap-2"
-                  >
-                    {loadingNext ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                    Got it — Continue →
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Info Banner & Skill Source Attribution Link */}
-        <div className="bg-[#1B1B3A]/60 border border-white/5 rounded-2xl p-4 text-xs text-[#94A3B8] flex flex-col sm:flex-row items-center justify-between gap-2">
-          <span>Target Flow Band: 70% - 85% Accuracy</span>
-
-          <a
-            href={currentSkill.sourceUrl || "https://developer.mozilla.org"}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-xs font-mono font-bold text-[#22D3EE] hover:underline flex items-center gap-1.5 cursor-pointer bg-[#22D3EE]/10 px-3 py-1 rounded-full border border-[#22D3EE]/30"
-          >
-            <span>Learn more on web source</span>
-            <ExternalLink className="w-3.5 h-3.5" />
-          </a>
-        </div>
+              </div>
+            )}
+          </>
+        )}
       </div>
 
-      {/* Reward Drop Modal */}
-      {activeRewardDrop && (
-        <RewardModal reward={activeRewardDrop} question={question} onClaim={handleClaimReward} />
-      )}
+      <BottomNav />
 
-      {/* Why? Flow Explanation Modal */}
+      {/* Voice AI Tutor Overlay Modal */}
+      <TutorOverlay
+        isOpen={showTutorOverlay}
+        onClose={() => setShowTutorOverlay(false)}
+        questionPrompt={currentQuestion?.prompt || "Current Question"}
+        options={currentQuestion?.options || []}
+        skillName={currentSkill.name}
+        masteryLevel={Math.round(pKnow * 100)}
+        onHintRequested={() => setHintsUsedCount((prev) => prev + 1)}
+      />
+
+      {/* Why AI Explanation Modal */}
       {showWhyModal && (
         <FlowExplanationModal
-          flowDifficulty={flowDifficulty}
           pKnow={pKnow}
+          flowDifficulty={flowDifficulty}
           explanation={flowExplanation}
           onClose={() => setShowWhyModal(false)}
         />
       )}
 
-      {/* Voice AI Tutor Overlay */}
-      <TutorOverlay
-        isOpen={showTutorOverlay}
-        onClose={() => setShowTutorOverlay(false)}
-        questionPrompt={question.prompt}
-        skillName={currentSkill.name}
-        options={question.options}
-        masteryLevel={pKnow}
-        onHintRequested={() => setHintsUsedCount((prev) => prev + 1)}
-      />
-
-      {/* Cinematic Module Entry Transition Modal */}
-      {showModuleTransition && (
-        <ModuleTransitionModal
-          moduleIndex={activeSkillIndex}
-          moduleName={currentSkill.name}
-          onComplete={() => setShowModuleTransition(false)}
+      {/* Bandit Reward Drop Modal */}
+      {activeRewardDrop && (
+        <RewardModal
+          reward={activeRewardDrop}
+          question={currentQuestion}
+          onClaim={(bonusXp) => claimReward({ ...activeRewardDrop, xpBonus: (activeRewardDrop.xpBonus || 30) + (bonusXp || 0) })}
         />
       )}
-
-      <BottomNav />
     </main>
   );
 }
