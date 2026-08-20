@@ -111,20 +111,52 @@ export default function LandingPage() {
       </header>
 
       {/* Hero Section */}
-      <div className="w-full max-w-4xl mx-auto px-6 py-8 text-center z-10 my-auto">
-        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#1B1B3A] border border-[#7C3AED]/40 mb-6 shadow-lg shadow-[#7C3AED]/20">
+      <div className="w-full max-w-4xl mx-auto px-6 py-6 text-center z-10 my-auto space-y-6">
+        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#1B1B3A] border border-[#7C3AED]/40 shadow-lg shadow-[#7C3AED]/20">
           <Flame className="w-4 h-4 text-[#FBBF24] animate-bounce" />
-          <span className="text-xs font-semibold text-slate-200">
-            Turn Any Skill into an Epic Gamified Quest
+          <span className="text-xs font-mono font-bold text-[#22D3EE] uppercase tracking-wider">
+            AI-Powered Adaptive Learning Engine
           </span>
         </div>
 
-        <h2 className="text-3xl sm:text-5xl font-black text-white font-heading tracking-tight leading-tight mb-4">
-          Level Up Your Skills. <br />
-          <span className="bg-gradient-to-r from-[#22D3EE] via-[#7C3AED] to-[#FBBF24] bg-clip-text text-transparent">
-            Conquer Your Future.
-          </span>
-        </h2>
+        <div className="space-y-3">
+          <h2 className="text-4xl sm:text-6xl font-black text-white font-heading tracking-tight leading-tight">
+            Turn Any Skill Into <br />
+            <span className="bg-gradient-to-r from-[#22D3EE] via-[#7C3AED] to-[#34D399] bg-clip-text text-transparent">
+              An Adventure.
+            </span>
+          </h2>
+          <p className="max-w-xl mx-auto text-sm sm:text-base text-slate-300 leading-relaxed font-sans">
+            XPedition converts your learning goal into a dynamic RPG skill tree. Powered by Bayesian Knowledge Tracing (BKT) & adaptive AI.
+          </p>
+        </div>
+
+        {/* Visual Preview of Skill Tree System */}
+        <div className="max-w-2xl mx-auto bg-[#1B1B3A]/80 border border-white/10 rounded-2xl p-4 sm:p-5 flex items-center justify-around gap-2 text-left shadow-xl">
+          <div className="flex items-center gap-2.5">
+            <div className="w-10 h-10 rounded-xl bg-[#34D399]/20 border border-[#34D399] flex items-center justify-center font-black text-[#34D399] font-mono text-xs">
+              👑
+            </div>
+            <div>
+              <span className="text-[10px] font-mono text-slate-400 block uppercase">Level 1</span>
+              <span className="text-xs font-bold text-white font-heading">Core Fundamentals</span>
+            </div>
+          </div>
+
+          <div className="hidden sm:block text-slate-600 font-mono">
+            ────────►
+          </div>
+
+          <div className="flex items-center gap-2.5">
+            <div className="w-10 h-10 rounded-xl bg-[#22D3EE]/20 border border-[#22D3EE] flex items-center justify-center font-black text-[#22D3EE] font-mono text-xs animate-pulse">
+              ⚡
+            </div>
+            <div>
+              <span className="text-[10px] font-mono text-[#22D3EE] block uppercase">Active Quest</span>
+              <span className="text-xs font-bold text-white font-heading">Adaptive Challenge</span>
+            </div>
+          </div>
+        </div>
 
         {/* Login / Auth Form Card */}
         <div className="max-w-md mx-auto bg-[#1B1B3A]/95 p-6 rounded-3xl border border-white/10 shadow-2xl backdrop-blur-xl glow-box-violet text-left space-y-4">
