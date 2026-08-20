@@ -240,6 +240,24 @@ export default function SettingsPage() {
                 }`} />
               </button>
             </div>
+
+            {/* Shadow Escape Mode Toggle */}
+            <div className="flex items-center justify-between p-3.5 bg-[#0A0A1A] border border-white/10 rounded-2xl min-h-[44px]">
+              <div>
+                <span className="text-xs font-bold text-white font-heading block">Shadow Escape Mode</span>
+                <span className="text-[10px] text-[#94A3B8]">Enable original gamified Shadow chase track and memory mechanics</span>
+              </div>
+              <button
+                onClick={() => updateAccessibilitySettings({ shadowEscapeMode: !accessibilitySettings.shadowEscapeMode })}
+                className={`w-12 h-6 rounded-full transition-all relative cursor-pointer ${
+                  accessibilitySettings.shadowEscapeMode !== false ? "bg-[#00F0FF]" : "bg-white/20"
+                }`}
+              >
+                <div className={`w-5 h-5 rounded-full bg-white absolute top-0.5 transition-all ${
+                  accessibilitySettings.shadowEscapeMode !== false ? "left-6" : "left-0.5"
+                }`} />
+              </button>
+            </div>
           </div>
         </section>
 

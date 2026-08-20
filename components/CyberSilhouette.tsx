@@ -6,6 +6,7 @@ export type RimColor = "cyan" | "violet" | "amber" | "red" | string;
 
 interface CyberSilhouetteProps {
   color?: RimColor;
+  rimColor?: RimColor;
   className?: string;
   width?: number;
   height?: number;
@@ -19,12 +20,14 @@ const COLOR_MAP: Record<string, string> = {
 };
 
 export default function CyberSilhouette({
-  color = "cyan",
+  color,
+  rimColor = "cyan",
   className = "",
   width = 64,
   height = 64,
 }: CyberSilhouetteProps) {
-  const hexColor = COLOR_MAP[color] || color;
+  const activeColor = color || rimColor;
+  const hexColor = COLOR_MAP[activeColor] || activeColor;
 
   return (
     <svg

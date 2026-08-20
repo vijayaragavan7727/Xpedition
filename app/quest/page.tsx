@@ -43,6 +43,8 @@ import QuestResultsView, { QuestionRecord } from "@/components/QuestResultsView"
 import LearningModuleReader, { LearningModuleData } from "@/components/LearningModuleReader";
 
 import LevelNavigationStrip, { LevelStatus } from "@/components/LevelNavigationStrip";
+import ShadowChaseTrack from "@/components/ShadowChaseTrack";
+import { getShadowMistakes, recordShadowMistake, resolveShadowMistake } from "@/lib/shadowMemory";
 
 export default function QuestPage() {
   const {
@@ -87,9 +89,9 @@ export default function QuestPage() {
   const [showTutorOverlay, setShowTutorOverlay] = useState(false);
   const [hintsUsedCount, setHintsUsedCount] = useState(0);
 
-  // Question rotation history
-  const [recentTypes, setRecentTypes] = useState<QuestionType[]>([]);
-  const [recentPrompts, setRecentPrompts] = useState<string[]>([]);
+  // Shadow Escape state
+  const [gapDistance, setGapDistance] = useState<number>(6);
+  const [shadowMistakes, setShadowMistakes] = useState<string[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
 
   const currentSkill = course?.skills[activeSkillIndex] || {
@@ -150,14 +152,6 @@ export default function QuestPage() {
     setHintsUsedCount(0);
     setShowExplanation(false);
     fetchUserArms();
-
-    if (currentQuestion) {
-      const qType = currentQuestion.questionType || "concept";
-      setRecentTypes((prev) => (prev.includes(qType) ? prev : [...prev.slice(-2), qType]));
-      if (currentQuestion.prompt) {
-        setRecentPrompts((prev) => (prev.includes(currentQuestion.prompt) ? prev : [...prev.slice(-19), currentQuestion.prompt]));
-      }
-    }
   }, [currentQuestion, user]);
 
   // Init Study Session
@@ -290,6 +284,18 @@ export default function QuestPage() {
       isCorrect: finalIsCorrect,
       explanation: explanationText,
     };
+
+    if (finalIsCorrect) {
+      setGapDistance((prev) => Math.min(10, prev + 1));
+      resolveShadowMistake(user?.id || "anon", currentSkill.name);
+    } else {
+      setGapDistance((prev) => Math.max(0, prev - 2));
+      recordShadowMistake(
+        user?.id || "anon",
+        currentQuestion.conceptSummary || currentSkill.name,
+        currentSkill.name
+      );
+    }
 
     const updatedAnswers = [...sessionAnswers, newRecord];
     setSessionAnswers(updatedAnswers);
@@ -570,19 +576,13 @@ export default function QuestPage() {
                 </div>
               </div>
 
-              {/* 10-Step Progress Bar Indicator */}
-              <div className="space-y-1">
-                <div className="flex items-center justify-between text-xs font-mono text-slate-400">
-                  <span className="text-white font-bold">Question {questionNumber} of 10</span>
-                  <span className="text-[#00F0FF]">{Math.round((questionNumber / 10) * 100)}%</span>
-                </div>
-                <div className="w-full h-2.5 bg-[#000000] border border-white/10 rounded-full overflow-hidden p-0.5">
-                  <div
-                    className="h-full bg-gradient-to-r from-[#00F0FF] via-[#A855F7] to-[#00FF87] rounded-full transition-all duration-500 shadow-[0_0_10px_rgba(0,240,255,0.5)]"
-                    style={{ width: `${(questionNumber / 10) * 100}%` }}
-                  />
-                </div>
-              </div>
+              {/* Shadow Chase Track (Replaces plain progress bar) */}
+              <ShadowChaseTrack
+                currentLevel={currentLevel}
+                gapDistance={gapDistance}
+                rememberedConcepts={getShadowMistakes(user?.id || "anon").map((m) => m.conceptName).slice(0, 2)}
+                timeLeftSeconds={currentLevel >= 2 ? 25 : undefined}
+              />
             </div>
 
             {/* SINGLE QUESTION CARD */}

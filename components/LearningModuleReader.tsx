@@ -16,6 +16,8 @@ import XpAsset from "./XpAsset";
 
 import { Question } from "@/lib/types";
 
+import CyberSilhouette from "./CyberSilhouette";
+
 export interface ModuleSection {
   sectionId: string;
   heading: string;
@@ -139,19 +141,35 @@ export default function LearningModuleReader({
           </div>
         )}
 
-        {/* Scroll Progress Bar */}
-        <div className="space-y-1 pt-1">
+        {/* Scroll Progress & Light Meter ("The Calm Before") */}
+        <div className="space-y-1.5 pt-1">
           <div className="flex items-center justify-between text-xs font-mono text-slate-400">
             <span className="flex items-center gap-1.5 text-white font-bold">
-              <BookOpen className="w-4 h-4 text-[#00F0FF]" /> Reading Progress
+              <BookOpen className="w-4 h-4 text-[#00F0FF]" /> Light Meter (Reading Progress)
             </span>
             <span className="text-[#00FF87] font-bold">{scrollProgress}%</span>
           </div>
-          <div className="w-full h-2 bg-[#000000] border border-white/10 rounded-full overflow-hidden p-0.5">
+          <div className="w-full h-2.5 bg-[#000000] border border-white/10 rounded-full overflow-hidden p-0.5">
             <div
               className="h-full bg-gradient-to-r from-[#00F0FF] via-[#A855F7] to-[#00FF87] rounded-full transition-all duration-300"
               style={{ width: `${scrollProgress}%` }}
             />
+          </div>
+
+          {/* THE CALM BEFORE SHADOW WATCHING BANNER */}
+          <div className="p-2.5 rounded-2xl bg-[#000000]/80 border border-white/10 flex items-center justify-between gap-3 text-xs font-mono">
+            <div className="flex items-center gap-2 truncate">
+              <CyberSilhouette rimColor="#00F0FF" width={20} height={20} />
+              <span className="text-slate-300 text-[11px] truncate">
+                Reading illuminates your path...
+              </span>
+            </div>
+            <div className="flex items-center gap-2 shrink-0 opacity-70">
+              <span className="text-[10px] text-[#FF7185] italic font-semibold hidden sm:inline">
+                Your Shadow is watching. Learn well.
+              </span>
+              <CyberSilhouette rimColor="#FB7185" width={22} height={22} />
+            </div>
           </div>
         </div>
       </div>

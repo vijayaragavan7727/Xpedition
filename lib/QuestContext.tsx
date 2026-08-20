@@ -34,6 +34,7 @@ export interface AccessibilitySettings {
   dyslexiaFriendly: boolean;
   dyslexiaFont?: boolean;
   reducedMotion: boolean;
+  shadowEscapeMode?: boolean;
 }
 
 interface UserProfile {
@@ -139,6 +140,7 @@ export function QuestProvider({ children }: { children: React.ReactNode }) {
     focusMode: false,
     dyslexiaFriendly: false,
     reducedMotion: false,
+    shadowEscapeMode: true,
   });
 
   const updateAccessibilitySettings = async (newSettings: Partial<AccessibilitySettings>) => {

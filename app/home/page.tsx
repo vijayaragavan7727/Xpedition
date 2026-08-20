@@ -27,6 +27,8 @@ import { getResumeSession, StudySession } from "@/lib/studySessions";
 import SquidAsset from "@/components/SquidAsset";
 import { getModuleTheme } from "@/lib/moduleThemes";
 import SkillTreeGraph from "@/components/SkillTreeGraph";
+import CyberSilhouette from "@/components/CyberSilhouette";
+import { getShadowMistakes, ShadowMistake } from "@/lib/shadowMemory";
 
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 
@@ -183,6 +185,36 @@ export default function HomePage() {
               className="px-3.5 py-2 min-h-[44px] rounded-xl bg-[#00F0FF] hover:bg-[#00D0DF] text-black font-black text-xs font-heading shrink-0 flex items-center gap-1 cursor-pointer transition-all"
             >
               <span>Resume</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+        )}
+
+        {/* SHADOW ESCAPE WIDGET (UNRESOLVED WEAK CONCEPTS) */}
+        {getShadowMistakes(user?.id || "anon").length > 0 && (
+          <div className="bg-[#0D0D1A] border border-[#FF0055]/40 rounded-2xl p-4 shadow-xl flex items-center justify-between gap-3 animate-fadeIn">
+            <div className="flex items-center gap-3 truncate">
+              <CyberSilhouette rimColor="#FB7185" width={32} height={32} />
+              <div className="truncate">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-mono text-[#FF7185] font-bold uppercase tracking-wider block">
+                    Your Shadow Memory
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full bg-[#FF0055]/20 text-[#FF0055] text-[10px] font-mono font-bold border border-[#FF0055]/40">
+                    {getShadowMistakes(user?.id || "anon").length} Concepts
+                  </span>
+                </div>
+                <p className="text-xs font-bold text-white font-heading truncate mt-0.5">
+                  {getShadowMistakes(user?.id || "anon")[0]?.conceptName}
+                </p>
+              </div>
+            </div>
+
+            <Link
+              href="/quest"
+              className="px-3.5 py-2 min-h-[44px] rounded-xl bg-[#FF0055] hover:brightness-110 text-white font-bold text-xs font-heading shrink-0 flex items-center gap-1 cursor-pointer transition-all shadow-md glow-magenta"
+            >
+              <span>Face It</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </Link>
           </div>
