@@ -178,6 +178,7 @@ CREATE TABLE IF NOT EXISTS public.modules (
   content JSONB NOT NULL,
   takeaways JSONB NOT NULL,
   sources JSONB NOT NULL,
+  questions JSONB DEFAULT '[]'::jsonb,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 

@@ -32,6 +32,7 @@ interface QuestResultsViewProps {
   finalMastery: number;
   onRetryLevel: () => void;
   onNextLevel: () => void;
+  onReviewSection?: (sectionIndex: number) => void;
 }
 
 export default function QuestResultsView({
@@ -42,6 +43,7 @@ export default function QuestResultsView({
   finalMastery,
   onRetryLevel,
   onNextLevel,
+  onReviewSection,
 }: QuestResultsViewProps) {
   const [filterMode, setFilterMode] = useState<"all" | "wrong">("all");
 
@@ -244,14 +246,23 @@ export default function QuestResultsView({
                       {rec.explanation}
                     </div>
 
-                    {!rec.isCorrect && onRetryLevel && (
+                    {!rec.isCorrect && (
                       <button
                         type="button"
-                        onClick={onRetryLevel}
-                        className="inline-flex items-center gap-1 text-[11px] font-mono font-bold text-[#00FF87] hover:underline cursor-pointer pt-1"
+                        onClick={() => {
+                          const secIdx = typeof rec.question.sourceSection === "number" ? rec.question.sourceSection : (idx % 4);
+                          if (onReviewSection) {
+                            onReviewSection(secIdx);
+                          } else {
+                            onRetryLevel();
+                          }
+                        }}
+                        className="inline-flex items-center gap-1.5 text-[11px] font-mono font-bold text-[#00F0FF] bg-[#00F0FF]/10 border border-[#00F0FF]/30 px-3 py-1.5 rounded-xl hover:bg-[#00F0FF]/20 hover:border-[#00F0FF] transition-all cursor-pointer mt-1"
                       >
-                        <BookOpen className="w-3.5 h-3.5" />
-                        <span>Review Module Section {(idx % 4) + 1} ({skillName}) →</span>
+                        <BookOpen className="w-3.5 h-3.5 text-[#00FF87]" />
+                        <span>
+                          Review: Section {(typeof rec.question.sourceSection === "number" ? rec.question.sourceSection : (idx % 4)) + 1} ({skillName}) →
+                        </span>
                       </button>
                     )}
                   </div>

@@ -150,7 +150,7 @@ export async function POST(req: NextRequest) {
       ];
     }
 
-    // 3. Prompt Groq LLM to generate 600-900 word teaching module
+    // 3. Prompt Groq LLM to generate 600-900 word teaching module AND 12 derived questions
     const stylePromptDirectives: Record<string, string> = {
       story: "Explain concepts through vivid real-world analogies, metaphors, and story narratives.",
       theory: "Focus on formal definitions, underlying theoretical mechanics, and fundamental principles.",
@@ -161,7 +161,9 @@ export async function POST(req: NextRequest) {
     const styleDirective = stylePromptDirectives[learningStyle] || stylePromptDirectives.story;
 
     const systemPrompt = `You are XPedition's Master Educator & Curriculum Designer.
-Generate a comprehensive, high-quality, 600-900 WORD TEACHING MODULE for:
+Generate a comprehensive, high-quality 600-900 WORD TEACHING MODULE and a 12-QUESTION TEST BANK derived directly from the module text.
+
+TOPIC DETAILS:
 - Overall Goal: "${goal}"
 - Skill Topic: "${skillName}"
 - Level: Level ${level} (${levelDesc})
@@ -171,37 +173,48 @@ GROUNDED WEB CONTEXT:
 ${searchContent || "Use authoritative standard domain knowledge for this topic."}
 
 CRITICAL FORMAT REQUIREMENTS:
-1. Provide 4 to 6 short sections. Each section must have:
-   - "sectionId": string (e.g., "section-1", "section-2")
-   - "heading": Descriptive title (e.g., "Section 1: Understanding Syntax & Structure")
-   - "paragraphs": Array of 2-4 thorough, educational paragraph strings (600-900 words total across all sections).
-   - "codeExample": (Include at least ONE worked example across the module). Object with { "code": string, "explanation": string } or null.
-2. Provide a "takeaways" array with 3 to 5 key bullet strings summarizing core learnings.
+1. "sections": Array of 4 to 6 short sections. Each section must have:
+   - "sectionId": string (e.g., "section-0", "section-1", "section-2")
+   - "heading": Descriptive title (e.g., "Section 1: Syntax & Structure")
+   - "paragraphs": Array of 2-4 thorough educational paragraph strings.
+   - "codeExample": Object { "code": string, "explanation": string } or null.
+2. "takeaways": Array of 3 to 5 key bullet strings.
+3. "questions": EXACTLY 12 questions derived DIRECTLY from the sections above.
+   - EVERY question must test something EXPLICITLY taught in the sections above. Do not test anything not covered!
+   - Distribute questions across ALL sections — at least 2 questions per section.
+   - Each question object must have:
+     - "prompt": Question prompt string
+     - "options": Array of 4 distinct option strings
+     - "correctIndex": Integer (0 to 3)
+     - "explanations": Array of 4 explanation strings (index matching options)
+     - "sourceSection": Integer (0-indexed index of the section that taught this concept)
+     - "questionType": "concept" | "code_output" | "debug" | "scenario" | "compare"
+     - "difficulty": Integer (1 to 5, ascending difficulty across the 12 questions)
 
-Return STRICT JSON ONLY matching this format:
+Return STRICT JSON ONLY matching this structure:
 {
   "title": "Comprehensive Level ${level} Module: ${skillName}",
   "sections": [
     {
-      "sectionId": "section-1",
+      "sectionId": "section-0",
       "heading": "Section 1: ...",
       "paragraphs": ["Paragraph 1...", "Paragraph 2..."],
       "codeExample": null
-    },
-    {
-      "sectionId": "section-2",
-      "heading": "Section 2: Worked Example & Application",
-      "paragraphs": ["Paragraph 1..."],
-      "codeExample": {
-        "code": "SELECT name, email FROM users WHERE active = 1;",
-        "explanation": "Line-by-line explanation of the query..."
-      }
     }
   ],
   "takeaways": [
-    "Key Takeaway 1...",
-    "Key Takeaway 2...",
-    "Key Takeaway 3..."
+    "Key Takeaway 1..."
+  ],
+  "questions": [
+    {
+      "prompt": "Question prompt testing exact concept from section...",
+      "options": ["Option A", "Option B", "Option C", "Option D"],
+      "correctIndex": 0,
+      "explanations": ["Why A is right...", "Why B is wrong...", "Why C is wrong...", "Why D is wrong..."],
+      "sourceSection": 0,
+      "questionType": "concept",
+      "difficulty": 1
+    }
   ]
 }`;
 
@@ -209,6 +222,8 @@ Return STRICT JSON ONLY matching this format:
       console.warn("GROQ_API_KEY missing, using fallback module generator.");
       return NextResponse.json(generateFallbackModule(skillName, level, learningStyle, extractedSources));
     }
+
+    console.log(`[GENERATING MODULE & 12 QUESTIONS] Skill: "${skillName}" | Goal: "${goal}" | Level: ${level}`);
 
     const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
@@ -229,6 +244,11 @@ Return STRICT JSON ONLY matching this format:
       const contentStr = groqData.choices?.[0]?.message?.content;
       if (contentStr) {
         const parsed = JSON.parse(contentStr);
+        const questionsList = Array.isArray(parsed.questions) && parsed.questions.length >= 8
+          ? parsed.questions
+          : generateFallbackQuestions(skillName, level, parsed.sections || []);
+
+        console.log(`[MODULE GENERATED SUCCESSFULLY] Sections: ${parsed.sections?.length || 0} | Questions: ${questionsList.length}`);
 
         // Cache in Supabase
         try {
@@ -242,6 +262,7 @@ Return STRICT JSON ONLY matching this format:
               content: parsed.sections || [],
               takeaways: parsed.takeaways || [],
               sources: extractedSources,
+              questions: questionsList,
             });
           }
         } catch (dbErr) {
@@ -253,6 +274,7 @@ Return STRICT JSON ONLY matching this format:
           sections: parsed.sections || [],
           takeaways: parsed.takeaways || [],
           sources: extractedSources,
+          questions: questionsList,
           isCached: false,
         });
       }
@@ -329,6 +351,39 @@ function generateFallbackModule(
       `Maintain clean code structure for long-term scalability`
     ],
     sources,
+    questions: generateFallbackQuestions(skillName, level, []),
     isCached: false,
   };
+}
+
+function generateFallbackQuestions(skillName: string, level: number, sections: Section[]) {
+  const qList = [];
+  const secCount = Math.max(1, sections.length || 4);
+
+  for (let i = 0; i < 12; i++) {
+    const secIdx = i % secCount;
+    const diff = Math.min(5, Math.floor(i / 2.5) + 1);
+
+    qList.push({
+      prompt: `(Level ${level} - Q${i + 1}) Based on Section ${secIdx + 1} of ${skillName}, what is the key rule or syntax requirement for this concept?`,
+      options: [
+        `Option A: Primary rule taught in Section ${secIdx + 1}`,
+        `Option B: Incorrect syntax variation`,
+        `Option C: Invalid runtime assumption`,
+        `Option D: Deprecated legacy pattern`
+      ],
+      correctIndex: 0,
+      explanations: [
+        `✓ Correct rule explicitly covered in Section ${secIdx + 1}.`,
+        `Incorrect syntax variation.`,
+        `Invalid runtime assumption.`,
+        `Deprecated legacy pattern.`
+      ],
+      sourceSection: secIdx,
+      questionType: i % 2 === 0 ? "concept" : "scenario",
+      difficulty: diff,
+    });
+  }
+
+  return qList;
 }

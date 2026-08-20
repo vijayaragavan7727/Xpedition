@@ -13,6 +13,8 @@ import {
 } from "lucide-react";
 import XpAsset from "./XpAsset";
 
+import { Question } from "@/lib/types";
+
 export interface ModuleSection {
   sectionId: string;
   heading: string;
@@ -33,6 +35,7 @@ export interface LearningModuleData {
   sections: ModuleSection[];
   takeaways: string[];
   sources: ModuleSource[];
+  questions?: Question[];
 }
 
 interface LearningModuleReaderProps {

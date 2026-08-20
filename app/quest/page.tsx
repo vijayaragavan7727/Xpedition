@@ -309,6 +309,22 @@ export default function QuestPage() {
     }
   };
 
+  // Active Quiz Bank served directly from module data (10 of 12 questions sorted by ascending difficulty)
+  const [activeQuizBank, setActiveQuizBank] = useState<Question[]>([]);
+
+  const startTestFromModuleBank = (qList?: Question[]) => {
+    const rawBank = qList || moduleData?.questions || [];
+    if (rawBank.length === 0) return;
+
+    // Sort by difficulty ascending (1 -> 5)
+    const sorted = [...rawBank].sort((a, b) => (a.difficulty || 1) - (b.difficulty || 1));
+    // Serve 10 of 12 (keeping 2 in reserve)
+    const selectedTen = sorted.slice(0, 10);
+    setActiveQuizBank(selectedTen);
+    setNextQuestion(selectedTen[0]);
+    setViewMode("test");
+  };
+
   // Learner taps "NEXT QUESTION" or "FINISH QUEST" button (NO AUTO-ADVANCING)
   const handleNextQuestionClick = async () => {
     setShowExplanation(false);
@@ -324,54 +340,19 @@ export default function QuestPage() {
         closeSession(currentSessionId, status);
       }
     } else {
-      // Advance to next question (Question N of 10)
+      // Advance to next question (Question N of 10) from module bank
       const nextNum = questionNumber + 1;
       setQuestionNumber(nextNum);
-      persistQuestState(nextNum, sessionAnswers, currentLevel, false);
-
-      const lastAns = sessionAnswers[sessionAnswers.length - 1];
-      await fetchNextQuestion(lastAns ? lastAns.isCorrect : true);
-    }
-  };
-
-  const fetchNextQuestion = async (wasCorrect: boolean) => {
-    setLoadingNext(true);
-    try {
-      const res = await fetch("/api/next-question", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userId: user?.id || user?.email || "anonymous-learner",
-          skillId: currentSkill.id,
-          skillName: currentSkill.name,
-          difficulty: Math.min(5, Math.max(1, currentLevel + (wasCorrect ? 1 : 0))),
-          wasCorrect,
-          goal: goalText,
-          learningStyle: user.learningStyle || "story",
-          recentTypes: recentTypes.slice(-3),
-          recentPrompts: recentPrompts.slice(-20),
-        }),
-      });
-
-      if (res.ok) {
-        const nextQ: Question = await res.json();
-        if (nextQ && nextQ.prompt && Array.isArray(nextQ.options)) {
-          const qType = nextQ.questionType || "concept";
-          setRecentTypes((prev) => [...prev.slice(-2), qType]);
-          setRecentPrompts((prev) => [...prev.slice(-19), nextQ.prompt]);
-          setNextQuestion(nextQ);
-        }
+      if (activeQuizBank[nextNum - 1]) {
+        setNextQuestion(activeQuizBank[nextNum - 1]);
       }
-    } catch (err) {
-      console.warn("Failed to fetch next question:", err);
-    } finally {
+      persistQuestState(nextNum, sessionAnswers, currentLevel, false);
       setSelectedIndex(null);
       setIsAnswered(false);
-      setLoadingNext(false);
     }
   };
 
-  // Fetch Teaching Module Data
+  // Fetch Teaching Module & 12-Question Bank
   useEffect(() => {
     async function fetchModule() {
       if (!currentSkill?.name) return;
@@ -392,6 +373,10 @@ export default function QuestPage() {
         if (res.ok) {
           const data = await res.json();
           setModuleData(data);
+          if (data.questions && Array.isArray(data.questions) && data.questions.length > 0) {
+            const sorted = [...data.questions].sort((a, b) => (a.difficulty || 1) - (b.difficulty || 1));
+            setActiveQuizBank(sorted.slice(0, 10));
+          }
         }
       } catch (err) {
         console.warn("Failed fetching learning module:", err);
@@ -405,7 +390,7 @@ export default function QuestPage() {
     }
   }, [currentSkill.id, currentLevel, viewMode, user.learningStyle, goalText]);
 
-  const handleRetryLevel = () => {
+  const handleRetryLevel = async () => {
     localStorage.removeItem(storageKey);
     setSessionAnswers([]);
     setQuestionNumber(1);
@@ -414,7 +399,32 @@ export default function QuestPage() {
     setSelectedIndex(null);
     setIsAnswered(false);
     setShowExplanation(false);
-    fetchNextQuestion(true);
+
+    // Regenerate fresh question bank from SAME module content
+    try {
+      const res = await fetch("/api/generate-module", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          skillId: currentSkill.id,
+          skillName: currentSkill.name,
+          level: currentLevel,
+          learningStyle: user.learningStyle || "story",
+          goal: goalText,
+          regenerateQuestionsOnly: true,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setModuleData(data);
+        if (data.questions && Array.isArray(data.questions) && data.questions.length > 0) {
+          const sorted = [...data.questions].sort((a, b) => (a.difficulty || 1) - (b.difficulty || 1));
+          setActiveQuizBank(sorted.slice(0, 10));
+        }
+      }
+    } catch (e) {
+      console.warn("Failed regenerating question bank for retry:", e);
+    }
   };
 
   const handleNextLevel = () => {
@@ -428,7 +438,6 @@ export default function QuestPage() {
     setSelectedIndex(null);
     setIsAnswered(false);
     setShowExplanation(false);
-    fetchNextQuestion(true);
   };
 
   if (isAuthLoading) {
@@ -467,6 +476,15 @@ export default function QuestPage() {
             finalMastery={pKnow}
             onRetryLevel={handleRetryLevel}
             onNextLevel={handleNextLevel}
+            onReviewSection={(secIdx) => {
+              setViewMode("module");
+              setTimeout(() => {
+                const el = document.getElementById(`section-${secIdx}`) || document.getElementById(`section-${secIdx + 1}`);
+                if (el) {
+                  el.scrollIntoView({ behavior: "smooth" });
+                }
+              }, 150);
+            }}
           />
         ) : viewMode === "module" ? (
           /* 2. RENDER TEACHING MODULE READER FIRST BEFORE TEST */
@@ -488,7 +506,7 @@ export default function QuestPage() {
               currentLevel={currentLevel}
               learningStyle={user.learningStyle || "story"}
               moduleData={moduleData}
-              onStartTest={() => setViewMode("test")}
+              onStartTest={() => startTestFromModuleBank()}
             />
           )
         ) : (
