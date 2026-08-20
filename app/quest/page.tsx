@@ -419,11 +419,9 @@ export default function QuestPage() {
 
             {/* Backlit Silhouette Arena Graphic */}
             <div className="flex items-center justify-around py-3 relative bg-[#0A0A1A]/80 border border-white/10 rounded-2xl">
-              {/* Learner Avatar Silhouette (Cyan Rim Light) */}
+              {/* Learner Avatar Silhouette */}
               <div className="flex flex-col items-center space-y-1">
-                <div className="w-16 h-16 rounded-full bg-[#22D3EE]/20 border-2 border-[#22D3EE] shadow-lg shadow-[#22D3EE]/40 flex items-center justify-center text-white font-black text-xl font-heading animate-pulse">
-                  YOU
-                </div>
+                <SquidAsset name="player_avatar" alt="Player 456 Tracksuit Avatar" width={56} height={56} className="shrink-0" />
                 <span className="text-[10px] font-mono text-[#22D3EE] font-bold">Confidence</span>
               </div>
 
@@ -539,14 +537,17 @@ export default function QuestPage() {
         {/* Concept Intro Primer Card — Teaches BEFORE Quizzing */}
         {showConceptIntro && conceptIntroText && (
           <div className="bg-gradient-to-r from-[#7C3AED]/20 via-[#1B1B3A] to-[#22D3EE]/20 border border-[#22D3EE]/50 rounded-3xl p-6 shadow-2xl glow-box-cyan space-y-3 animate-fadeIn relative">
-            <div className="flex items-center justify-between">
-              <span className="px-3 py-1 rounded-full bg-[#22D3EE]/20 border border-[#22D3EE]/40 text-[#22D3EE] text-[11px] font-mono font-bold uppercase tracking-wider flex items-center gap-1.5">
-                <BookOpen className="w-3.5 h-3.5 text-[#FBBF24]" />
-                Concept Primer ({user.learningStyle?.toUpperCase() || "STORY"} STYLE)
-              </span>
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3 truncate">
+                <SquidAsset name="younghee" alt="Red Light Green Light Concept Detector" width={40} height={40} className="shrink-0" />
+                <span className="px-3 py-1 rounded-full bg-[#22D3EE]/20 border border-[#22D3EE]/40 text-[#22D3EE] text-[11px] font-mono font-bold uppercase tracking-wider flex items-center gap-1.5 truncate">
+                  <BookOpen className="w-3.5 h-3.5 text-[#FBBF24] shrink-0" />
+                  Concept Primer ({user.learningStyle?.toUpperCase() || "STORY"} STYLE)
+                </span>
+              </div>
               <button
                 onClick={() => setShowConceptIntro(false)}
-                className="text-xs font-mono text-slate-400 hover:text-white cursor-pointer px-2 py-0.5 rounded bg-white/5"
+                className="text-xs font-mono text-slate-400 hover:text-white cursor-pointer px-2 py-0.5 rounded bg-white/5 shrink-0"
               >
                 Dismiss ✕
               </button>
@@ -679,6 +680,9 @@ export default function QuestPage() {
                     <span className="w-8 h-8 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center font-mono text-xs font-bold text-slate-300 shrink-0">
                       {String.fromCharCode(65 + idx)}
                     </span>
+                    {idx % 3 === 0 && <SquidAsset name="guard_circle" alt="Circle Guard" width={18} height={18} className="opacity-75 shrink-0" />}
+                    {idx % 3 === 1 && <SquidAsset name="guard_triangle" alt="Triangle Guard" width={18} height={18} className="opacity-75 shrink-0" />}
+                    {idx % 3 === 2 && <SquidAsset name="guard_square" alt="Square Guard" width={18} height={18} className="opacity-75 shrink-0" />}
                     <span>{option}</span>
                   </div>
 
