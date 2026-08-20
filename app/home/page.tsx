@@ -26,11 +26,12 @@ import {
 import { getResumeSession, StudySession } from "@/lib/studySessions";
 import SquidAsset from "@/components/SquidAsset";
 import { getModuleTheme } from "@/lib/moduleThemes";
+import SkillTreeGraph from "@/components/SkillTreeGraph";
 
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 
 export default function HomePage() {
-  const { user, isAuthLoading, course, activeSkillIndex } = useQuest();
+  const { user, isAuthLoading, course, activeSkillIndex, pKnow, setActiveSkillIndex } = useQuest();
   const [dueCount, setDueCount] = useState<number>(0);
   const [courseProgressPct, setCourseProgressPct] = useState<number>(0);
   const [resumeSession, setResumeSession] = useState<StudySession | null>(null);
@@ -252,83 +253,15 @@ export default function HomePage() {
           </Link>
         </section>
 
-        {/* 3. Skill Path & Curriculum Tree */}
-        <section className="bg-[#1B1B3A]/80 border border-white/10 rounded-3xl p-4 sm:p-5 space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-bold text-white font-heading flex items-center gap-2">
-              <Compass className="w-4 h-4 text-[#22D3EE]" />
-              Skill Modules ({course?.skills.length || 5})
-            </h3>
-            <span className="text-[11px] text-[#94A3B8] font-mono">Order Index</span>
-          </div>
+        {/* 3. Interactive RPG Skill Tree Graph */}
+        <SkillTreeGraph
+          skills={course?.skills || []}
+          activeSkillIndex={activeSkillIndex}
+          pKnow={pKnow}
+          onSelectSkill={(idx) => setActiveSkillIndex(idx)}
+        />
 
-          <div className="space-y-2">
-            {course?.skills.map((skill, idx) => {
-              const isCurrent = idx === activeSkillIndex;
-              const isMastered = idx < activeSkillIndex;
-              const mTheme = getModuleTheme(idx);
 
-              return (
-                <div
-                  key={skill.id || idx}
-                  className={`p-3 rounded-2xl border transition-all flex items-center justify-between gap-3 min-h-[44px] ${
-                    isCurrent
-                      ? "bg-[#1B1B3A] border-[#22D3EE]/60 shadow-md"
-                      : isMastered
-                      ? "bg-[#1B1B3A]/60 border-[#34D399]/40 opacity-90"
-                      : "bg-[#1B1B3A]/40 border-white/5 opacity-60"
-                  }`}
-                >
-                  <div className="flex items-center gap-3 truncate">
-                    <div
-                      className={`w-7 h-7 rounded-xl flex items-center justify-center font-mono font-bold text-xs shrink-0 ${
-                        isCurrent
-                          ? "bg-[#22D3EE]/20 border border-[#22D3EE] text-[#22D3EE]"
-                          : isMastered
-                          ? "bg-[#34D399]/20 border border-[#34D399] text-[#34D399]"
-                          : "bg-white/5 border border-white/10 text-slate-500"
-                      }`}
-                    >
-                      {idx + 1}
-                    </div>
-
-                    <div className="truncate">
-                      <div className="flex items-center gap-1.5 truncate">
-                        <h4 className="text-xs sm:text-sm font-bold text-white font-heading truncate">{skill.name}</h4>
-                        <SquidAsset name={mTheme.assetName} alt={mTheme.themeName} width={18} height={18} className="shrink-0" />
-                      </div>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        <span className={`text-[9px] font-mono font-bold px-2 py-0.2 rounded-full border ${mTheme.badgeStyle}`}>
-                          {mTheme.intensityLabel}
-                        </span>
-                        <span className="text-[10px] text-[#94A3B8] font-mono">
-                          Difficulty Level {skill.difficulty}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="shrink-0">
-                    {isCurrent && (
-                      <Link
-                        href="/quest"
-                        className="px-3 py-1.5 min-h-[36px] rounded-xl bg-[#22D3EE]/20 border border-[#22D3EE]/40 text-[#22D3EE] text-xs font-bold hover:bg-[#22D3EE] hover:text-black transition-colors flex items-center justify-center"
-                      >
-                        Play
-                      </Link>
-                    )}
-                    {isMastered && (
-                      <span className="text-xs text-[#34D399] font-bold font-mono">✓ Mastered</span>
-                    )}
-                    {!isCurrent && !isMastered && (
-                      <Lock className="w-4 h-4 text-slate-600" />
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </section>
 
         {/* 4. Maximum 3 Quick Actions */}
         <section className="space-y-2.5">
