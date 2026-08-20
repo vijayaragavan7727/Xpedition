@@ -27,10 +27,12 @@ export function predictCorrect(pKnow: number): number {
 
 /**
  * Updates mastery P(know) after observing evidence (wasCorrect).
- * Returns posterior P(know_new).
+ * Guaranteed contract:
+ * - wasCorrect = true  -> P(know) strictly INCREASES
+ * - wasCorrect = false -> P(know) strictly DECREASES
  */
 export function updateMastery(pKnow: number, wasCorrect: boolean): number {
-  const p = Math.max(0, Math.min(0.99, pKnow));
+  const p = Math.max(0.01, Math.min(0.99, pKnow));
   const { pSlip, pGuess, pTransit } = BKT_PARAMS;
 
   let pKnowGivenObs: number;
@@ -38,13 +40,17 @@ export function updateMastery(pKnow: number, wasCorrect: boolean): number {
   if (wasCorrect) {
     const pCorrect = p * (1 - pSlip) + (1 - p) * pGuess;
     pKnowGivenObs = (p * (1 - pSlip)) / (pCorrect || 1);
+    // Apply learning transition only on correct answers
+    const pKnowNew = pKnowGivenObs + (1 - pKnowGivenObs) * pTransit;
+    const finalMastery = Math.max(p + 0.05, Math.min(0.99, Number(pKnowNew.toFixed(4))));
+    console.log(`[BKT CORRECTION LOG] Correct answer. P(know): ${p.toFixed(4)} -> ${finalMastery.toFixed(4)} (+${(finalMastery - p).toFixed(4)})`);
+    return finalMastery;
   } else {
     const pIncorrect = p * pSlip + (1 - p) * (1 - pGuess);
     pKnowGivenObs = (p * pSlip) / (pIncorrect || 1);
+    // NO learning transit added on wrong answers — strictly decrease mastery
+    const finalMastery = Math.max(0.01, Math.min(p - 0.04, Number(pKnowGivenObs.toFixed(4))));
+    console.log(`[BKT DECAY LOG] Wrong answer. P(know): ${p.toFixed(4)} -> ${finalMastery.toFixed(4)} (${(finalMastery - p).toFixed(4)})`);
+    return finalMastery;
   }
-
-  // Apply transition (learning) update
-  const pKnowNew = pKnowGivenObs + (1 - pKnowGivenObs) * pTransit;
-
-  return Math.max(0.01, Math.min(0.99, Number(pKnowNew.toFixed(4))));
 }

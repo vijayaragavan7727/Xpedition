@@ -270,12 +270,15 @@ export default function QuestPage() {
     };
   };
 
+  const [sessionCorrectCount, setSessionCorrectCount] = useState<number>(0);
+  const [sessionTotalCount, setSessionTotalCount] = useState<number>(0);
+
   const handleSelectOption = (index: number) => {
     if (isAnswered || loadingNext || activeRewardDrop) return;
     setSelectedIndex(index);
   };
 
-  const handleSubmitAnswer = () => {
+  const handleSubmitAnswer = async () => {
     if (selectedIndex === null || isAnswered || loadingNext || activeRewardDrop) return;
 
     const clickTimestamp = Date.now();
@@ -284,16 +287,50 @@ export default function QuestPage() {
     setIsAnswered(true);
     setShowExplanation(true);
 
-    const isCorrect = selectedIndex === question.correctIndex;
-    answerQuestion(isCorrect, latencyMs, hintsUsedCount);
+    const clientIsCorrect = Number(selectedIndex) === Number(question.correctIndex);
+    setSessionTotalCount((prev) => prev + 1);
+
+    // Call server-side answer verification guard
+    try {
+      const res = await fetch("/api/submit-answer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: user?.id || "anonymous-learner",
+          skillId: currentSkill.id,
+          skillName: currentSkill.name,
+          selectedIndex: Number(selectedIndex),
+          correctIndex: Number(question.correctIndex),
+          currentPKnow: pKnow,
+          latencyMs,
+          hintsUsed: hintsUsedCount,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        const isServerCorrect = Boolean(data.verifiedCorrect);
+        if (isServerCorrect) {
+          setSessionCorrectCount((prev) => prev + 1);
+        }
+        answerQuestion(isServerCorrect, latencyMs, hintsUsedCount);
+      } else {
+        if (clientIsCorrect) setSessionCorrectCount((prev) => prev + 1);
+        answerQuestion(clientIsCorrect, latencyMs, hintsUsedCount);
+      }
+    } catch (err) {
+      console.warn("Fallback to client answer evaluation notice:", err);
+      if (clientIsCorrect) setSessionCorrectCount((prev) => prev + 1);
+      answerQuestion(clientIsCorrect, latencyMs, hintsUsedCount);
+    }
 
     if (currentSessionId && currentSkill) {
       updateSessionProgress(
         currentSessionId,
         currentSkill.id,
         currentSkill.name,
-        isCorrect,
-        isCorrect ? 30 : 0
+        clientIsCorrect,
+        clientIsCorrect ? 30 : 0
       );
     }
 
@@ -305,7 +342,7 @@ export default function QuestPage() {
 
   // Called when the learner taps "Continue" in the explanation panel
   const handleContinueAfterAnswer = async () => {
-    const isCorrect = selectedIndex === question.correctIndex;
+    const isCorrect = Number(selectedIndex) === Number(question.correctIndex);
     setShowExplanation(false);
     if (isCorrect) {
       const reward = pickBanditRewardDrop();
