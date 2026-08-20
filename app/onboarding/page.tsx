@@ -26,11 +26,15 @@ import {
   ArrowRight,
 } from "lucide-react";
 
-const SUGGESTED_GOALS = [
-  "Python basics for a Zoho job interview",
-  "DSA for a FAANG interview",
-  "Fullstack Next.js & React Mastery",
-  "Machine Learning Fundamentals",
+const POPULAR_QUICKSTART_GOALS = [
+  { id: "python", title: "Python Basics", desc: "Syntax, data structures & functions", icon: "🐍", query: "Python Basics for Beginners" },
+  { id: "dsa", title: "DSA for Interviews", desc: "Arrays, trees, graphs & Big-O", icon: "⚡", query: "Data Structures & Algorithms" },
+  { id: "sql", title: "SQL & Databases", desc: "Queries, joins, indexing & schemas", icon: "🗄️", query: "SQL & Database Management" },
+  { id: "ml", title: "Machine Learning Basics", desc: "Supervised ML, regression & scikit", icon: "🤖", query: "Machine Learning Fundamentals" },
+  { id: "webdev", title: "Web Dev (React & Next.js)", desc: "Components, hooks, SSR & Tailwind", icon: "🌐", query: "React & Next.js Web Development" },
+  { id: "aptitude", title: "Aptitude & Reasoning", desc: "Quantitative logic for placements", icon: "🧩", query: "Quantitative Aptitude & Logical Reasoning" },
+  { id: "english", title: "Spoken English", desc: "Communication, fluency & vocabulary", icon: "🗣️", query: "Spoken English & Communication Skills" },
+  { id: "systemdesign", title: "System Design", desc: "Scalability, caching & load balancing", icon: "🏗️", query: "System Design & Distributed Systems" },
 ];
 
 const MOTIVATION_OPTIONS = [
@@ -81,6 +85,7 @@ export default function OnboardingPage() {
   const [loadingStep, setLoadingStep] = useState(0);
   const [result, setResult] = useState<GoalEngineResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [nonsenseError, setNonsenseError] = useState<{ message: string; examples: string[] } | null>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -115,6 +120,7 @@ export default function OnboardingPage() {
 
     setLoading(true);
     setError(null);
+    setNonsenseError(null);
     setResult(null);
     setLoadingStep(0);
 
@@ -131,13 +137,30 @@ export default function OnboardingPage() {
 
       clearInterval(stepInterval);
 
+      if (res.status === 400) {
+        const errData = await res.json();
+        if (errData.error === "nonsense") {
+          setNonsenseError({
+            message: errData.message || "Could not recognize a valid learning goal.",
+            examples: errData.examples || [
+              "Python Basics for Beginners",
+              "Data Structures & Algorithms",
+              "Machine Learning & AI",
+              "Full Stack Web Development",
+            ],
+          });
+          setLoading(false);
+          return;
+        }
+      }
+
       if (!res.ok) {
         throw new Error("Failed to generate course from Goal Engine.");
       }
 
       const data: GoalEngineResponse = await res.json();
       setResult(data);
-      setCourseData(data, targetGoal);
+      setCourseData(data, data.normalizedTopic || targetGoal);
 
       // Save goal and skills to Supabase DB
       if (isSupabaseConfigured()) {
@@ -301,19 +324,25 @@ export default function OnboardingPage() {
               </div>
             </form>
 
-            <div className="pt-4">
-              <p className="text-xs text-[#94A3B8] mb-3 uppercase tracking-wider font-mono">
-                Try a popular goal prompt:
-              </p>
-              <div className="flex flex-wrap justify-center gap-2">
-                {SUGGESTED_GOALS.map((item, idx) => (
+            {/* 8 Curated Quick-Start Tappable Cards */}
+            <div className="pt-6 space-y-3">
+              <div className="flex items-center justify-between text-xs font-mono text-[#94A3B8]">
+                <span className="uppercase tracking-wider font-bold">Curated Quick-Start Goals (Tap to Launch):</span>
+                <span className="text-[#22D3EE] font-bold">8 Popular Tracks</span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {POPULAR_QUICKSTART_GOALS.map((card) => (
                   <button
-                    key={idx}
-                    onClick={() => handleSelectSuggested(item)}
-                    className="px-3.5 py-2 rounded-xl bg-[#1B1B3A]/80 hover:bg-[#1B1B3A] border border-white/10 hover:border-[#7C3AED]/50 text-xs text-slate-300 hover:text-white transition-all cursor-pointer flex items-center gap-1.5"
+                    key={card.id}
+                    type="button"
+                    onClick={() => handleSelectSuggested(card.query)}
+                    className="bg-[#1B1B3A] border border-white/10 hover:border-[#7C3AED] p-3.5 rounded-2xl transition-all duration-200 hover:scale-[1.03] text-left cursor-pointer group space-y-1.5 glow-box-violet"
                   >
-                    <Flame className="w-3.5 h-3.5 text-[#FBBF24]" />
-                    <span>{item}</span>
+                    <div className="text-xl">{card.icon}</div>
+                    <h4 className="text-xs font-bold text-white group-hover:text-[#22D3EE] transition-colors line-clamp-1">
+                      {card.title}
+                    </h4>
+                    <p className="text-[10px] text-slate-400 line-clamp-2 leading-tight">{card.desc}</p>
                   </button>
                 ))}
               </div>
@@ -365,13 +394,45 @@ export default function OnboardingPage() {
           </div>
         )}
 
-        {/* Error Display */}
+        {/* Nonsense Error Display with 4 Tappable Example Chips */}
+        {nonsenseError && !loading && (
+          <div className="bg-[#1B1B3A] border border-red-500/40 rounded-3xl p-6 sm:p-8 text-center space-y-5 max-w-xl mx-auto shadow-2xl animate-fadeIn glow-box-violet">
+            <div className="w-12 h-12 rounded-2xl bg-red-500/20 border border-red-500/40 flex items-center justify-center mx-auto text-red-400 text-xl font-bold">
+              ❓
+            </div>
+            <div className="space-y-1">
+              <h3 className="text-lg font-bold text-white font-heading">Goal Not Recognized</h3>
+              <p className="text-xs text-slate-300">{nonsenseError.message}</p>
+            </div>
+            <div className="pt-2 space-y-2">
+              <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wider block">Try one of these real topics:</span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {nonsenseError.examples.map((ex, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => {
+                      setNonsenseError(null);
+                      setGoal(ex);
+                      handleGenerateCourse(ex);
+                    }}
+                    className="p-3 rounded-xl bg-[#0A0A1A] hover:bg-[#22D3EE]/10 border border-white/10 hover:border-[#22D3EE]/50 text-xs font-bold text-slate-200 hover:text-[#22D3EE] transition-all text-left cursor-pointer flex items-center justify-between group"
+                  >
+                    <span>{ex}</span>
+                    <ArrowRight className="w-3.5 h-3.5 text-[#22D3EE] group-hover:translate-x-0.5 transition-transform" />
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Generic Error Display */}
         {error && !loading && (
           <div className="bg-red-500/10 border border-red-500/40 rounded-2xl p-6 text-center space-y-4 max-w-xl mx-auto">
             <p className="text-red-400 text-sm font-semibold">{error}</p>
             <button
               onClick={() => setError(null)}
-              className="px-4 py-2 rounded-xl bg-red-500/20 text-white text-xs font-bold hover:bg-red-500/30 transition-colors"
+              className="px-4 py-2 rounded-xl bg-red-500/20 text-white text-xs font-bold hover:bg-red-500/30 transition-colors cursor-pointer"
             >
               Try Again
             </button>
@@ -381,12 +442,39 @@ export default function OnboardingPage() {
         {/* Generated Skill Tree View */}
         {result && !loading && (
           <div className="space-y-6 animate-fadeIn">
+            {/* Interpreted Topic Header Banner */}
+            {result.normalizedTopic && (
+              <div className="bg-[#22D3EE]/10 border border-[#22D3EE]/40 rounded-2xl p-3.5 flex items-center justify-between gap-3 text-xs shadow-lg">
+                <span className="text-slate-200">
+                  Building your course on: <strong className="text-[#22D3EE] font-bold">"{result.normalizedTopic}"</strong>
+                </span>
+                <button
+                  onClick={() => {
+                    setResult(null);
+                    setGoal(result.normalizedTopic || goal);
+                    setStep("goal");
+                  }}
+                  className="text-[11px] font-mono text-[#22D3EE] hover:underline font-bold shrink-0 cursor-pointer bg-[#22D3EE]/20 hover:bg-[#22D3EE]/30 px-3 py-1 rounded-lg transition-colors"
+                >
+                  Not what you meant? Edit
+                </button>
+              </div>
+            )}
+
             <div className="bg-[#1B1B3A] border border-[#7C3AED]/40 rounded-3xl p-6 sm:p-8 shadow-2xl glow-box-violet relative overflow-hidden space-y-6">
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div>
-                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#34D399]/20 border border-[#34D399]/40 text-[#34D399] text-xs font-mono font-bold mb-2">
+                  <div
+                    className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-mono font-bold mb-2 border ${
+                      result.isWebGrounded !== false
+                        ? "bg-[#34D399]/20 border-[#34D399]/40 text-[#34D399]"
+                        : "bg-[#FBBF24]/20 border-[#FBBF24]/40 text-[#FBBF24]"
+                    }`}
+                  >
                     <CheckCircle2 className="w-3.5 h-3.5" />
-                    CURRICULUM GENERATED FROM LIVE WEB RESEARCH
+                    {result.isWebGrounded !== false
+                      ? "CURRICULUM GROUNDED IN LIVE WEB RESEARCH"
+                      : "GENERATED FROM AI KNOWLEDGE (WITHOUT WEB SOURCES)"}
                   </div>
                   <h2 className="text-2xl sm:text-3xl font-black text-white font-heading">
                     {result.title}

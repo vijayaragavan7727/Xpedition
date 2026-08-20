@@ -34,6 +34,8 @@ export interface Question {
 
 export interface GoalEngineResponse {
   title: string;
+  normalizedTopic?: string;
+  isWebGrounded?: boolean;
   skills: Skill[];
   firstQuestion: Question;
   summary?: string;
