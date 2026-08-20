@@ -30,6 +30,7 @@ export async function POST(req: NextRequest) {
       difficulty = 2,
       wasCorrect,
       goal = "Programming",
+      learningStyle = "story",
       recentTypes = [],
       recentPrompts = [],
     } = body;
@@ -99,11 +100,23 @@ export async function POST(req: NextRequest) {
           "mastery-level system design & expert scenario"
         ][Math.min(4, Math.max(0, difficulty - 1))];
 
+        const stylePromptDirectives: Record<string, string> = {
+          story: "Use vivid real-world analogies, metaphors, and story-driven narratives in explanations and conceptSummary.",
+          theory: "Provide precise formal definitions, underlying theoretical principles, and mathematical mechanics.",
+          code: "Lead with code examples and explain concepts directly through code comments, syntax semantics, and output behavior.",
+          stepwise: "Format explanations and conceptSummary into clear numbered steps (e.g., 1. Step one..., 2. Step two...).",
+        };
+
+        const styleDirective = stylePromptDirectives[learningStyle] || stylePromptDirectives.story;
+
         const generateQuestionWithGroq = async (typeToUse: QuestionType, extraDirective?: string) => {
           const promptText = `You are XPedition's Adaptive Quest Generator.
 Generate ONE single multiple-choice question for the skill: "${skillName}" (Goal: "${goal}").
 Target difficulty level: Level ${difficulty} out of 5 (${difficultyDesc}).
 Previous answer was: ${wasCorrect !== undefined ? (wasCorrect ? "CORRECT" : "INCORRECT") : "N/A"}.
+
+CRITICAL LEARNING STYLE REQUIREMENT: "${learningStyle}"
+${styleDirective}
 
 CRITICAL QUESTION TYPE REQUIREMENT:
 You MUST set "questionType" to "${typeToUse}".
@@ -126,12 +139,12 @@ Return STRICT JSON ONLY matching this format:
   "options": ["Option A", "Option B", "Option C", "Option D"],
   "correctIndex": number (0 to 3),
   "explanations": [
-    "Why Option A is correct or wrong — specific to the concept, never generic",
-    "Why Option B is correct or wrong — specific to the concept, never generic",
-    "Why Option C is correct or wrong — specific to the concept, never generic",
-    "Why Option D is correct or wrong — specific to the concept, never generic"
+    "Why Option A is correct or wrong — written in '${learningStyle}' style, specific to concept",
+    "Why Option B is correct or wrong — written in '${learningStyle}' style, specific to concept",
+    "Why Option C is correct or wrong — written in '${learningStyle}' style, specific to concept",
+    "Why Option D is correct or wrong — written in '${learningStyle}' style, specific to concept"
   ],
-  "conceptSummary": "A 1-2 sentence explanation of the core concept this question tests."
+  "conceptSummary": "A 1-2 sentence explanation of the core concept written in '${learningStyle}' style."
 }`;
 
           const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {

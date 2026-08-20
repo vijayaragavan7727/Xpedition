@@ -4,6 +4,8 @@ export interface SourceItem {
   domain: string;
 }
 
+export type LearningStyle = "story" | "theory" | "code" | "stepwise";
+
 export interface Skill {
   id: string;
   name: string;
@@ -11,6 +13,7 @@ export interface Skill {
   description?: string;
   estimatedHours?: number;
   sourceUrl?: string;
+  conceptIntro?: string;
 }
 
 export type QuestionType = "concept" | "code_output" | "debug" | "scenario" | "compare";
@@ -22,6 +25,7 @@ export interface Question {
   questionType?: QuestionType;
   codeSnippet?: string;
   scenarioSetup?: string;
+  conceptIntro?: string;
   /** Per-option explanations: index matches options[]. Why each wrong option is wrong, why the correct one is right. */
   explanations?: string[];
   /** One-paragraph concept summary shown after answering — the core insight behind the question. */

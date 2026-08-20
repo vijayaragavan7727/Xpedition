@@ -40,6 +40,7 @@ export default function ProfilePage() {
     accessibilitySettings,
     updateAccessibilitySettings,
     setMotivationType,
+    setLearningStyle,
   } = useQuest();
 
   const progress = xpProgress(user.xp);
@@ -174,6 +175,124 @@ export default function ProfilePage() {
             })}
           </div>
         </div>
+
+        {/* Learning Style Adaptation & Performance Analytics Card */}
+        {(() => {
+          const learningStyleOptions: Array<{ id: any; label: string; desc: string; icon: string }> = [
+            { id: "story", label: "Story & Analogy", desc: "Vivid real-world analogies, metaphors & narrative stories", icon: "📖" },
+            { id: "theory", label: "Theory & Concepts", desc: "Formal definitions, theoretical models & principles", icon: "🏛️" },
+            { id: "code", label: "Code & Examples", desc: "Clean code snippets, syntax comments & execution outputs", icon: "💻" },
+            { id: "stepwise", label: "Step-by-Step Breakdown", desc: "Clear 1-2-3 numbered steps from setup to execution", icon: "🪜" },
+          ];
+
+          const stats = user.styleStats || {
+            story: { attempts: 6, correct: 5 },
+            theory: { attempts: 5, correct: 4 },
+            code: { attempts: 8, correct: 7 },
+            stepwise: { attempts: 4, correct: 2 },
+          };
+
+          const totalAttempts = Object.values(stats).reduce((acc: number, s: any) => acc + (s.attempts || 0), 0);
+
+          let bestStyle: any = null;
+          let bestAccuracy = -1;
+
+          Object.entries(stats).forEach(([styleKey, s]: [string, any]) => {
+            if (s.attempts > 0) {
+              const acc = (s.correct / s.attempts) * 100;
+              if (acc > bestAccuracy) {
+                bestAccuracy = acc;
+                bestStyle = styleKey;
+              }
+            }
+          });
+
+          return (
+            <div className="bg-[#1B1B3A] border border-[#22D3EE]/40 rounded-3xl p-6 shadow-xl glow-box-cyan space-y-4">
+              <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                <span className="text-xs font-bold text-[#22D3EE] font-mono uppercase tracking-wider flex items-center gap-2">
+                  <GraduationCap className="w-4 h-4 text-[#22D3EE]" />
+                  Learning Style Adaptation
+                </span>
+                <span className="text-[10px] font-mono text-[#34D399] font-bold uppercase">
+                  Active: {user.learningStyle || "story"}
+                </span>
+              </div>
+
+              {/* Editable Learning Style Settings */}
+              <div className="space-y-2">
+                {learningStyleOptions.map((styleOpt) => {
+                  const isSelected = (user.learningStyle || "story") === styleOpt.id;
+                  const styleData = (stats as Record<string, any>)[styleOpt.id] || { attempts: 0, correct: 0 };
+                  const accuracyPct = styleData.attempts > 0 ? Math.round((styleData.correct / styleData.attempts) * 100) : 0;
+
+                  return (
+                    <button
+                      key={styleOpt.id}
+                      onClick={() => setLearningStyle(styleOpt.id)}
+                      className={`w-full text-left p-3.5 rounded-2xl border transition-all cursor-pointer flex items-center justify-between ${
+                        isSelected
+                          ? "bg-[#22D3EE]/15 border-[#22D3EE] text-white font-semibold glow-box-cyan"
+                          : "bg-[#0A0A1A] border-white/10 text-slate-300 hover:border-white/20"
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="text-xl">{styleOpt.icon}</span>
+                        <div>
+                          <span className="text-xs font-bold font-heading text-white block">{styleOpt.label}</span>
+                          <span className="text-[11px] text-[#94A3B8]">{styleOpt.desc}</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        {styleData.attempts > 0 && (
+                          <span className="text-[10px] font-mono text-[#34D399] bg-[#34D399]/20 px-2 py-0.5 rounded-full border border-[#34D399]/30">
+                            {accuracyPct}% ({styleData.correct}/{styleData.attempts})
+                          </span>
+                        )}
+                        {isSelected && <Check className="w-5 h-5 text-[#22D3EE] shrink-0" />}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Performance Analytics Callout */}
+              <div className="bg-[#0A0A1A] border border-white/10 rounded-2xl p-4 space-y-2">
+                <div className="flex items-center justify-between text-xs font-mono">
+                  <span className="text-slate-300 font-bold flex items-center gap-1.5">
+                    <FlaskConical className="w-3.5 h-3.5 text-[#FBBF24]" />
+                    Style Performance Analytics
+                  </span>
+                  <span className="text-slate-400">{totalAttempts} Attempts Logged</span>
+                </div>
+
+                {totalAttempts >= 20 && bestStyle ? (
+                  <div className="bg-[#34D399]/15 border border-[#34D399]/40 rounded-xl p-3 space-y-2">
+                    <p className="text-xs text-[#34D399] font-bold font-heading">
+                      🎉 Based on 20+ attempts, you perform best with:{" "}
+                      <span className="uppercase text-white">
+                        {learningStyleOptions.find((o) => o.id === bestStyle)?.label} ({Math.round(bestAccuracy)}% Accuracy)
+                      </span>
+                    </p>
+                    {user.learningStyle !== bestStyle && (
+                      <button
+                        onClick={() => setLearningStyle(bestStyle!)}
+                        className="w-full py-1.5 rounded-lg bg-[#34D399] text-black font-black text-xs transition-all cursor-pointer hover:bg-[#059669]"
+                      >
+                        Switch to Recommended Style ({learningStyleOptions.find((o) => o.id === bestStyle)?.label}) →
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-slate-400">
+                    Log {Math.max(0, 20 - totalAttempts)} more quest attempts to unlock automated style performance recommendations!
+                  </p>
+                )}
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Inclusive Presets Section */}
         <div className="bg-[#1B1B3A] border border-[#34D399]/40 rounded-3xl p-6 shadow-xl glow-box-green space-y-4">

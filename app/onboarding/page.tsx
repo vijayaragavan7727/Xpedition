@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useQuest } from "@/lib/QuestContext";
-import { GoalEngineResponse } from "@/lib/types";
+import { GoalEngineResponse, LearningStyle } from "@/lib/types";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { initUserArms, ArmType } from "@/lib/bandit";
 import QuestModal from "@/components/QuestModal";
@@ -68,6 +68,37 @@ const MOTIVATION_OPTIONS = [
   },
 ];
 
+const LEARNING_STYLE_OPTIONS = [
+  {
+    id: "story" as LearningStyle,
+    label: "Story & Analogy",
+    desc: "Learn through vivid real-world analogies, metaphors & narratives",
+    icon: BookOpen,
+    color: "text-[#22D3EE] bg-[#22D3EE]/20 border-[#22D3EE]/40",
+  },
+  {
+    id: "theory" as LearningStyle,
+    label: "Theory & Concepts",
+    desc: "Master formal definitions, underlying principles & mechanics",
+    icon: Shield,
+    color: "text-[#7C3AED] bg-[#7C3AED]/20 border-[#7C3AED]/40",
+  },
+  {
+    id: "code" as LearningStyle,
+    label: "Code & Examples",
+    desc: "Learn by analyzing clean code blocks, syntax comments & outputs",
+    icon: Sparkles,
+    color: "text-[#34D399] bg-[#34D399]/20 border-[#34D399]/40",
+  },
+  {
+    id: "stepwise" as LearningStyle,
+    label: "Step-by-Step Breakdown",
+    desc: "Break complex concepts down into clear numbered 1-2-3 steps",
+    icon: Compass,
+    color: "text-[#FBBF24] bg-[#FBBF24]/20 border-[#FBBF24]/40",
+  },
+];
+
 const LOADING_STEPS = [
   "Searching the web via Tavily API...",
   "Analyzing real-world curriculum & requirements...",
@@ -76,10 +107,11 @@ const LOADING_STEPS = [
 ];
 
 export default function OnboardingPage() {
-  const { user, setCourseData, setMotivationType } = useQuest();
+  const { user, setCourseData, setMotivationType, setLearningStyle } = useQuest();
   const [userName, setUserName] = useState("Adventurer");
-  const [step, setStep] = useState<"motivation" | "goal">("motivation");
+  const [step, setStep] = useState<"motivation" | "learning_style" | "goal">("motivation");
   const [motivatedArm, setMotivatedArm] = useState<ArmType>("badge");
+  const [selectedStyle, setSelectedStyle] = useState<LearningStyle>("story");
   const [goal, setGoal] = useState("");
   const [loading, setLoading] = useState(false);
   const [loadingStep, setLoadingStep] = useState(0);
@@ -112,6 +144,14 @@ export default function OnboardingPage() {
       }
     }
 
+    setStep("learning_style");
+  };
+
+  const handleSelectLearningStyle = async (style: LearningStyle) => {
+    setSelectedStyle(style);
+    if (setLearningStyle) {
+      await setLearningStyle(style);
+    }
     setStep("goal");
   };
 
@@ -224,11 +264,21 @@ export default function OnboardingPage() {
       {/* Top Bar */}
       <header className="w-full max-w-5xl mx-auto flex items-center justify-between z-10 py-2">
         <button
-          onClick={() => (step === "goal" ? setStep("motivation") : router.push("/"))}
+          onClick={() => {
+            if (step === "goal") setStep("learning_style");
+            else if (step === "learning_style") setStep("motivation");
+            else router.push("/");
+          }}
           className="flex items-center gap-2 text-xs text-[#94A3B8] hover:text-white transition-colors cursor-pointer"
         >
           <ChevronLeft className="w-4 h-4" />
-          <span>{step === "goal" ? "Change Motivation" : "Back to Home"}</span>
+          <span>
+            {step === "goal"
+              ? "Change Learning Style"
+              : step === "learning_style"
+              ? "Change Motivation"
+              : "Back to Home"}
+          </span>
         </button>
 
         <div className="flex items-center gap-3">
@@ -278,6 +328,53 @@ export default function OnboardingPage() {
 
                     <div>
                       <h3 className="text-base font-bold text-white font-heading group-hover:text-[#22D3EE] transition-colors">
+                        {item.label}
+                      </h3>
+                      <p className="text-xs text-[#94A3B8] mt-1 leading-relaxed">{item.desc}</p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Step 1.5: Learning Style Selection Screen */}
+        {step === "learning_style" && !loading && (
+          <div className="text-center space-y-6 animate-fadeIn">
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#1B1B3A] border border-[#7C3AED]/40 text-xs text-[#22D3EE] font-mono">
+              <Sparkles className="w-3.5 h-3.5 text-[#FBBF24]" />
+              PEDAGOGICAL ADAPTATION ENGINE
+            </div>
+
+            <h1 className="text-3xl sm:text-5xl font-black text-white font-heading tracking-tight">
+              How do you learn best?
+            </h1>
+            <p className="text-sm sm:text-base text-[#94A3B8] max-w-lg mx-auto">
+              Select your preferred teaching style. Questions, concept primers, and explanations will adapt strictly to your style.
+            </p>
+
+            {/* 4 Tappable Learning Style Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl mx-auto pt-2">
+              {LEARNING_STYLE_OPTIONS.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => handleSelectLearningStyle(item.id)}
+                    className="bg-[#1B1B3A] border border-white/10 hover:border-[#34D399] p-5 rounded-3xl transition-all duration-200 hover:scale-[1.02] text-left cursor-pointer group glow-box-violet space-y-3"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className={`p-3 rounded-2xl ${item.color}`}>
+                        <Icon className="w-6 h-6" />
+                      </div>
+                      <span className="text-[10px] font-mono text-slate-400 group-hover:text-[#34D399]">
+                        Pedagogical Mode
+                      </span>
+                    </div>
+
+                    <div>
+                      <h3 className="text-base font-bold text-white font-heading group-hover:text-[#34D399] transition-colors">
                         {item.label}
                       </h3>
                       <p className="text-xs text-[#94A3B8] mt-1 leading-relaxed">{item.desc}</p>

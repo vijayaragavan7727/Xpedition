@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect } from "react";
-import { GoalEngineResponse, Question, Skill } from "./types";
+import { GoalEngineResponse, Question, Skill, LearningStyle } from "./types";
 import { supabase, isSupabaseConfigured } from "./supabase";
 import { updateMastery, predictCorrect, BKT_PARAMS } from "./bkt";
 import {
@@ -48,6 +48,8 @@ interface UserProfile {
   lastActiveDate: string;
   timezone: string;
   motivationType: string;
+  learningStyle: LearningStyle;
+  styleStats?: Record<LearningStyle, { attempts: number; correct: number }>;
   cohort: CohortType;
   unlockedBadges: string[];
 }
@@ -69,6 +71,7 @@ interface QuestContextType {
   setVisualTheme: (theme: VisualTheme) => void;
   updateAccessibilitySettings: (newSettings: Partial<AccessibilitySettings>) => void;
   setMotivationType: (motivation: string) => Promise<void>;
+  setLearningStyle: (style: LearningStyle) => Promise<void>;
   setCourseData: (course: GoalEngineResponse, goal: string) => void;
   answerQuestion: (isCorrect: boolean, latencyMs?: number, hintsUsed?: number) => void;
   claimReward: (reward: RewardDrop) => void;
@@ -91,6 +94,13 @@ const DEFAULT_USER: UserProfile = {
   lastActiveDate: new Date().toISOString().split("T")[0],
   timezone: typeof Intl !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC" : "UTC",
   motivationType: "badge",
+  learningStyle: "story",
+  styleStats: {
+    story: { attempts: 6, correct: 5 },
+    theory: { attempts: 5, correct: 4 },
+    code: { attempts: 8, correct: 7 },
+    stepwise: { attempts: 4, correct: 2 },
+  },
   cohort: "adaptive",
   unlockedBadges: ["First Quest Victory", "Goal Explorer"],
 };
@@ -196,9 +206,11 @@ export function QuestProvider({ children }: { children: React.ReactNode }) {
             let timezone = typeof Intl !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC" : "UTC";
             let motivationType = "badge";
 
+            let learningStyle: LearningStyle = "story";
+
             const { data: userRec } = await supabase
               .from("users")
-              .select("share_id, timezone, motivation_type")
+              .select("share_id, timezone, motivation_type, learning_style")
               .eq("id", userId)
               .single();
 
@@ -206,6 +218,7 @@ export function QuestProvider({ children }: { children: React.ReactNode }) {
               if (userRec.share_id) shareId = userRec.share_id;
               if (userRec.timezone) timezone = userRec.timezone;
               if (userRec.motivation_type) motivationType = userRec.motivation_type;
+              if (userRec.learning_style) learningStyle = userRec.learning_style as LearningStyle;
             } else {
               shareId = crypto.randomUUID();
               await supabase.from("users").upsert({
@@ -215,6 +228,7 @@ export function QuestProvider({ children }: { children: React.ReactNode }) {
                 share_id: shareId,
                 timezone,
                 motivation_type: motivationType,
+                learning_style: learningStyle,
               });
             }
 
@@ -233,6 +247,13 @@ export function QuestProvider({ children }: { children: React.ReactNode }) {
               lastActiveDate,
               timezone,
               motivationType,
+              learningStyle,
+              styleStats: {
+                story: { attempts: 6, correct: 5 },
+                theory: { attempts: 5, correct: 4 },
+                code: { attempts: 8, correct: 7 },
+                stepwise: { attempts: 4, correct: 2 },
+              },
               cohort,
               unlockedBadges: ["First Quest Victory", "Goal Explorer"],
             });
@@ -325,6 +346,27 @@ export function QuestProvider({ children }: { children: React.ReactNode }) {
       }
     } catch (e) {
       console.warn("Failed to persist user profile:", e);
+    }
+  };
+
+  const setLearningStyle = async (style: LearningStyle) => {
+    const updatedUser: UserProfile = {
+      ...user,
+      learningStyle: style,
+    };
+    setUser(updatedUser);
+
+    try {
+      localStorage.setItem("xpedition_learning_style", style);
+
+      if (isSupabaseConfigured() && user.id) {
+        await supabase
+          .from("users")
+          .update({ learning_style: style })
+          .eq("id", user.id);
+      }
+    } catch (err) {
+      console.warn("Failed to persist learning style:", err);
     }
   };
 
@@ -574,6 +616,7 @@ export function QuestProvider({ children }: { children: React.ReactNode }) {
         setVisualTheme,
         updateAccessibilitySettings,
         setMotivationType,
+        setLearningStyle,
         setCourseData,
         answerQuestion,
         claimReward,

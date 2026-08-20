@@ -33,6 +33,7 @@ import {
   Bug,
   Globe,
   Scale,
+  BookOpen,
 } from "lucide-react";
 import TutorOverlay from "@/components/TutorOverlay";
 
@@ -77,6 +78,8 @@ export default function QuestPage() {
   // Question type rotation and anti-repetition tracking
   const [recentTypes, setRecentTypes] = useState<QuestionType[]>([]);
   const [recentPrompts, setRecentPrompts] = useState<string[]>([]);
+  const [conceptIntroText, setConceptIntroText] = useState<string | null>(null);
+  const [showConceptIntro, setShowConceptIntro] = useState<boolean>(true);
 
   useEffect(() => {
     setRenderTimestamp(Date.now());
@@ -92,6 +95,33 @@ export default function QuestPage() {
       }
     }
   }, [currentQuestion, user]);
+
+  useEffect(() => {
+    async function fetchConceptPrimer() {
+      if (!currentSkill?.name) return;
+      try {
+        const res = await fetch("/api/concept-intro", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            skillName: currentSkill.name,
+            goal: goalText,
+            learningStyle: user.learningStyle || "story",
+          }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.conceptIntro) {
+            setConceptIntroText(data.conceptIntro);
+            setShowConceptIntro(true);
+          }
+        }
+      } catch (e) {
+        console.warn("Concept primer fetch notice:", e);
+      }
+    }
+    fetchConceptPrimer();
+  }, [activeSkillIndex, user.learningStyle]);
 
   const fetchUserArms = async () => {
     if (isSupabaseConfigured() && user?.id) {
@@ -254,6 +284,7 @@ export default function QuestPage() {
           difficulty: flowDifficulty,
           wasCorrect,
           goal: goalText,
+          learningStyle: user.learningStyle || "story",
           recentTypes: recentTypes.slice(-3),
           recentPrompts: recentPrompts.slice(-20),
         }),
@@ -414,6 +445,40 @@ export default function QuestPage() {
             >
               Write a Quest →
             </Link>
+          </div>
+        )}
+
+        {/* Concept Intro Primer Card — Teaches BEFORE Quizzing */}
+        {showConceptIntro && conceptIntroText && (
+          <div className="bg-gradient-to-r from-[#7C3AED]/20 via-[#1B1B3A] to-[#22D3EE]/20 border border-[#22D3EE]/50 rounded-3xl p-6 shadow-2xl glow-box-cyan space-y-3 animate-fadeIn relative">
+            <div className="flex items-center justify-between">
+              <span className="px-3 py-1 rounded-full bg-[#22D3EE]/20 border border-[#22D3EE]/40 text-[#22D3EE] text-[11px] font-mono font-bold uppercase tracking-wider flex items-center gap-1.5">
+                <BookOpen className="w-3.5 h-3.5 text-[#FBBF24]" />
+                Concept Primer ({user.learningStyle?.toUpperCase() || "STORY"} STYLE)
+              </span>
+              <button
+                onClick={() => setShowConceptIntro(false)}
+                className="text-xs font-mono text-slate-400 hover:text-white cursor-pointer px-2 py-0.5 rounded bg-white/5"
+              >
+                Dismiss ✕
+              </button>
+            </div>
+
+            <div className="space-y-1">
+              <h3 className="text-base font-bold text-white font-heading">
+                Module Primer: {currentSkill.name}
+              </h3>
+              <p className="text-xs sm:text-sm text-slate-200 leading-relaxed border-l-2 border-[#22D3EE] pl-3">
+                {conceptIntroText}
+              </p>
+            </div>
+
+            <button
+              onClick={() => setShowConceptIntro(false)}
+              className="w-full py-2.5 rounded-xl bg-gradient-to-r from-[#7C3AED] to-[#22D3EE] hover:from-[#6D28D9] hover:to-[#06B6D4] text-white font-black font-heading text-xs uppercase tracking-wider transition-all cursor-pointer shadow-md shadow-[#7C3AED]/30 flex items-center justify-center gap-1.5"
+            >
+              <span>Got the Concept — Start Skill Quest →</span>
+            </button>
           </div>
         )}
 
