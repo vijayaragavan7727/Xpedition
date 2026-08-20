@@ -44,6 +44,7 @@ import {
 import TutorOverlay from "@/components/TutorOverlay";
 import SquidAsset from "@/components/SquidAsset";
 import { getModuleTheme } from "@/lib/moduleThemes";
+import ModuleTransitionModal from "@/components/ModuleTransitionModal";
 
 export default function QuestPage() {
   const {
@@ -89,7 +90,12 @@ export default function QuestPage() {
   const [recentPrompts, setRecentPrompts] = useState<string[]>([]);
   const [conceptIntroText, setConceptIntroText] = useState<string | null>(null);
   const [showConceptIntro, setShowConceptIntro] = useState<boolean>(true);
+  const [showModuleTransition, setShowModuleTransition] = useState<boolean>(true);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+
+  useEffect(() => {
+    setShowModuleTransition(true);
+  }, [activeSkillIndex]);
 
   useEffect(() => {
     setRenderTimestamp(Date.now());
@@ -855,6 +861,15 @@ export default function QuestPage() {
         masteryLevel={pKnow}
         onHintRequested={() => setHintsUsedCount((prev) => prev + 1)}
       />
+
+      {/* Cinematic Module Entry Transition Modal */}
+      {showModuleTransition && (
+        <ModuleTransitionModal
+          moduleIndex={activeSkillIndex}
+          moduleName={currentSkill.name}
+          onComplete={() => setShowModuleTransition(false)}
+        />
+      )}
 
       <BottomNav />
     </main>
