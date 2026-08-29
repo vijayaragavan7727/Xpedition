@@ -3,8 +3,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { getStoreData, calculateStreak, selectNextTarget, UserStoreData, Attempt } from '@/lib/store';
-import { blindSpots } from '@/lib/engine/calibration';
+import { getStoreData, calculateStreak, selectNextTarget, UserStoreData } from '@/lib/store';
 import { thetaToPercent } from '@/lib/engine/mastery';
 import XyraGreetingWidget from '@/components/XyraGreetingWidget';
 import { Send, Volume2, VolumeX, Sparkles, RefreshCw } from 'lucide-react';
@@ -217,18 +216,6 @@ export default function HomePage() {
     }
   };
 
-  const formatRelativeTime = (timestamp: number) => {
-    const diffMs = Date.now() - timestamp;
-    const diffMins = Math.floor(diffMs / 60000);
-    if (diffMins < 1) return 'just now';
-    if (diffMins < 60) return `${diffMins}m ago`;
-    const diffHours = Math.floor(diffMins / 60);
-    if (diffHours < 24) return `${diffHours}h ago`;
-    const diffDays = Math.floor(diffHours / 24);
-    return `${diffDays}d ago`;
-  };
-
-  const recentAttempts: Attempt[] = storeData.attempts.slice(-3).reverse();
   const attemptConceptIds = new Set((storeData.attempts || []).map((a) => a.conceptId));
 
   // Determine Continue Card Link automatically:
@@ -240,9 +227,6 @@ export default function HomePage() {
   const continueHref = showLessonFirst
     ? `${lessonPath}/${encodeURIComponent(target.conceptId)}`
     : `/quest?concept=${encodeURIComponent(target.conceptId)}`;
-
-  const detectedBlindSpots = blindSpots(storeData.attempts, storeData.concepts);
-  const blindSpotConceptIds = new Set(detectedBlindSpots.map((bs) => bs.conceptId));
 
   return (
     <div className="space-y-5 select-none relative pb-16">
@@ -387,26 +371,6 @@ export default function HomePage() {
         </form>
       </section>
 
-      {/* 2. STAT STRIP */}
-      <section className="grid grid-cols-3 gap-3">
-        <div className="bg-[#120E22]/90 border border-line/60 rounded-[14px] p-3.5 text-center space-y-1">
-          <span className="block font-mono text-[9px] uppercase text-muted font-bold">DAILY STREAK</span>
-          <span className="block font-mono text-base sm:text-lg font-bold text-cyan">{streak} Days 🔥</span>
-        </div>
-
-        <div className="bg-[#120E22]/90 border border-line/60 rounded-[14px] p-3.5 text-center space-y-1">
-          <span className="block font-mono text-[9px] uppercase text-muted font-bold">SKILL GRAPH</span>
-          <span className="block font-mono text-base sm:text-lg font-bold text-violet">{storeData.concepts.length} Topics</span>
-        </div>
-
-        <div className="bg-[#120E22]/90 border border-line/60 rounded-[14px] p-3.5 text-center space-y-1">
-          <span className="block font-mono text-[9px] uppercase text-muted font-bold">BLIND SPOTS</span>
-          <span className={`block font-mono text-base sm:text-lg font-bold ${detectedBlindSpots.length > 0 ? 'text-amber-400' : 'text-text'}`}>
-            {detectedBlindSpots.length}
-          </span>
-        </div>
-      </section>
-
       {/* QUICK LEARN ENTRY */}
       <section className="bg-[#120E22]/90 border border-line rounded-[16px] p-4 sm:p-5 backdrop-blur-xl">
         <form onSubmit={handleQuickLearnSubmit} className="space-y-3">
@@ -437,31 +401,18 @@ export default function HomePage() {
         </form>
       </section>
 
-      {/* 2. STICKY CONTINUE CARD — SYSTEM DECIDES LEARN VS QUEST SILENTLY */}
+      {/* 3. CLEAN CONTINUE CARD (Only Concept Name, Mastery %, Progress Bar, Continue Button) */}
       <section className="sticky top-0 z-20 pt-1 -mt-1 bg-ink/95 backdrop-blur-md rounded-[18px]">
         <div className="card-glass-neon p-5 sm:p-6 rounded-[16px]">
         {hasSkillGraph ? (
           <div className="space-y-4">
-            <div className="flex items-center justify-between flex-wrap gap-2">
-              <span className="font-mono text-[11px] tracking-eyebrow uppercase text-muted font-bold">
-                NEXT RECOMMENDED TARGET
-              </span>
-              <span className="font-mono text-[11px] text-cyan font-medium">
-                {target.inProgress
-                  ? `${target.currentIndex} of ${target.totalLength} done (${target.itemsRemaining} remaining)`
-                  : `${target.masteryPercentage}% mastery / ${target.itemsRemaining} items next`}
-              </span>
-            </div>
-
             <div>
-              <h2 className="font-sans font-semibold text-[17px] text-text mb-2 flex items-center gap-2 flex-wrap">
-                <span>{target.conceptName}</span>
-                {showLessonFirst && (
-                  <span className="font-mono text-[9px] uppercase px-2 py-0.5 rounded bg-violet/20 text-violet font-bold border border-violet/30">
-                    New Concept
-                  </span>
-                )}
+              <h2 className="font-sans font-bold text-xl text-text mb-1">
+                {target.conceptName}
               </h2>
+              <span className="font-mono text-xs text-cyan font-medium block mb-2.5">
+                {target.masteryPercentage}% mastery
+              </span>
 
               <div className="h-2.5 w-full bg-raised/80 rounded-full overflow-hidden p-0.5 border border-line/40">
                 <div
@@ -473,7 +424,6 @@ export default function HomePage() {
                   }}
                 />
               </div>
-              <p className="font-mono text-[11px] text-muted mt-1.5">{target.reason}</p>
             </div>
 
             <div className="pt-1">
@@ -500,7 +450,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* 2. SKILL GRAPH CONCEPTS BREAKDOWN — 1-TAP DIRECT ROUTING */}
+      {/* SKILL GRAPH CONCEPTS BREAKDOWN — 1-TAP DIRECT ROUTING */}
       <section className="bg-[#120E22]/90 border border-line/60 rounded-[16px] p-5 space-y-4">
         <div className="flex items-center justify-between border-b border-line/40 pb-3">
           <span className="font-mono text-[10px] tracking-eyebrow uppercase text-muted font-bold">
@@ -514,7 +464,6 @@ export default function HomePage() {
         <div className="space-y-2.5">
           {storeData.concepts.map((concept) => {
             const hasAtt = attemptConceptIds.has(concept.id);
-            const isBlindSpot = blindSpotConceptIds.has(concept.id);
             const isFading = concept.retentionRisk > 0.35;
 
             // System decides automatically:
@@ -533,7 +482,6 @@ export default function HomePage() {
               >
                 <div className="space-y-1 min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
-                    {isBlindSpot && <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse shrink-0" />}
                     <span className="font-sans text-sm text-text font-semibold group-hover:text-cyan transition-colors truncate">
                       {concept.name}
                     </span>
@@ -542,15 +490,11 @@ export default function HomePage() {
                         New
                       </span>
                     )}
-                    {isBlindSpot ? (
-                      <span className="font-mono text-[8px] uppercase px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 font-bold shrink-0">
-                        Blind Spot
-                      </span>
-                    ) : isFading ? (
+                    {isFading && (
                       <span className="font-mono text-[8px] uppercase px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/40 font-bold shrink-0">
                         Fading
                       </span>
-                    ) : null}
+                    )}
                   </div>
 
                   <div className="flex items-center gap-3">
@@ -574,36 +518,6 @@ export default function HomePage() {
           })}
         </div>
       </section>
-
-      {/* RECENT ATTEMPTS */}
-      {recentAttempts.length > 0 && (
-        <section className="bg-[#120E22]/90 border border-line/60 rounded-[16px] p-5 space-y-3">
-          <div className="flex items-center justify-between border-b border-line/40 pb-2.5">
-            <span className="font-mono text-[10px] tracking-eyebrow uppercase text-muted font-bold">
-              RECENT LOGS
-            </span>
-            <Link href="/history" className="font-mono text-xs text-cyan hover:underline">
-              View Full History &rarr;
-            </Link>
-          </div>
-          <div className="space-y-2">
-            {recentAttempts.map((att) => (
-              <div key={att.id} className="flex items-center justify-between text-xs py-1">
-                <div className="flex items-center gap-2">
-                  <span className={`w-2 h-2 rounded-full ${att.isCorrect ? 'bg-[#00FF87]' : 'bg-[#FF0055]'}`} />
-                  <span className="font-sans text-text font-medium">{att.conceptName}</span>
-                  {att.isSolo && (
-                    <span className="font-mono text-[9px] px-1.5 py-0.2 rounded bg-violet-500/20 text-violet-300">
-                      Solo
-                    </span>
-                  )}
-                </div>
-                <span className="font-mono text-[11px] text-muted">{formatRelativeTime(att.timestamp)}</span>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
 
     </div>
   );

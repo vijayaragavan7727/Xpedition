@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { getStoreData, clearStoreData, switchActiveGraph, saveLearnerProfile, saveStoreData, UserStoreData, SkillGraph } from '@/lib/store';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
-import { User, Globe, Clock, Sparkles, Check, CheckCircle2, Shield, AlertCircle, Save, LogOut, RefreshCw, HelpCircle, X } from 'lucide-react';
+import { User, Globe, Clock, Sparkles, Check, CheckCircle2, Shield, AlertCircle, Save, LogOut, RefreshCw, HelpCircle, X, Trash2 } from 'lucide-react';
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -142,6 +142,28 @@ export default function ProfilePage() {
     const updated = switchActiveGraph(graphId);
     setStoreData(updated);
     window.location.reload();
+  };
+
+  const handleDeleteGoal = (graphId: string) => {
+    if (!storeData) return;
+    if (confirm('Delete this goal from your profile?')) {
+      const updatedGraphs = (storeData.graphs || []).filter((g) => g.id !== graphId);
+      let newActiveId = storeData.activeGraphId;
+      if (newActiveId === graphId) {
+        newActiveId = updatedGraphs[0]?.id || '';
+      }
+      const activeTargetGraph = updatedGraphs.find((g) => g.id === newActiveId);
+      const updatedStore: UserStoreData = {
+        ...storeData,
+        graphs: updatedGraphs,
+        activeGraphId: newActiveId,
+        concepts: activeTargetGraph?.concepts || [],
+        attempts: activeTargetGraph?.attempts || [],
+        goalText: activeTargetGraph?.goalText || storeData.goalText,
+      };
+      saveStoreData(updatedStore);
+      setStoreData(updatedStore);
+    }
   };
 
   const handleResetData = () => {
@@ -434,64 +456,82 @@ export default function ProfilePage() {
       </div>
 
       {/* SKILL GRAPHS LIST & GOAL SWITCHER */}
-      <div className="bg-[#120E24] rounded-[24px] border border-white/10 p-5 sm:p-7 space-y-4 shadow-2xl">
-        <div className="flex items-center justify-between">
-          <span className="font-mono text-[11px] uppercase text-[#00F0FF] font-bold tracking-wider">
-            YOUR SKILL GRAPHS ({storeData?.graphs?.length || 1})
-          </span>
-          <Link
-            href="/onboarding"
-            className="h-8 px-3 rounded-lg bg-[#00F0FF] text-black font-mono font-bold text-xs flex items-center gap-1.5 hover:brightness-110 transition-all"
-          >
-            <span>+ New Goal</span>
-          </Link>
-        </div>
+      {(() => {
+        const validGraphs = (storeData?.graphs || []).filter((g: SkillGraph) => (g.concepts?.length || 0) > 0);
+        const displayedGraphs = validGraphs.slice(-5);
 
-        <div className="space-y-2.5">
-          {storeData?.graphs?.map((graph: SkillGraph) => {
-            const isActive = graph.id === storeData.activeGraphId;
-            const conceptCount = graph.concepts?.length || 0;
-            const attemptCount = graph.attempts?.length || 0;
-
-            return (
-              <div
-                key={graph.id}
-                className={`p-4 rounded-2xl border transition-all ${
-                  isActive
-                    ? 'bg-[#00F0FF]/10 border-[#00F0FF] text-white shadow-md'
-                    : 'bg-black/30 border-white/10 text-slate-400'
-                }`}
+        return (
+          <div className="bg-[#120E24] rounded-[24px] border border-white/10 p-5 sm:p-7 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between">
+              <span className="font-mono text-[11px] uppercase text-[#00F0FF] font-bold tracking-wider">
+                YOUR SKILL GRAPHS ({displayedGraphs.length})
+              </span>
+              <Link
+                href="/onboarding"
+                className="h-8 px-3 rounded-lg bg-[#00F0FF] text-black font-mono font-bold text-xs flex items-center gap-1.5 hover:brightness-110 transition-all"
               >
-                <div className="flex items-center justify-between flex-wrap gap-2">
-                  <div>
-                    <h3 className="font-sans font-bold text-sm text-white flex items-center gap-2">
-                      <span>{graph.goalText}</span>
-                      {isActive && (
-                        <span className="font-mono text-[9px] px-2 py-0.5 rounded-full bg-[#00F0FF]/20 text-[#00F0FF] uppercase font-bold border border-[#00F0FF]/40">
-                          ACTIVE
-                        </span>
-                      )}
-                    </h3>
-                    <p className="font-mono text-[11px] text-slate-400 mt-1">
-                      {conceptCount} Concepts &middot; {attemptCount} Attempts
-                    </p>
-                  </div>
+                <span>+ New Goal</span>
+              </Link>
+            </div>
 
-                  {!isActive && (
-                    <button
-                      type="button"
-                      onClick={() => handleSwitchGoal(graph.id)}
-                      className="h-8 px-3 rounded-xl bg-white/10 border border-white/15 text-xs font-sans text-white font-semibold hover:bg-white/20 transition-colors cursor-pointer"
-                    >
-                      Switch to Goal
-                    </button>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
+            <div className="space-y-2.5">
+              {displayedGraphs.map((graph: SkillGraph) => {
+                const isActive = graph.id === storeData?.activeGraphId;
+                const conceptCount = graph.concepts?.length || 0;
+                const attemptCount = graph.attempts?.length || 0;
+
+                return (
+                  <div
+                    key={graph.id}
+                    className={`p-4 rounded-2xl border transition-all ${
+                      isActive
+                        ? 'bg-[#00F0FF]/10 border-[#00F0FF] text-white shadow-md'
+                        : 'bg-black/30 border-white/10 text-slate-400'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <div>
+                        <h3 className="font-sans font-bold text-sm text-white flex items-center gap-2">
+                          <span>{graph.goalText}</span>
+                          {isActive && (
+                            <span className="font-mono text-[9px] px-2 py-0.5 rounded-full bg-[#00F0FF]/20 text-[#00F0FF] uppercase font-bold border border-[#00F0FF]/40">
+                              ACTIVE
+                            </span>
+                          )}
+                        </h3>
+                        <p className="font-mono text-[11px] text-slate-400 mt-1">
+                          {conceptCount} Concepts &middot; {attemptCount} Attempts
+                        </p>
+                      </div>
+
+                      {!isActive && (
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleSwitchGoal(graph.id)}
+                            className="h-8 px-3 rounded-xl bg-white/10 border border-white/15 text-xs font-sans text-white font-semibold hover:bg-white/20 transition-colors cursor-pointer"
+                          >
+                            Switch
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteGoal(graph.id)}
+                            className="h-8 px-2.5 rounded-xl bg-[#FF0055]/10 border border-[#FF0055]/30 text-[#FF7185] hover:bg-[#FF0055]/20 text-xs font-sans font-semibold transition-colors cursor-pointer flex items-center gap-1"
+                            title="Delete goal"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span className="hidden sm:inline">Delete</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ACCOUNT & PREFERENCES SETTINGS */}
       <div className="bg-[#120E24] rounded-[24px] border border-white/10 p-5 sm:p-7 space-y-4 shadow-2xl">
