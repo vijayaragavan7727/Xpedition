@@ -2,10 +2,11 @@
 
 import React, { useState, useEffect, useRef, Suspense } from 'react';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
-import { getStoreData, saveStoreData, recordAttempt, computeItemHash, UserStoreData } from '@/lib/store';
+import { getStoreData, saveStoreData, recordAttempt, computeItemHash, saveLearnerProfile, UserStoreData } from '@/lib/store';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { BoardVisual, VisualSpec } from '@/components/BoardVisual';
 import { downloadNotesPdf, downloadFlashcardsPdf } from '@/lib/pdf';
-import { Volume2, VolumeX, HelpCircle, FileText, X, Check, ArrowLeft, ArrowRight, Play, Sparkles } from 'lucide-react';
+import { Volume2, VolumeX, HelpCircle, FileText, X, Check, ArrowLeft, ArrowRight, Play, Sparkles, FastForward, CheckCircle2 } from 'lucide-react';
 
 interface LessonChunk {
   say: string;
@@ -41,6 +42,13 @@ function TutorContent() {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
+  // 2. PRE-CLASS 3-STEP INTRO STATE
+  const [showPreClass, setShowPreClass] = useState<boolean>(true);
+  const [preClassStep, setPreClassStep] = useState<1 | 2 | 3>(1);
+  const [priorKnowledge, setPriorKnowledge] = useState<'yes' | 'heard' | 'no' | null>(null);
+  const [preClassRevealedCount, setPreClassRevealedCount] = useState<number>(0);
+  const [alwaysSkipPreclass, setAlwaysSkipPreclass] = useState<boolean>(false);
+
   // Lesson Progression State
   const [currentChunkIndex, setCurrentChunkIndex] = useState<number>(0);
   const [revealedWordCount, setRevealedWordCount] = useState<number>(0);
@@ -68,10 +76,12 @@ function TutorContent() {
 
   // Timers, Audio Ref & Cache
   const wordTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const preClassTimerRef = useRef<NodeJS.Timeout | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const raiseHandCacheRef = useRef<Map<string, string>>(new Map());
 
   const isQuickLearnMode = conceptId === 'quick' || Boolean(queryParam);
+  const userName = storeData?.handle || 'Learner';
 
   const stopSpeech = () => {
     if (audioRef.current) {
@@ -85,9 +95,13 @@ function TutorContent() {
     }
   };
 
-  // Load saved notes locally per session
+  // Load skip intro preference & saved notes locally per session
   useEffect(() => {
     if (typeof window !== 'undefined') {
+      const skipPref = localStorage.getItem('xyra_skip_preclass');
+      if (skipPref === 'true') {
+        setShowPreClass(false);
+      }
       const saved = localStorage.getItem(`xyra_notes_${conceptId}`);
       if (saved) {
         setUserNotes(saved);
@@ -165,15 +179,73 @@ function TutorContent() {
     return () => {
       stopSpeech();
       if (wordTimerRef.current) clearInterval(wordTimerRef.current);
+      if (preClassTimerRef.current) clearInterval(preClassTimerRef.current);
     };
   }, [conceptId, queryParam, isQuickLearnMode]);
 
-  // Speech & Word Reveal Engine
+  // PRE-CLASS SPEECH & WORD REVEAL ENGINE
+  const getPreClassText = () => {
+    if (preClassStep === 1) {
+      return `Hey ${userName}! Today we are learning ${conceptName}. Are you ready?`;
+    }
+    if (preClassStep === 2) {
+      return `Before we start — quick check. Have you come across ${conceptName} before?`;
+    }
+    if (priorKnowledge === 'yes') {
+      return `Great! Then we will skip the basics and go straight to what matters.`;
+    }
+    if (priorKnowledge === 'heard') {
+      return `No problem — we will build it up together.`;
+    }
+    return `Perfect starting point! I will explain everything from scratch.`;
+  };
+
+  const preClassText = getPreClassText();
+  const preClassWords = preClassText.trim().split(/\s+/);
+
+  useEffect(() => {
+    if (!showPreClass || loading) return;
+
+    if (preClassTimerRef.current) clearInterval(preClassTimerRef.current);
+
+    setPreClassRevealedCount(1);
+    setTutorState('talking');
+
+    const totalWords = preClassWords.length;
+    const intervalMs = 210;
+
+    preClassTimerRef.current = setInterval(() => {
+      setPreClassRevealedCount((prev) => {
+        if (prev >= totalWords) {
+          if (preClassTimerRef.current) clearInterval(preClassTimerRef.current);
+          setTutorState(preClassStep === 3 ? 'happy' : 'idle');
+          return totalWords;
+        }
+        return prev + 1;
+      });
+    }, intervalMs);
+
+    if (!isMuted && typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(preClassText);
+      utterance.rate = 0.95;
+      utterance.pitch = 1.0;
+      window.speechSynthesis.speak(utterance);
+    }
+
+    return () => {
+      if (preClassTimerRef.current) clearInterval(preClassTimerRef.current);
+    };
+  }, [showPreClass, preClassStep, priorKnowledge, loading, isMuted]);
+
+  const revealedPreClassText = preClassWords.slice(0, preClassRevealedCount).join(' ');
+
+  // MAIN LESSON Speech & Word Reveal Engine
   const currentChunk = lesson?.chunks?.[currentChunkIndex];
   const words = currentChunk?.say ? currentChunk.say.trim().split(/\s+/) : [];
 
   useEffect(() => {
-    if (!lesson || !currentChunk || showCheckpoint) return;
+    if (showPreClass || !lesson || !currentChunk || showCheckpoint) return;
 
     if (wordTimerRef.current) clearInterval(wordTimerRef.current);
 
@@ -207,7 +279,7 @@ function TutorContent() {
     return () => {
       if (wordTimerRef.current) clearInterval(wordTimerRef.current);
     };
-  }, [currentChunkIndex, lesson, showCheckpoint, isMuted]);
+  }, [showPreClass, currentChunkIndex, lesson, showCheckpoint, isMuted]);
 
   const revealedText = words.slice(0, revealedWordCount).join(' ');
 
@@ -222,6 +294,46 @@ function TutorContent() {
       });
     }
   }, [isChunkComplete, currentChunkIndex, lesson]);
+
+  const handleSkipIntro = (savePreference = false) => {
+    stopSpeech();
+    setShowPreClass(false);
+    if (savePreference && typeof window !== 'undefined') {
+      localStorage.setItem('xyra_skip_preclass', 'true');
+    }
+  };
+
+  const handleSelectPriorKnowledge = (ans: 'yes' | 'heard' | 'no') => {
+    stopSpeech();
+    setPriorKnowledge(ans);
+    setPreClassStep(3);
+
+    // Save to local store
+    saveLearnerProfile({ priorKnowledge: ans } as any);
+
+    // Save to Supabase if connected
+    const client = supabase;
+    if (isSupabaseConfigured && client) {
+      (async () => {
+        try {
+          const { data } = await client.auth.getUser();
+          if (data?.user?.id) {
+            await client.from('learner_profile').upsert(
+              { user_id: data.user.id, prior_knowledge: ans, updated_at: new Date().toISOString() },
+              { onConflict: 'user_id' }
+            );
+          }
+        } catch (e) {
+          // ignore cloud sync error
+        }
+      })();
+    }
+  };
+
+  const handleStartLesson = () => {
+    stopSpeech();
+    setShowPreClass(false);
+  };
 
   const handleNextChunk = () => {
     if (!lesson?.chunks) return;
@@ -372,6 +484,171 @@ function TutorContent() {
             </button>
           </div>
         </div>
+      </div>
+    );
+  }
+
+  // 2. PRE-CLASS 3-STEP SCREEN (Before Blackboard starts)
+  if (showPreClass) {
+    return (
+      <div className="h-[100dvh] w-full bg-[#0A0A1A] text-slate-100 flex flex-col justify-between p-4 sm:p-6 relative select-none font-sans overflow-hidden">
+        
+        {/* Top Navigation Strip */}
+        <div className="flex items-center justify-between z-20">
+          <button
+            type="button"
+            onClick={handleExit}
+            className="flex items-center gap-1.5 text-slate-400 hover:text-white transition-colors cursor-pointer text-xs font-semibold"
+          >
+            <span>&larr;</span>
+            <span>Exit</span>
+          </button>
+
+          <div className="flex items-center gap-3">
+            {/* Skip Intro Button */}
+            <button
+              type="button"
+              onClick={() => handleSkipIntro(false)}
+              className="px-3 py-1 rounded-xl bg-white/10 hover:bg-white/20 border border-white/15 text-xs font-mono font-semibold text-slate-300 hover:text-white transition-all cursor-pointer flex items-center gap-1"
+            >
+              <span>Skip intro</span>
+              <FastForward className="w-3.5 h-3.5 text-[#00F0FF]" />
+            </button>
+          </div>
+        </div>
+
+        {/* Center Character & Conversation Area */}
+        <div className="max-w-md w-full mx-auto space-y-6 my-auto z-20 flex flex-col items-center text-center">
+          
+          {/* XYRA Robot Body with State-Based Glow */}
+          <div className="relative flex flex-col items-center">
+            <img
+              src={robotImgPath}
+              onError={() => {
+                if (robotImgPath === '/robot.png') setRobotImgPath('/images/robot.png');
+              }}
+              alt="XYRA AI Teacher"
+              className={`h-40 sm:h-48 object-contain object-bottom drop-shadow-[0_0_20px_rgba(0,240,255,0.4)] transition-all duration-300 state-${tutorState}`}
+            />
+            <div className="bg-[#0B0E14]/90 border border-[#00F0FF]/40 backdrop-blur-md px-3 py-0.5 rounded-lg shadow-lg flex flex-col items-center -mt-2 z-30">
+              <span className={`font-mono text-xs font-bold text-[#00F0FF] tracking-widest ${tutorState === 'talking' ? 'animate-pulse' : ''}`}>
+                XYRA
+              </span>
+              <span className="font-sans text-[9px] text-slate-400 font-medium">
+                Your AI Teacher
+              </span>
+            </div>
+          </div>
+
+          {/* Speech Bubble Card */}
+          <div className="w-full bg-[#0D0D1A] border border-[#00F0FF]/40 rounded-[24px] p-5 sm:p-6 space-y-4 shadow-2xl relative animate-fadeIn">
+            <div className="space-y-1 text-left">
+              <div className="flex items-center justify-between border-b border-[#00F0FF]/20 pb-1.5">
+                <span className="font-mono text-[10px] text-[#00F0FF] uppercase tracking-wider font-bold">
+                  STEP {preClassStep} OF 3 &middot; CLASSROOM CHECK-IN
+                </span>
+                <span className="text-[10px] font-mono text-slate-400">
+                  {conceptName}
+                </span>
+              </div>
+              <p className="font-sans font-semibold text-sm sm:text-base text-white leading-relaxed pt-1">
+                {revealedPreClassText}
+                {preClassRevealedCount < preClassWords.length && (
+                  <span className="inline-block w-1.5 h-3.5 ml-1 bg-[#00F0FF] animate-pulse" />
+                )}
+              </p>
+            </div>
+
+            {/* Action Buttons based on Step */}
+            <div className="pt-2">
+              {preClassStep === 1 && (
+                <div className="grid grid-cols-2 gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      stopSpeech();
+                      setPreClassStep(2);
+                    }}
+                    className="h-11 rounded-xl bg-[#00F0FF] text-black font-mono font-bold text-xs flex items-center justify-center gap-1.5 hover:brightness-110 shadow-lg cursor-pointer transition-all"
+                  >
+                    <span>Let&apos;s go!</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      stopSpeech();
+                      // Replay greeting
+                      setPreClassRevealedCount(0);
+                    }}
+                    className="h-11 rounded-xl bg-black/40 border border-white/15 text-slate-300 hover:text-white font-sans text-xs flex items-center justify-center cursor-pointer transition-all"
+                  >
+                    Give me a moment
+                  </button>
+                </div>
+              )}
+
+              {preClassStep === 2 && (
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleSelectPriorKnowledge('yes')}
+                    className="h-11 px-2 rounded-xl bg-[#00FF87]/20 border border-[#00FF87]/50 text-[#00FF87] hover:bg-[#00FF87]/30 font-sans font-bold text-xs flex items-center justify-center cursor-pointer transition-all shadow-md"
+                  >
+                    Yes, I know it
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSelectPriorKnowledge('heard')}
+                    className="h-11 px-2 rounded-xl bg-[#00F0FF]/15 border border-[#00F0FF]/40 text-[#00F0FF] hover:bg-[#00F0FF]/25 font-sans font-semibold text-xs flex items-center justify-center cursor-pointer transition-all shadow-md"
+                  >
+                    Heard of it
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSelectPriorKnowledge('no')}
+                    className="h-11 px-2 rounded-xl bg-white/10 border border-white/20 text-slate-200 hover:bg-white/20 font-sans font-semibold text-xs flex items-center justify-center cursor-pointer transition-all shadow-md"
+                  >
+                    No idea
+                  </button>
+                </div>
+              )}
+
+              {preClassStep === 3 && (
+                <button
+                  type="button"
+                  onClick={handleStartLesson}
+                  className="w-full h-11 rounded-xl bg-[#00F0FF] text-black font-mono font-bold text-xs flex items-center justify-center gap-2 hover:brightness-110 shadow-lg cursor-pointer transition-all"
+                >
+                  <span>Let&apos;s begin!</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Always skip intro preference toggle */}
+          <div className="flex items-center gap-2 text-slate-400 text-xs font-sans">
+            <input
+              type="checkbox"
+              id="alwaysSkip"
+              checked={alwaysSkipPreclass}
+              onChange={(e) => {
+                setAlwaysSkipPreclass(e.target.checked);
+                if (typeof window !== 'undefined') {
+                  localStorage.setItem('xyra_skip_preclass', e.target.checked ? 'true' : 'false');
+                }
+              }}
+              className="rounded bg-black/40 border-white/20 text-[#00F0FF] focus:ring-0 cursor-pointer"
+            />
+            <label htmlFor="alwaysSkip" className="cursor-pointer text-[11px]">
+              Don&apos;t show pre-class intro in future
+            </label>
+          </div>
+
+        </div>
+
+        <div className="h-4" />
       </div>
     );
   }
