@@ -1,9 +1,9 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { WorldBuilding } from '@/lib/worldEngine';
 import { WorldThemeId } from '@/lib/themes';
-import { getPollinationsImageUrl, cacheBuildingImageToSupabase } from '@/lib/buildingImages';
+import { generateBuildingPrompt } from '@/lib/buildingImages';
 import { Sparkles, RefreshCw } from 'lucide-react';
 
 interface WorldRendererProps {
@@ -145,33 +145,6 @@ export default function WorldRenderer({
     return b;
   });
 
-  // Preload and debug Pollinations AI Images via local proxy API
-  useEffect(() => {
-    displaySlots.forEach((bldg) => {
-      if (!bldg) return;
-      const state = bldg.state || 'empty';
-      const conceptName = bldg.conceptName || 'Core Foundations';
-      const imageKey = `${bldg.buildingId}_${state}_${activeThemeKey}`;
-      const url = getPollinationsImageUrl(conceptName, activeThemeKey, state);
-
-      console.log(`[Pollinations Proxy] Requesting image for "${conceptName}" ->`, url);
-
-      if (typeof window !== 'undefined') {
-        const img = new Image();
-        img.src = url;
-        img.onload = () => {
-          console.log(`[Pollinations Proxy] Image LOADED for "${conceptName}" ->`, url);
-          setLoadedImages((prev) => ({ ...prev, [imageKey]: true }));
-          cacheBuildingImageToSupabase(conceptName, activeThemeKey, state, url);
-        };
-        img.onerror = (err) => {
-          console.error(`[Pollinations Proxy] Image FAILED for "${conceptName}" ->`, url, err);
-          setFailedImages((prev) => ({ ...prev, [imageKey]: true }));
-        };
-      }
-    });
-  }, [buildings, activeThemeKey]);
-
   const isAnyGenerating = displaySlots.some((b) => {
     if (!b) return false;
     const key = `${b.buildingId}_${b.state}_${activeThemeKey}`;
@@ -291,8 +264,10 @@ export default function WorldRenderer({
             const isLoaded = loadedImages[imageKey];
             const isFailed = failedImages[imageKey];
 
+            // Build dynamic prompt and proxy image URL
+            const buildingPrompt = bldg ? generateBuildingPrompt(conceptName, activeThemeKey, state) : '';
             const proxyImageUrl = bldg
-              ? getPollinationsImageUrl(conceptName, activeThemeKey, state)
+              ? `/api/worldimage?prompt=${encodeURIComponent(buildingPrompt)}`
               : null;
 
             // Tile Path: Diamond (Top, Right, Bottom, Left)
@@ -350,7 +325,7 @@ export default function WorldRenderer({
                   />
                 )}
 
-                {/* 2. Rich Detailed Isometric SVG Building Layer */}
+                {/* 2. Rich Detailed Isometric SVG Building Layer (Fallback & Base) */}
                 {state === 'empty' && (
                   /* EMPTY STATE: Marker & Survey Flag */
                   <g opacity="0.7">
@@ -389,7 +364,6 @@ export default function WorldRenderer({
                 {state === 'partial' && (
                   /* PARTIAL STATE: Solid foundation + scaffold lines */
                   <g className="building-partial">
-                    {/* Solid Lower Foundation */}
                     <polygon
                       points={`${bx - bldgW / 2},${by} ${bx},${by + bldgW / 4} ${bx},${by + bldgW / 4 - bldgH / 2} ${bx - bldgW / 2},${by - bldgH / 2}`}
                       fill={palette.buildingFrontLeft}
@@ -403,7 +377,6 @@ export default function WorldRenderer({
                       strokeWidth="1"
                     />
 
-                    {/* Small lower windows */}
                     <rect
                       x={bx - bldgW / 3}
                       y={by - bldgH / 3}
@@ -423,7 +396,6 @@ export default function WorldRenderer({
                       opacity="0.8"
                     />
 
-                    {/* Scaffold Upper Frame (Dashed Lines & 40% Opacity) */}
                     <g opacity="0.8" stroke={palette.scaffoldColor} strokeWidth="1.2">
                       <line x1={bx - bldgW / 2} y1={by - bldgH / 2} x2={bx - bldgW / 2} y2={by - bldgH} strokeDasharray="3,2" />
                       <line x1={bx + bldgW / 2} y1={by - bldgH / 2} x2={bx + bldgW / 2} y2={by - bldgH} strokeDasharray="3,2" />
@@ -441,7 +413,6 @@ export default function WorldRenderer({
                 {state === 'complete' && (
                   /* COMPLETE STATE: Solid 3D building + Windows + Antenna + Glow */
                   <g className="building-complete" filter={`url(#themeEdgeGlow_${activeThemeKey})`}>
-                    {/* Left Darker Face (Depth) */}
                     <polygon
                       points={`${bx - bldgW / 2},${by} ${bx},${by + bldgW / 4} ${bx},${by + bldgW / 4 - bldgH} ${bx - bldgW / 2},${by - bldgH}`}
                       fill={palette.buildingFrontLeft}
@@ -449,7 +420,6 @@ export default function WorldRenderer({
                       strokeWidth="1.2"
                     />
 
-                    {/* Right Illuminated Face */}
                     <polygon
                       points={`${bx},${by + bldgW / 4} ${bx + bldgW / 2},${by} ${bx + bldgW / 2},${by - bldgH} ${bx},${by + bldgW / 4 - bldgH}`}
                       fill={palette.buildingFrontRight}
@@ -457,7 +427,6 @@ export default function WorldRenderer({
                       strokeWidth="1.2"
                     />
 
-                    {/* Left Face Glowing Window Slits */}
                     {[14, 28, 42].map((offsetY, wIdx) => (
                       <g key={`l_win_${wIdx}`} className="window-glow">
                         <polygon
@@ -469,7 +438,6 @@ export default function WorldRenderer({
                       </g>
                     ))}
 
-                    {/* Right Face Glowing Window Slits */}
                     {[14, 28, 42].map((offsetY, wIdx) => (
                       <g key={`r_win_${wIdx}`} className="window-glow">
                         <polygon
@@ -481,7 +449,6 @@ export default function WorldRenderer({
                       </g>
                     ))}
 
-                    {/* Top Roof Diamond */}
                     <polygon
                       points={`${bx},${by - bldgH - bldgW / 4} ${bx + bldgW / 2},${by - bldgH} ${bx},${by + bldgW / 4 - bldgH} ${bx - bldgW / 2},${by - bldgH}`}
                       fill={palette.buildingRoof}
@@ -489,7 +456,6 @@ export default function WorldRenderer({
                       strokeWidth="1"
                     />
 
-                    {/* Roof Antenna Spire / Peak */}
                     <line
                       x1={bx}
                       y1={by - bldgH - bldgW / 4}
@@ -498,7 +464,6 @@ export default function WorldRenderer({
                       stroke={palette.buildingAccent}
                       strokeWidth="2.5"
                     />
-                    {/* Blinking Beacon Light */}
                     <circle
                       cx={bx}
                       cy={by - bldgH - bldgW / 4 - 16}
@@ -510,7 +475,7 @@ export default function WorldRenderer({
                   </g>
                 )}
 
-                {/* 3. AI-Generated Building Image Overlay (Pollinations via /api/worldimage proxy) */}
+                {/* 3. AI-Generated Building Image Overlay (Pollinations via /api/worldimage?prompt=...) */}
                 {proxyImageUrl && !isFailed && (
                   <image
                     href={proxyImageUrl}
@@ -524,9 +489,9 @@ export default function WorldRenderer({
                       imageRendering: 'auto',
                       filter: state === 'complete' ? `drop-shadow(0 8px 16px ${palette.glowColor}60)` : undefined,
                     }}
-                    className={`transition-opacity duration-500 pointer-events-none ${
-                      isLoaded ? 'opacity-100' : 'opacity-0'
-                    }`}
+                    className="pointer-events-none transition-opacity duration-500 opacity-100"
+                    onLoad={() => setLoadedImages((prev) => ({ ...prev, [imageKey]: true }))}
+                    onError={() => setFailedImages((prev) => ({ ...prev, [imageKey]: true }))}
                   />
                 )}
               </g>
@@ -539,7 +504,7 @@ export default function WorldRenderer({
       {isAnyGenerating && !isMiniPreview && (
         <div className="absolute bottom-3.5 left-3.5 px-3 py-1.5 rounded-full bg-black/75 backdrop-blur-md border border-[#00F0FF]/30 font-mono text-[10px] text-[#00F0FF] flex items-center gap-1.5 shadow-lg">
           <RefreshCw className="w-3 h-3 animate-spin text-[#00F0FF]" />
-          <span>Generating your world buildings...</span>
+          <span>Terraforming world assets...</span>
         </div>
       )}
 
