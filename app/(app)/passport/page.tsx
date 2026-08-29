@@ -5,29 +5,36 @@ import Link from 'next/link';
 import { getStoreData, UserStoreData } from '@/lib/store';
 import { calibrationScore, confidenceBreakdown } from '@/lib/engine/calibration';
 import { thetaToPercent } from '@/lib/engine/mastery';
-import { getThemeConfig, getThemeTierInfo } from '@/lib/themes';
-import WorldBiomeCanvas from '@/components/WorldBiomeCanvas';
+import { getThemeConfig, getThemeTierInfo, WorldThemeId } from '@/lib/themes';
+import { computeWorldState, syncWorldState, WorldState, WorldBuilding } from '@/lib/worldEngine';
+import WorldRenderer from '@/components/WorldRenderer';
 import WorldShareModal from '@/components/WorldShareModal';
-import { Sparkles, Share2, Shield, CheckCircle2, Award, Zap, Compass, ChevronRight, Lock, Flame } from 'lucide-react';
+import { Sparkles, Share2, Shield, CheckCircle2, Award, Zap, Compass, Globe, Info } from 'lucide-react';
 
 export default function SkillPassportPage() {
   const [storeData, setStoreData] = useState<UserStoreData | null>(null);
+  const [worldState, setWorldState] = useState<WorldState | null>(null);
   const [isShareOpen, setIsShareOpen] = useState<boolean>(false);
 
   useEffect(() => {
-    setStoreData(getStoreData());
+    const store = getStoreData();
+    setStoreData(store);
+    const world = computeWorldState(store);
+    setWorldState(world);
+    syncWorldState(store);
   }, []);
 
-  if (!storeData) {
+  if (!storeData || !worldState) {
     return (
       <div className="py-16 text-center text-muted font-mono text-sm animate-pulse">
-        Generating Skill World & Passport...
+        Terraforming Skill World & Passport...
       </div>
     );
   }
 
-  const activeThemeId = storeData.learnerProfile?.worldTheme || 'cosmos';
+  const activeThemeId = (storeData.learnerProfile?.worldTheme as WorldThemeId) || 'cosmos';
   const themeConfig = getThemeConfig(activeThemeId);
+  const tierInfo = getThemeTierInfo(activeThemeId, worldState.totalMasteryPercent);
 
   const breakdown = confidenceBreakdown(storeData.attempts);
   const score = calibrationScore(storeData.attempts);
@@ -35,27 +42,6 @@ export default function SkillPassportPage() {
   // Compute accuracy error percentage from calibration score
   const absScore = score !== null ? Math.round(Math.abs(score) * 100) : 6;
   const accuracyMargin = Math.max(3, Math.min(25, absScore));
-
-  // Compute overall world mastery percentage
-  const totalConcepts = storeData.concepts.length;
-  const overallMastery = totalConcepts > 0
-    ? Math.round(
-        storeData.concepts.reduce((sum, c) => {
-          const pct = c.thetaAssisted !== undefined ? thetaToPercent(c.thetaAssisted) : c.masteryPercentage;
-          return sum + pct;
-        }, 0) / totalConcepts
-      )
-    : 0;
-
-  const tierInfo = getThemeTierInfo(activeThemeId, overallMastery);
-
-  // Map concepts to landmarks
-  const conceptLandmarks = storeData.concepts.map((c) => ({
-    id: c.id,
-    name: c.name,
-    masteryPercentage: c.thetaAssisted !== undefined ? thetaToPercent(c.thetaAssisted) : c.masteryPercentage,
-    isSoloVerified: (c.soloAttemptsCount || 0) >= 3,
-  }));
 
   const soloVerifiedAttempts = storeData.attempts.filter((a) => a.isSolo && !a.isVoid).length;
   const soloSessionsCount = Math.max(0, Math.floor(soloVerifiedAttempts / 6));
@@ -65,17 +51,17 @@ export default function SkillPassportPage() {
   return (
     <div className="space-y-6 select-none pt-2 max-w-2xl mx-auto pb-16 font-sans">
       
-      {/* Page Title & Share Trigger */}
+      {/* 1. HEADER: Learner Name & Share Button */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <div className="flex items-center gap-2">
-            <Compass className="w-5 h-5 text-[#00F0FF]" />
+            <Globe className="w-5 h-5 text-[#00F0FF]" />
             <h1 className="font-sans font-bold text-2xl text-white">
               {storeData.handle}&apos;s Skill World
             </h1>
           </div>
           <p className="font-sans text-xs text-slate-400 mt-0.5">
-            {themeConfig.name} domain terraformed by your mastery & metacognitive calibration.
+            Learning-driven isometric world terraformed by your concept mastery.
           </p>
         </div>
 
@@ -89,45 +75,62 @@ export default function SkillPassportPage() {
         </button>
       </div>
 
-      {/* 1. LIVING WORLD VIEWPORT */}
-      <section className="space-y-2">
-        <WorldBiomeCanvas
-          masteryPercentage={overallMastery}
-          goalText={storeData.goalText}
-          learnerName={storeData.handle}
-          concepts={conceptLandmarks}
-          themeId={activeThemeId}
+      {/* 2. ISOMETRIC SVG WORLD RENDERER VIEWPORT */}
+      <section className="space-y-2.5">
+        <WorldRenderer
+          theme={activeThemeId}
+          buildings={worldState.buildings}
+          height={280}
         />
+
+        {/* Tier & Terraformed Level Banner */}
+        <div className="flex items-center justify-between px-4 py-2.5 rounded-2xl bg-[#120E24] border border-white/10 shadow-lg">
+          <div className="flex items-center gap-2 font-mono text-xs text-white font-bold">
+            <span className="text-base">{themeConfig.icon}</span>
+            <span>Tier {worldState.tier} &middot; {worldState.tierName}</span>
+          </div>
+
+          <span
+            className="font-mono text-xs font-bold px-3 py-1 rounded-full border"
+            style={{
+              backgroundColor: `${tierInfo.color}20`,
+              color: tierInfo.color,
+              borderColor: `${tierInfo.color}40`,
+            }}
+          >
+            {worldState.totalMasteryPercent}% Terraformed
+          </span>
+        </div>
       </section>
 
-      {/* 2. WORLD TERRAFORM STATS STRIP */}
+      {/* 3. VERIFIED METACOGNITIVE & MASTERY STATS */}
       <section className="grid grid-cols-3 gap-2.5 sm:gap-3">
         <div className="bg-[#120E22]/90 border border-white/10 rounded-2xl p-3.5 text-center space-y-1 shadow-lg">
-          <span className="block font-mono text-[9px] uppercase text-slate-400 font-bold">WORLD TIER</span>
-          <span className="block font-mono text-base sm:text-lg font-bold" style={{ color: tierInfo.color }}>
-            Tier {tierInfo.tierNumber}
+          <span className="block font-mono text-[9px] uppercase text-slate-400 font-bold">BUILDINGS BUILT</span>
+          <span className="block font-mono text-base sm:text-lg font-bold text-[#00FF87]">
+            {worldState.buildings.filter((b) => b.state === 'complete').length} / {worldState.buildings.length}
           </span>
-          <span className="block font-sans text-[10px] text-slate-400 truncate">{tierInfo.name}</span>
+          <span className="block font-sans text-[10px] text-slate-400 truncate">Constructed</span>
         </div>
 
         <div className="bg-[#120E22]/90 border border-white/10 rounded-2xl p-3.5 text-center space-y-1 shadow-lg">
           <span className="block font-mono text-[9px] uppercase text-slate-400 font-bold">TERRAFORM LEVEL</span>
-          <span className="block font-mono text-base sm:text-lg font-bold text-[#00FF87]">
-            {overallMastery}%
+          <span className="block font-mono text-base sm:text-lg font-bold text-[#00F0FF]">
+            {worldState.totalMasteryPercent}%
           </span>
-          <span className="block font-sans text-[10px] text-slate-400 truncate">Total Competence</span>
+          <span className="block font-sans text-[10px] text-slate-400 truncate">Overall Competence</span>
         </div>
 
         <div className="bg-[#120E22]/90 border border-white/10 rounded-2xl p-3.5 text-center space-y-1 shadow-lg">
           <span className="block font-mono text-[9px] uppercase text-slate-400 font-bold">CALIBRATION</span>
-          <span className="block font-mono text-base sm:text-lg font-bold text-[#00F0FF]">
+          <span className="block font-mono text-base sm:text-lg font-bold text-[#A855F7]">
             &plusmn;{accuracyMargin}%
           </span>
           <span className="block font-sans text-[10px] text-slate-400 truncate">Confidence Error</span>
         </div>
       </section>
 
-      {/* 3. VERIFIED METACOGNITIVE PASSPORT CARD */}
+      {/* 4. VERIFIED METACOGNITIVE PASSPORT CARD */}
       <section className="p-5 sm:p-6 rounded-[22px] bg-[#120E22]/90 border border-[#00F0FF]/30 space-y-4 shadow-xl backdrop-blur-xl">
         <div className="flex items-center justify-between border-b border-white/10 pb-3">
           <div className="flex items-center gap-2.5">
@@ -150,7 +153,7 @@ export default function SkillPassportPage() {
           </div>
         </div>
 
-        {/* Calibration Line */}
+        {/* Metacognitive Calibration Summary */}
         <div className="p-3.5 rounded-xl bg-black/40 border border-white/10 space-y-1.5">
           <div className="flex items-center justify-between">
             <span className="font-mono text-[10px] uppercase text-[#A855F7] font-bold">
@@ -177,11 +180,11 @@ export default function SkillPassportPage() {
         </div>
       </section>
 
-      {/* 4. BIOME LANDMARKS (CONCEPT UNLOCKS) */}
+      {/* 5. CONCEPT TO BUILDING MATRIX */}
       <section className="bg-[#120E22]/90 border border-white/10 rounded-[22px] p-5 sm:p-6 space-y-4 shadow-xl">
         <div className="flex items-center justify-between border-b border-white/10 pb-3">
           <span className="font-mono text-[11px] uppercase text-[#00F0FF] font-bold tracking-wider">
-            TERRAFORMED BIOME LANDMARKS ({storeData.concepts.length})
+            WORLD BUILDINGS & LANDMARKS ({worldState.buildings.length})
           </span>
           <span className="font-mono text-xs text-slate-400">
             Goal: {storeData.goalText}
@@ -189,126 +192,52 @@ export default function SkillPassportPage() {
         </div>
 
         <div className="space-y-2.5">
-          {storeData.concepts.map((concept) => {
-            const hasSoloData = (concept.soloAttemptsCount || 0) >= 3 && concept.thetaSolo !== undefined;
-            const assistedPct = concept.thetaAssisted !== undefined ? thetaToPercent(concept.thetaAssisted) : concept.masteryPercentage;
-            const soloPct = hasSoloData ? thetaToPercent(concept.thetaSolo!) : null;
-
-            const isHigh = assistedPct >= 70;
-            const isMid = assistedPct >= 35;
-            const landmarkType = isHigh
-              ? 'Radiant Spire'
-              : isMid
-              ? 'Flourishing Sanctuary'
-              : 'Primordial Seedling';
+          {worldState.buildings.map((bldg) => {
+            const isComplete = bldg.state === 'complete';
+            const isPartial = bldg.state === 'partial';
 
             return (
               <div
-                key={concept.id}
+                key={bldg.buildingId}
                 className="p-3.5 rounded-xl bg-panel/70 border border-white/10 hover:border-[#00F0FF]/50 transition-all space-y-2"
               >
                 <div className="flex items-center justify-between flex-wrap gap-2">
-                  <div className="flex items-center gap-2 min-w-0">
+                  <div className="flex items-center gap-2.5 min-w-0">
                     <span
                       className="w-2.5 h-2.5 rounded-full shrink-0"
                       style={{
-                        backgroundColor: isHigh ? '#00FF87' : isMid ? tierInfo.color : tierInfo.accentColor,
+                        backgroundColor: isComplete ? '#00FF87' : isPartial ? '#00F0FF' : '#64748B',
                       }}
                     />
-                    <span className="font-sans font-bold text-sm text-white truncate">
-                      {concept.name}
-                    </span>
-                    <span className="font-mono text-[9px] px-2 py-0.5 rounded-full bg-white/5 text-slate-300 border border-white/10 shrink-0">
-                      {landmarkType}
-                    </span>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-sans font-bold text-sm text-white">
+                          {bldg.buildingName}
+                        </span>
+                        <span className="font-mono text-[9px] px-2 py-0.5 rounded-full bg-white/5 text-slate-300 border border-white/10">
+                          {bldg.state.toUpperCase()}
+                        </span>
+                      </div>
+                      <span className="font-sans text-xs text-slate-400 block mt-0.5">
+                        {bldg.conceptName}
+                      </span>
+                    </div>
                   </div>
 
-                  <div className="flex items-center gap-3 font-mono text-xs">
-                    <span className="text-slate-400">
-                      Assisted: <strong className="text-[#00F0FF]">{assistedPct}%</strong>
-                    </span>
-                    <span className="text-slate-600">&middot;</span>
-                    <span className="text-slate-400">
-                      Solo: <strong className={hasSoloData ? 'text-[#A855F7]' : 'text-slate-600'}>
-                        {soloPct !== null ? `${soloPct}%` : 'Pending'}
-                      </strong>
-                    </span>
-                  </div>
+                  <span className="font-mono text-xs font-bold text-white">
+                    {bldg.masteryPercent}%
+                  </span>
                 </div>
 
-                {/* Biome Progress Bar */}
                 <div className="h-1.5 w-full bg-raised rounded-full overflow-hidden">
                   <div
                     className="h-full rounded-full transition-all duration-500"
                     style={{
-                      width: `${assistedPct}%`,
-                      backgroundColor: isHigh ? '#00FF87' : isMid ? tierInfo.color : tierInfo.accentColor,
+                      width: `${bldg.masteryPercent}%`,
+                      backgroundColor: isComplete ? '#00FF87' : isPartial ? '#00F0FF' : '#64748B',
                     }}
                   />
                 </div>
-              </div>
-            );
-          })}
-        </div>
-      </section>
-
-      {/* 5. WORLD EVOLUTION TIMELINE (ADAPTED TO CHOSEN THEME) */}
-      <section className="bg-[#120E22]/90 border border-white/10 rounded-[22px] p-5 sm:p-6 space-y-4 shadow-xl">
-        <div className="flex items-center justify-between border-b border-white/10 pb-2.5">
-          <span className="font-mono text-[11px] uppercase text-[#00F0FF] font-bold tracking-wider block">
-            {themeConfig.name.toUpperCase()} EVOLUTION MILESTONES
-          </span>
-          <span className="font-mono text-xs text-slate-400">
-            {themeConfig.icon} {themeConfig.name}
-          </span>
-        </div>
-
-        <div className="space-y-3">
-          {themeConfig.tiers.map((m) => {
-            const isUnlocked = overallMastery >= m.minMastery;
-            const isCurrent = tierInfo.tierNumber === m.tier;
-
-            return (
-              <div
-                key={m.tier}
-                className={`p-3 rounded-xl border flex items-center justify-between gap-3 transition-all ${
-                  isCurrent
-                    ? 'bg-[#00F0FF]/15 border-[#00F0FF] text-white shadow-md'
-                    : isUnlocked
-                    ? 'bg-black/40 border-white/10 text-slate-300'
-                    : 'bg-black/20 border-white/5 text-slate-500 opacity-60'
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <div
-                    className={`w-7 h-7 rounded-full flex items-center justify-center font-mono text-xs font-bold ${
-                      isCurrent
-                        ? 'bg-[#00F0FF] text-black shadow-[0_0_10px_rgba(0,240,255,0.6)]'
-                        : isUnlocked
-                        ? 'bg-[#00FF87]/20 text-[#00FF87] border border-[#00FF87]/40'
-                        : 'bg-white/5 text-slate-600 border border-white/10'
-                    }`}
-                  >
-                    {isUnlocked ? '✓' : m.tier}
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-sans font-bold text-xs text-white">
-                        Tier {m.tier}: {m.name}
-                      </span>
-                      {isCurrent && (
-                        <span className="font-mono text-[9px] px-1.5 py-0.2 rounded bg-[#00F0FF]/20 text-[#00F0FF] uppercase font-bold">
-                          CURRENT
-                        </span>
-                      )}
-                    </div>
-                    <p className="font-sans text-[11px] text-slate-400 mt-0.5">{m.desc}</p>
-                  </div>
-                </div>
-
-                <span className="font-mono text-xs font-bold shrink-0">
-                  {m.minMastery}%+
-                </span>
               </div>
             );
           })}
@@ -331,9 +260,9 @@ export default function SkillPassportPage() {
         onClose={() => setIsShareOpen(false)}
         learnerName={storeData.handle}
         goalText={storeData.goalText}
-        masteryPercentage={overallMastery}
+        masteryPercentage={worldState.totalMasteryPercent}
         passportId={passportId}
-        conceptsCount={storeData.concepts.length}
+        conceptsCount={worldState.buildings.length}
         soloVerifiedCount={soloSessionsCount}
         accuracyMargin={accuracyMargin}
         themeId={activeThemeId}

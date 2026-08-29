@@ -291,4 +291,23 @@ CREATE TABLE IF NOT EXISTS public.study_sessions (
 ALTER TABLE public.study_sessions ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Allow full access for study_sessions" ON public.study_sessions FOR ALL USING (true);
 
+-- 13. World State Table (Learning-Driven World System)
+CREATE TABLE IF NOT EXISTS public.world_state (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES public.users(id) ON DELETE CASCADE,
+  skill_graph_id TEXT NOT NULL,
+  world_theme TEXT NOT NULL DEFAULT 'cosmos',
+  total_mastery_percent INT NOT NULL DEFAULT 0,
+  tier INT NOT NULL DEFAULT 1,
+  buildings JSONB NOT NULL DEFAULT '[]'::jsonb,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(user_id, skill_graph_id)
+);
+
+ALTER TABLE public.world_state ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can manage own world state" ON public.world_state
+  FOR ALL USING (auth.uid() = user_id);
+
+
 

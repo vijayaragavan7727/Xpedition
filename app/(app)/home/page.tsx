@@ -5,8 +5,12 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { getStoreData, calculateStreak, selectNextTarget, UserStoreData } from '@/lib/store';
 import { thetaToPercent } from '@/lib/engine/mastery';
+import { computeWorldState, syncWorldState, WorldState, WorldBuilding, detectBuildingStateTransitions } from '@/lib/worldEngine';
+import { WorldThemeId } from '@/lib/themes';
 import XyraGreetingWidget from '@/components/XyraGreetingWidget';
-import { Send, Volume2, VolumeX, Sparkles, RefreshCw } from 'lucide-react';
+import WorldRenderer from '@/components/WorldRenderer';
+import WorldUnlockCelebration from '@/components/WorldUnlockCelebration';
+import { Send, Volume2, VolumeX, Sparkles, RefreshCw, Globe, ChevronRight } from 'lucide-react';
 
 interface ChatExchange {
   id: string;
@@ -18,6 +22,8 @@ interface ChatExchange {
 export default function HomePage() {
   const router = useRouter();
   const [storeData, setStoreData] = useState<UserStoreData | null>(null);
+  const [worldState, setWorldState] = useState<WorldState | null>(null);
+  const [unlockedBuilding, setUnlockedBuilding] = useState<WorldBuilding | null>(null);
   const [robotImgPath, setRobotImgPath] = useState<string>('/robot.png');
 
   // Inline Ask XYRA State
@@ -29,7 +35,31 @@ export default function HomePage() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
-    setStoreData(getStoreData());
+    const store = getStoreData();
+    setStoreData(store);
+
+    // Compute & Sync World State
+    const currentWorld = computeWorldState(store);
+    setWorldState(currentWorld);
+    syncWorldState(store);
+
+    // Check for new building unlock moments
+    if (typeof window !== 'undefined') {
+      try {
+        const savedBuildingsStr = localStorage.getItem(`xpedition_prev_buildings_${currentWorld.skillGraphId}`);
+        if (savedBuildingsStr) {
+          const prevBuildings: WorldBuilding[] = JSON.parse(savedBuildingsStr);
+          const newUnlocks = detectBuildingStateTransitions(prevBuildings, currentWorld.buildings);
+          if (newUnlocks.length > 0) {
+            setUnlockedBuilding(newUnlocks[0]);
+          }
+        }
+        localStorage.setItem(
+          `xpedition_prev_buildings_${currentWorld.skillGraphId}`,
+          JSON.stringify(currentWorld.buildings)
+        );
+      } catch (e) {}
+    }
 
     // Load daily home chat count from localStorage
     if (typeof window !== 'undefined') {
@@ -226,8 +256,10 @@ export default function HomePage() {
     ? target.conceptName
     : storeData.concepts?.[0]?.name || storeData.goalText || 'Active Topic';
 
+  const activeThemeId = (storeData.learnerProfile?.worldTheme as WorldThemeId) || 'cosmos';
+
   return (
-    <div className="space-y-5 select-none relative pb-16">
+    <div className="space-y-5 select-none relative pb-16 font-sans">
       
       {/* 1. XYRA GREETING WIDGET (Top of Home Page) */}
       <section className="pt-1">
@@ -240,7 +272,7 @@ export default function HomePage() {
         />
       </section>
 
-      {/* 1. INLINE ASK XYRA CHAT BOX (Always visible, not a modal) */}
+      {/* 2. INLINE ASK XYRA CHAT BOX */}
       <section className="bg-[#0D0D1A] border border-[#00F0FF]/40 rounded-[20px] p-4 sm:p-5 space-y-3 shadow-xl relative overflow-hidden backdrop-blur-xl">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-white/10 pb-2.5">
@@ -290,19 +322,17 @@ export default function HomePage() {
           ))}
         </div>
 
-        {/* Chat exchanges (Max 2 displayed, older collapsed) */}
+        {/* Chat exchanges */}
         {chatExchanges.length > 0 && (
           <div className="space-y-2.5 pt-1 border-t border-white/5">
             {chatExchanges.slice(-2).map((item) => (
               <div key={item.id} className="space-y-1.5 animate-fadeIn">
-                {/* User query bubble */}
                 <div className="flex justify-end">
                   <div className="max-w-[85%] px-3 py-1.5 rounded-xl bg-[#00F0FF] text-black font-semibold text-xs leading-snug rounded-tr-none shadow">
                     {item.query}
                   </div>
                 </div>
 
-                {/* XYRA response bubble */}
                 <div className="flex justify-start items-start gap-2">
                   <div className="w-5 h-5 rounded-full bg-[#00F0FF]/20 border border-[#00F0FF]/50 flex items-center justify-center text-[8px] font-bold text-[#00F0FF] shrink-0 mt-0.5">
                     X
@@ -369,7 +399,7 @@ export default function HomePage() {
         </form>
       </section>
 
-      {/* 2. CLEAN CONTINUE CARD (Real Concept Name, Mastery %, 6px Progress Bar, Continue Button) */}
+      {/* 3. CLEAN CONTINUE CARD */}
       <section className="sticky top-0 z-20 pt-1 -mt-1 bg-ink/95 backdrop-blur-md rounded-[18px]">
         <div className="card-glass-neon p-5 sm:p-6 rounded-[16px]">
         {hasSkillGraph ? (
@@ -382,7 +412,7 @@ export default function HomePage() {
                 {target.masteryPercentage}% mastery
               </span>
 
-              {/* 6px Thicker, Highly Visible Progress Bar */}
+              {/* 6px Thicker Progress Bar */}
               <div className="h-[6px] w-full bg-raised/90 rounded-full overflow-hidden border border-line/40">
                 <div
                   className="h-full bg-signature-gradient rounded-full transition-all duration-500 shadow-[0_0_8px_rgba(0,240,255,0.4)]"
@@ -419,7 +449,42 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* 3. SKILL GRAPH CONCEPTS BREAKDOWN — 1-TAP DIRECT ROUTING */}
+      {/* 4. MINI WORLD PREVIEW (120px — DAILY REMINDER OF LIVING WORLD) */}
+      {worldState && (
+        <section className="pt-0.5">
+          <Link
+            href="/passport"
+            className="block relative rounded-[20px] overflow-hidden border border-white/15 hover:border-[#00F0FF]/50 transition-all cursor-pointer group shadow-xl"
+          >
+            <WorldRenderer
+              theme={activeThemeId}
+              buildings={worldState.buildings}
+              height={120}
+              isMiniPreview
+            />
+
+            {/* Floating Info Overlay on Mini Preview */}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/30 p-3.5 flex items-end justify-between pointer-events-none">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-[#00FF87] animate-ping" />
+                <span className="font-mono text-xs font-bold text-white uppercase tracking-wider">
+                  Your World &middot; Tier {worldState.tier}
+                </span>
+                <span className="font-mono text-[10px] text-slate-300 bg-black/50 px-2 py-0.5 rounded-full border border-white/10">
+                  {worldState.totalMasteryPercent}% Terraformed
+                </span>
+              </div>
+
+              <span className="font-mono text-xs text-[#00F0FF] group-hover:translate-x-1 transition-transform flex items-center gap-0.5 font-bold">
+                <span>View Full World</span>
+                <ChevronRight className="w-4 h-4" />
+              </span>
+            </div>
+          </Link>
+        </section>
+      )}
+
+      {/* 5. SKILL GRAPH CONCEPTS BREAKDOWN — 1-TAP DIRECT ROUTING */}
       <section className="bg-[#120E22]/90 border border-line/60 rounded-[16px] p-5 space-y-4">
         <div className="flex items-center justify-between border-b border-line/40 pb-3">
           <span className="font-mono text-[10px] tracking-eyebrow uppercase text-muted font-bold">
@@ -487,6 +552,14 @@ export default function HomePage() {
           })}
         </div>
       </section>
+
+      {/* World Unlock Celebration Modal (Emotional payoff moment) */}
+      <WorldUnlockCelebration
+        unlockedBuilding={unlockedBuilding}
+        allBuildings={worldState?.buildings || []}
+        theme={activeThemeId}
+        onDismiss={() => setUnlockedBuilding(null)}
+      />
 
     </div>
   );

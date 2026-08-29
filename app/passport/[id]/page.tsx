@@ -2,17 +2,17 @@
 
 import React from 'react';
 import Link from 'next/link';
-import WorldBiomeCanvas from '@/components/WorldBiomeCanvas';
+import WorldRenderer from '@/components/WorldRenderer';
 import { getThemeConfig, getThemeTierInfo } from '@/lib/themes';
-import { Compass, ShieldCheck, CheckCircle2, Award, Sparkles } from 'lucide-react';
+import { WorldBuilding } from '@/lib/worldEngine';
+import { Compass, ShieldCheck, CheckCircle2, Award, Sparkles, Globe } from 'lucide-react';
 
 export default function PublicPassportPage({ params }: { params: { id: string } }) {
-  // Public demo / verified credential view
-  const demoConcepts = [
-    { id: 'c1', name: 'Core Foundations & Principles', masteryPercentage: 85, isSoloVerified: true },
-    { id: 'c2', name: 'Applied Problem Solving', masteryPercentage: 70, isSoloVerified: true },
-    { id: 'c3', name: 'System Architecture & Modeling', masteryPercentage: 55, isSoloVerified: false },
-    { id: 'c4', name: 'Optimization & Production Execution', masteryPercentage: 40, isSoloVerified: false },
+  const demoBuildings: WorldBuilding[] = [
+    { buildingId: 'b1', conceptId: 'c1', conceptName: 'Core Foundations & Syntax', buildingName: 'Compiler Core', masteryPercent: 85, state: 'complete' },
+    { buildingId: 'b2', conceptId: 'c2', conceptName: 'Data Structures & Trees', buildingName: 'Algorithmic Spire', masteryPercent: 70, state: 'complete' },
+    { buildingId: 'b3', conceptId: 'c3', conceptName: 'System Modeling & DB', buildingName: 'Data Matrix', masteryPercent: 45, state: 'partial' },
+    { buildingId: 'b4', conceptId: 'c4', conceptName: 'Neural Networks & AI', buildingName: 'Neural Vault', masteryPercent: 0, state: 'empty' },
   ];
 
   const overallMastery = 65;
@@ -46,15 +46,23 @@ export default function PublicPassportPage({ params }: { params: { id: string } 
           </div>
         </div>
 
-        {/* Living World Canvas */}
+        {/* Isometric SVG World Renderer */}
         <div className="space-y-2">
-          <WorldBiomeCanvas
-            masteryPercentage={overallMastery}
-            goalText="Verified Skill Mastery Domain"
-            learnerName="Learner Domain"
-            concepts={demoConcepts}
-            themeId={themeId}
+          <WorldRenderer
+            theme={themeId}
+            buildings={demoBuildings}
+            height={280}
           />
+
+          <div className="flex items-center justify-between px-4 py-2.5 rounded-2xl bg-[#120E24] border border-white/10 shadow-lg">
+            <div className="flex items-center gap-2 font-mono text-xs text-white font-bold">
+              <span>{theme.icon}</span>
+              <span>Tier {tierInfo.tierNumber} &middot; {tierInfo.name}</span>
+            </div>
+            <span className="font-mono text-xs font-bold text-[#00F0FF]">
+              {overallMastery}% Terraformed
+            </span>
+          </div>
         </div>
 
         {/* Metacognitive & Verification Badges */}

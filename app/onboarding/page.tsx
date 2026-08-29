@@ -7,7 +7,8 @@ import { getStoreData, saveLearnerProfile, LearnerProfileData, applySeededCourse
 import { SEEDED_PYTHON_COURSE } from '@/lib/seed';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { WORLD_THEMES, WorldThemeId } from '@/lib/themes';
-import { Sparkles, Check, Globe } from 'lucide-react';
+import WorldRenderer from '@/components/WorldRenderer';
+import { Sparkles, Check, Globe, Play } from 'lucide-react';
 
 type PathType = 'goal' | 'syllabus';
 type LanguageType = 'english' | 'tanglish' | 'tamil';
@@ -97,7 +98,7 @@ export default function OnboardingPage() {
       if (p.worldTheme) {
         setSelectedTheme(p.worldTheme);
       }
-      if (p.currentStep && p.currentStep < 8) {
+      if (p.currentStep && p.currentStep < 9) {
         setCurrentStep(p.currentStep);
       }
       if (p.studyPlan) {
@@ -281,7 +282,7 @@ export default function OnboardingPage() {
 
           {/* Progress Indicator Dots */}
           <div className="flex items-center gap-1.5">
-            {[0, 1, 2, 3, 4, 5, 6, 7, 8].map((s) => (
+            {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((s) => (
               <span
                 key={s}
                 className={`h-1.5 rounded-full transition-all duration-300 ${
@@ -784,7 +785,7 @@ export default function OnboardingPage() {
                 Choose Your World
               </h1>
               <p className="font-sans text-xs text-slate-400 max-w-md mx-auto">
-                Your knowledge will terraform this living world as you master concepts. You can change this anytime from your profile.
+                Your knowledge will terraform this living world as you master concepts.
               </p>
             </div>
 
@@ -810,7 +811,6 @@ export default function OnboardingPage() {
                         : 'bg-[#150F2A]/90 border-white/10 hover:border-white/25 hover:bg-[#1A1430]'
                     }`}
                   >
-                    {/* Small Colored Gradient Preview Square with Icon */}
                     <div
                       className="w-11 h-11 rounded-xl flex items-center justify-center text-xl shrink-0 shadow-md border border-white/15"
                       style={{
@@ -843,16 +843,59 @@ export default function OnboardingPage() {
               })}
             </div>
 
-            {/* Begin Journey Button */}
+            {/* Next: World Introduction CTA */}
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => updateProfileStep(9)}
+                className="w-full h-12 rounded-[14px] bg-signature-gradient text-white font-sans font-bold text-sm flex items-center justify-center gap-2 hover:brightness-110 transition-all cursor-pointer shadow-[0_8px_30px_-6px_rgba(168,85,247,0.6)]"
+              >
+                <span>Continue to Your World</span>
+                <span>&rarr;</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* =================================================================== */}
+        {/* STEP 9: WORLD INTRODUCTION (YOUR WORLD BEGINS HERE) */}
+        {/* =================================================================== */}
+        {currentStep === 9 && (
+          <div className="space-y-5 animate-fadeIn text-center">
+            <div className="space-y-1">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#00FF87]/15 border border-[#00FF87]/40 text-[#00FF87] font-mono text-[10px] font-bold">
+                <Sparkles className="w-3 h-3" />
+                <span>EMPTY DOMAIN READY</span>
+              </div>
+              <h1 className="font-sans font-black text-2xl sm:text-3xl text-white tracking-tight">
+                Your world begins here.
+              </h1>
+            </div>
+
+            {/* Empty WorldRenderer Preview */}
+            <div className="rounded-2xl overflow-hidden border border-white/15 shadow-xl">
+              <WorldRenderer
+                theme={selectedTheme}
+                buildings={[]}
+                height={180}
+                isMiniPreview
+              />
+            </div>
+
+            <p className="font-sans text-xs sm:text-sm text-slate-300 max-w-md mx-auto leading-relaxed">
+              Every lesson you complete builds something new. This empty land is yours. Let&apos;s start filling it.
+            </p>
+
+            {/* Begin Learning CTA */}
             <div className="pt-2">
               <button
                 type="button"
                 disabled={isSubmitting}
                 onClick={handleBeginJourney}
-                className="w-full h-12 rounded-[14px] bg-signature-gradient text-white font-sans font-bold text-sm flex items-center justify-center gap-2 hover:brightness-110 transition-all cursor-pointer shadow-[0_8px_30px_-6px_rgba(168,85,247,0.6)] disabled:opacity-50"
+                className="w-full h-13 rounded-2xl bg-signature-gradient text-white font-sans font-bold text-sm flex items-center justify-center gap-2 hover:brightness-110 transition-all cursor-pointer shadow-[0_8px_30px_-6px_rgba(168,85,247,0.6)] disabled:opacity-50"
               >
-                <Sparkles className="w-4 h-4 text-amber-300" />
-                <span>{isSubmitting ? 'Terraforming World...' : 'Begin Journey →'}</span>
+                <Play className="w-4 h-4 fill-current" />
+                <span>{isSubmitting ? 'Terraforming World...' : 'Begin Learning →'}</span>
               </button>
             </div>
           </div>
