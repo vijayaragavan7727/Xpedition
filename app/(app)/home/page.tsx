@@ -8,11 +8,14 @@ import { FeedbackSheet } from '@/components/FeedbackSheet';
 import { calibrationScore, blindSpots } from '@/lib/engine/calibration';
 import { computeGap, thetaToPercent } from '@/lib/engine/mastery';
 import XyraGreetingWidget from '@/components/XyraGreetingWidget';
+import AskXYRASheet from '@/components/AskXYRASheet';
 
 export default function HomePage() {
   const router = useRouter();
   const [storeData, setStoreData] = useState<UserStoreData | null>(null);
   const [quickQuery, setQuickQuery] = useState<string>('');
+  const [isChatOpen, setIsChatOpen] = useState<boolean>(false);
+  const [robotImgPath, setRobotImgPath] = useState<string>('/robot.png');
 
   useEffect(() => {
     setStoreData(getStoreData());
@@ -78,7 +81,7 @@ export default function HomePage() {
   const blindSpotConceptIds = new Set(detectedBlindSpots.map((bs) => bs.conceptId));
 
   return (
-    <div className="space-y-5 select-none relative pb-10">
+    <div className="space-y-5 select-none relative pb-16">
       
       {/* 1. XYRA GREETING WIDGET (Top of Home Page, max ~80px height) */}
       <section className="pt-1">
@@ -335,6 +338,42 @@ export default function HomePage() {
           </div>
         </section>
       )}
+
+      {/* 1. FLOATING ASK XYRA BUTTON (Bottom-Right of Home Page) */}
+      <div className="fixed bottom-5 right-5 z-40 sm:bottom-6 sm:right-6">
+        <button
+          type="button"
+          onClick={() => setIsChatOpen(true)}
+          className="h-12 px-4 rounded-full bg-[#0D0D1A] border border-[#00F0FF]/60 hover:border-[#00F0FF] text-[#00F0FF] font-mono font-bold text-xs flex items-center gap-2.5 shadow-[0_0_25px_rgba(0,240,255,0.38)] hover:scale-105 transition-all cursor-pointer group backdrop-blur-xl select-none"
+        >
+          <div className="w-7 h-7 rounded-full bg-[#00F0FF]/20 border border-[#00F0FF] flex items-center justify-center overflow-hidden shadow-[0_0_10px_rgba(0,240,255,0.5)]">
+            <img
+              src={robotImgPath}
+              onError={() => {
+                if (robotImgPath === '/robot.png') setRobotImgPath('/images/robot.png');
+              }}
+              alt="XYRA"
+              className="w-5 h-5 object-contain"
+            />
+          </div>
+          <span>Ask XYRA</span>
+          <span className="w-2 h-2 rounded-full bg-[#00FF87] animate-pulse" />
+        </button>
+      </div>
+
+      {/* ASK XYRA BOTTOM SHEET (HOME SCOPE) */}
+      <AskXYRASheet
+        isOpen={isChatOpen}
+        onClose={() => setIsChatOpen(false)}
+        context={{
+          scope: 'home',
+          name: storeData.handle,
+          goal: storeData.goalText,
+          concepts: storeData.concepts,
+          fadingConcepts: fadingConcepts,
+          language: storeData.learnerProfile?.language,
+        }}
+      />
 
     </div>
   );

@@ -6,6 +6,7 @@ import { getStoreData, saveStoreData, recordAttempt, computeItemHash, saveLearne
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { BoardVisual, VisualSpec } from '@/components/BoardVisual';
 import { downloadNotesPdf, downloadFlashcardsPdf } from '@/lib/pdf';
+import AskXYRASheet from '@/components/AskXYRASheet';
 import { Volume2, VolumeX, HelpCircle, FileText, X, Check, ArrowLeft, ArrowRight, Play, Sparkles, FastForward, CheckCircle2 } from 'lucide-react';
 
 interface LessonChunk {
@@ -1068,55 +1069,19 @@ function TutorContent() {
 
       </footer>
 
-      {/* MODAL: ASK XYRA OPTIONS */}
-      {isAskXyraOpen && (
-        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-end sm:items-center justify-center p-4 animate-fadeIn">
-          <div className="bg-[#0D0D1A] border border-[#00F0FF]/40 rounded-3xl p-5 max-w-sm w-full space-y-4 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-white/10 pb-3">
-              <div className="flex items-center gap-2 font-mono text-xs font-bold text-[#00F0FF]">
-                <Sparkles className="w-4 h-4 text-amber-400" />
-                <span>Ask XYRA</span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsAskXyraOpen(false)}
-                className="text-slate-400 hover:text-white p-1"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="space-y-2 pt-1 font-sans text-xs">
-              <button
-                type="button"
-                onClick={() => handleAskXyraOption('say_again')}
-                className="w-full p-3 rounded-2xl bg-[#00F0FF]/10 border border-[#00F0FF]/30 text-[#00F0FF] hover:bg-[#00F0FF]/20 font-semibold text-left transition-all cursor-pointer flex items-center justify-between"
-              >
-                <span>&ldquo;Say that again, XYRA&rdquo;</span>
-                <span className="font-mono text-xs">&rarr;</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleAskXyraOption('another_example')}
-                className="w-full p-3 rounded-2xl bg-[#00F0FF]/10 border border-[#00F0FF]/30 text-[#00F0FF] hover:bg-[#00F0FF]/20 font-semibold text-left transition-all cursor-pointer flex items-center justify-between"
-              >
-                <span>&ldquo;Give me another example&rdquo;</span>
-                <span className="font-mono text-xs">&rarr;</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleAskXyraOption('im_lost')}
-                className="w-full p-3 rounded-2xl bg-[#00F0FF]/10 border border-[#00F0FF]/30 text-[#00F0FF] hover:bg-[#00F0FF]/20 font-semibold text-left transition-all cursor-pointer flex items-center justify-between"
-              >
-                <span>&ldquo;I&apos;m lost, XYRA&rdquo;</span>
-                <span className="font-mono text-xs">&rarr;</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* 2. REAL ASK XYRA CHAT (TUTOR SCOPE) */}
+      <AskXYRASheet
+        isOpen={isAskXyraOpen}
+        onClose={() => setIsAskXyraOpen(false)}
+        context={{
+          scope: 'tutor',
+          concept: conceptName,
+          chunk: currentChunk?.say,
+          theta: storeData?.calibratedTheta ?? -0.4,
+          language: storeData?.learnerProfile?.language,
+          name: storeData?.handle,
+        }}
+      />
 
       {/* MODAL: MY NOTES */}
       {isNotesOpen && (
