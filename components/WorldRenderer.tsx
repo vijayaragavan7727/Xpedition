@@ -27,6 +27,7 @@ interface ThemePalette {
   scaffoldColor: string;
   glowColor: string;
   particleColor: string;
+  windowGlow: string;
 }
 
 const THEME_PALETTES: Record<string, ThemePalette> = {
@@ -36,13 +37,14 @@ const THEME_PALETTES: Record<string, ThemePalette> = {
     tileLeft: '#130B24',
     tileRight: '#180E2E',
     tileBorder: '#00F0FF40',
-    buildingFrontLeft: '#0C2D48',
-    buildingFrontRight: '#145374',
+    buildingFrontLeft: '#081D33',
+    buildingFrontRight: '#0E3B64',
     buildingRoof: '#00F0FF',
     buildingAccent: '#F59E0B',
     scaffoldColor: '#00F0FF80',
     glowColor: '#00F0FF',
     particleColor: '#00F0FF',
+    windowGlow: '#00F0FF',
   },
   cyber_city: {
     skyGradient: ['#030712', '#0A152E', '#102A45'],
@@ -50,13 +52,14 @@ const THEME_PALETTES: Record<string, ThemePalette> = {
     tileLeft: '#06141F',
     tileRight: '#081A29',
     tileBorder: '#00FF8740',
-    buildingFrontLeft: '#1F1135',
-    buildingFrontRight: '#35195C',
+    buildingFrontLeft: '#180B2B',
+    buildingFrontRight: '#2E114F',
     buildingRoof: '#00FF87',
     buildingAccent: '#FF0055',
     scaffoldColor: '#00FF8780',
-    glowColor: '#00FF87',
+    glowColor: '#FF0055',
     particleColor: '#00FF87',
+    windowGlow: '#00FF87',
   },
   enchanted_kingdom: {
     skyGradient: ['#04140E', '#0B291E', '#174735'],
@@ -64,13 +67,14 @@ const THEME_PALETTES: Record<string, ThemePalette> = {
     tileLeft: '#0C241A',
     tileRight: '#102E21',
     tileBorder: '#34D39940',
-    buildingFrontLeft: '#2E3842',
-    buildingFrontRight: '#414E5C',
+    buildingFrontLeft: '#1F2933',
+    buildingFrontRight: '#3E4C59',
     buildingRoof: '#34D399',
     buildingAccent: '#C084FC',
     scaffoldColor: '#34D39980',
     glowColor: '#C084FC',
     particleColor: '#34D399',
+    windowGlow: '#E9D5FF',
   },
   ocean_world: {
     skyGradient: ['#020B16', '#041E33', '#063552'],
@@ -78,13 +82,14 @@ const THEME_PALETTES: Record<string, ThemePalette> = {
     tileLeft: '#072230',
     tileRight: '#092A3A',
     tileBorder: '#38BDF840',
-    buildingFrontLeft: '#0E4966',
-    buildingFrontRight: '#136287',
+    buildingFrontLeft: '#083344',
+    buildingFrontRight: '#0E7490',
     buildingRoof: '#38BDF8',
     buildingAccent: '#2DD4BF',
     scaffoldColor: '#38BDF880',
     glowColor: '#2DD4BF',
     particleColor: '#38BDF8',
+    windowGlow: '#A5F3FC',
   },
   desert_empire: {
     skyGradient: ['#140903', '#2B1306', '#421E0A'],
@@ -92,13 +97,14 @@ const THEME_PALETTES: Record<string, ThemePalette> = {
     tileLeft: '#24130A',
     tileRight: '#301A0D',
     tileBorder: '#F59E0B40',
-    buildingFrontLeft: '#6B3818',
-    buildingFrontRight: '#8F4B20',
+    buildingFrontLeft: '#451A03',
+    buildingFrontRight: '#78350F',
     buildingRoof: '#F59E0B',
     buildingAccent: '#FB923C',
     scaffoldColor: '#F59E0B80',
     glowColor: '#F59E0B',
     particleColor: '#F59E0B',
+    windowGlow: '#FEF08A',
   },
 };
 
@@ -122,7 +128,6 @@ export default function WorldRenderer({
   const originX = 260;
   const originY = 85;
 
-  // Ensure test building is complete if all buildings are empty for verification
   const paddedBuildings: (WorldBuilding | null)[] = [...buildings];
   while (paddedBuildings.length < 6) {
     paddedBuildings.push(null);
@@ -140,7 +145,7 @@ export default function WorldRenderer({
     return b;
   });
 
-  // Preload and debug Pollinations AI Images
+  // Preload and debug Pollinations AI Images via local proxy API
   useEffect(() => {
     displaySlots.forEach((bldg) => {
       if (!bldg) return;
@@ -149,18 +154,18 @@ export default function WorldRenderer({
       const imageKey = `${bldg.buildingId}_${state}_${activeThemeKey}`;
       const url = getPollinationsImageUrl(conceptName, activeThemeKey, state);
 
-      console.log(`[Pollinations] Constructing image for "${conceptName}" (${state}, ${activeThemeKey}) ->`, url);
+      console.log(`[Pollinations Proxy] Requesting image for "${conceptName}" ->`, url);
 
       if (typeof window !== 'undefined') {
         const img = new Image();
         img.src = url;
         img.onload = () => {
-          console.log(`[Pollinations] Image LOADED successfully for "${conceptName}" ->`, url);
+          console.log(`[Pollinations Proxy] Image LOADED for "${conceptName}" ->`, url);
           setLoadedImages((prev) => ({ ...prev, [imageKey]: true }));
           cacheBuildingImageToSupabase(conceptName, activeThemeKey, state, url);
         };
         img.onerror = (err) => {
-          console.error(`[Pollinations] Image FAILED to load for "${conceptName}" ->`, url, err);
+          console.error(`[Pollinations Proxy] Image FAILED for "${conceptName}" ->`, url, err);
           setFailedImages((prev) => ({ ...prev, [imageKey]: true }));
         };
       }
@@ -191,26 +196,34 @@ export default function WorldRenderer({
             <stop offset="100%" stopColor={palette.skyGradient[2]} />
           </linearGradient>
 
-          {/* Building Glow Filter */}
-          <filter id="buildingGlow" x="-30%" y="-30%" width="160%" height="160%">
-            <feGaussianBlur stdDeviation="4" result="blur" />
-            <feComposite in="SourceGraphic" in2="blur" operator="over" />
+          {/* Shadow Filter */}
+          <filter id="shadowBlur" x="-30%" y="-30%" width="160%" height="160%">
+            <feGaussianBlur in="SourceGraphic" stdDeviation="3" />
+          </filter>
+
+          {/* Theme Dynamic Drop-Shadow Glow Filter */}
+          <filter id={`themeEdgeGlow_${activeThemeKey}`} x="-40%" y="-40%" width="180%" height="180%">
+            <feDropShadow dx="0" dy="4" stdDeviation="6" floodColor={palette.glowColor} floodOpacity="0.6" />
           </filter>
 
           <style>
             {`
               @keyframes worldPulse {
                 0%, 100% { transform: scale(1); }
-                50% { transform: scale(1.025); }
+                50% { transform: scale(1.02); }
               }
               @keyframes particleDrift {
                 0% { transform: translateY(0px); opacity: 0; }
-                50% { opacity: 0.8; }
+                50% { opacity: 0.85; }
                 100% { transform: translateY(-28px); opacity: 0; }
               }
-              @keyframes tileShimmer {
-                0%, 100% { opacity: 0.65; }
+              @keyframes windowBlink {
+                0%, 100% { opacity: 0.8; }
                 50% { opacity: 1; }
+              }
+              @keyframes antennaPulse {
+                0%, 100% { fill: #FFFFFF; r: 3.5; }
+                50% { fill: ${palette.glowColor}; r: 4.5; }
               }
               .building-complete {
                 transform-origin: center bottom;
@@ -219,11 +232,14 @@ export default function WorldRenderer({
               .particle-item {
                 animation: particleDrift 4s ease-in-out infinite;
               }
-              .ai-loading-tile {
-                animation: tileShimmer 2s ease-in-out infinite;
+              .window-glow {
+                animation: windowBlink 2.5s ease-in-out infinite;
+              }
+              .antenna-tip {
+                animation: antennaPulse 1.8s ease-in-out infinite;
               }
               @media (prefers-reduced-motion: reduce) {
-                .building-complete, .particle-item, .ai-loading-tile {
+                .building-complete, .particle-item, .window-glow, .antenna-tip {
                   animation: none !important;
                 }
               }
@@ -259,7 +275,7 @@ export default function WorldRenderer({
           </g>
         )}
 
-        {/* LAYER 3: Isometric Grid & AI-Generated Buildings */}
+        {/* LAYER 3: Isometric Grid & Buildings */}
         <g id="isometricWorldStage">
           {displaySlots.map((bldg, idx) => {
             const row = Math.floor(idx / 3);
@@ -275,7 +291,7 @@ export default function WorldRenderer({
             const isLoaded = loadedImages[imageKey];
             const isFailed = failedImages[imageKey];
 
-            const pollinationsUrl = bldg
+            const proxyImageUrl = bldg
               ? getPollinationsImageUrl(conceptName, activeThemeKey, state)
               : null;
 
@@ -287,8 +303,8 @@ export default function WorldRenderer({
             const tilePath = `M ${tileTopPt} L ${tileRightPt} L ${tileBottomPt} L ${tileLeftPt} Z`;
 
             // Building Dimensions for SVG Fallback
-            const bldgW = 44;
-            const bldgH = state === 'complete' ? 52 : 30;
+            const bldgW = 46;
+            const bldgH = state === 'complete' ? 56 : 32;
             const bx = x;
             const by = y;
 
@@ -305,11 +321,11 @@ export default function WorldRenderer({
               >
                 {/* 1. Isometric Ground Tile Base */}
                 <polygon
-                  points={`${x - tileW / 2},${y} ${x},${y + tileH / 2} ${x},${y + tileH / 2 + 10} ${x - tileW / 2},${y + 10}`}
+                  points={`${x - tileW / 2},${y} ${x},${y + tileH / 2} ${x},${y + tileH / 2 + 12} ${x - tileW / 2},${y + 12}`}
                   fill={palette.tileLeft}
                 />
                 <polygon
-                  points={`${x},${y + tileH / 2} ${x + tileW / 2},${y} ${x + tileW / 2},${y + 10} ${x},${y + tileH / 2 + 10}`}
+                  points={`${x},${y + tileH / 2} ${x + tileW / 2},${y} ${x + tileW / 2},${y + 12} ${x},${y + tileH / 2 + 12}`}
                   fill={palette.tileRight}
                 />
 
@@ -322,118 +338,183 @@ export default function WorldRenderer({
                   className="group-hover:stroke-white transition-colors"
                 />
 
-                {/* 2. Geometric SVG Placeholder Fallback Layer */}
-                <g className={!isLoaded && bldg ? 'ai-loading-tile' : ''}>
-                  {state === 'empty' && (
-                    /* EMPTY STATE SVG */
-                    <g opacity="0.65">
-                      <polygon
-                        points={`${bx},${by - 12} ${bx + 20},${by} ${bx},${by + 12} ${bx - 20},${by}`}
-                        fill="none"
-                        stroke={palette.scaffoldColor}
-                        strokeWidth="1.2"
-                        strokeDasharray="3,3"
-                      />
-                      <line
-                        x1={bx}
-                        y1={by}
-                        x2={bx}
-                        y2={by - 24}
-                        stroke={palette.scaffoldColor}
-                        strokeWidth="1.5"
-                      />
-                      <polygon
-                        points={`${bx},${by - 24} ${bx + 12},${by - 20} ${bx},${by - 16}`}
-                        fill={palette.scaffoldColor}
-                      />
-                      <text
-                        x={bx + 3}
-                        y={by - 19}
-                        fill="#FFFFFF"
-                        fontSize="7"
-                        fontFamily="monospace"
-                        fontWeight="bold"
-                      >
-                        ?
-                      </text>
-                    </g>
-                  )}
+                {/* Ground Shadow below building */}
+                {state !== 'empty' && (
+                  <ellipse
+                    cx={bx}
+                    cy={by + 4}
+                    rx={26}
+                    ry={10}
+                    fill="rgba(0,0,0,0.55)"
+                    filter="url(#shadowBlur)"
+                  />
+                )}
 
-                  {state === 'partial' && (
-                    /* PARTIAL STATE SVG */
-                    <g className="building-partial">
-                      <polygon
-                        points={`${bx - bldgW / 2},${by} ${bx},${by + bldgW / 4} ${bx},${by + bldgW / 4 - bldgH / 2} ${bx - bldgW / 2},${by - bldgH / 2}`}
-                        fill={palette.buildingFrontLeft}
-                        stroke={palette.tileBorder}
-                        strokeWidth="1"
-                      />
-                      <polygon
-                        points={`${bx},${by + bldgW / 4} ${bx + bldgW / 2},${by} ${bx + bldgW / 2},${by - bldgH / 2} ${bx},${by + bldgW / 4 - bldgH / 2}`}
-                        fill={palette.buildingFrontRight}
-                        stroke={palette.tileBorder}
-                        strokeWidth="1"
-                      />
-                      <g opacity="0.75" stroke={palette.scaffoldColor} strokeWidth="1.2">
-                        <line x1={bx - bldgW / 2} y1={by - bldgH / 2} x2={bx - bldgW / 2} y2={by - bldgH} />
-                        <line x1={bx + bldgW / 2} y1={by - bldgH / 2} x2={bx + bldgW / 2} y2={by - bldgH} />
-                        <line x1={bx} y1={by + bldgW / 4 - bldgH / 2} x2={bx} y2={by + bldgW / 4 - bldgH} />
-                        <polygon
-                          points={`${bx},${by - bldgH - bldgW / 4} ${bx + bldgW / 2},${by - bldgH} ${bx},${by + bldgW / 4 - bldgH} ${bx - bldgW / 2},${by - bldgH}`}
-                          fill={`${palette.scaffoldColor}25`}
-                          stroke={palette.scaffoldColor}
-                          strokeDasharray="2,2"
-                        />
-                      </g>
-                    </g>
-                  )}
+                {/* 2. Rich Detailed Isometric SVG Building Layer */}
+                {state === 'empty' && (
+                  /* EMPTY STATE: Marker & Survey Flag */
+                  <g opacity="0.7">
+                    <polygon
+                      points={`${bx},${by - 12} ${bx + 20},${by} ${bx},${by + 12} ${bx - 20},${by}`}
+                      fill="none"
+                      stroke={palette.scaffoldColor}
+                      strokeWidth="1.2"
+                      strokeDasharray="3,3"
+                    />
+                    <line
+                      x1={bx}
+                      y1={by}
+                      x2={bx}
+                      y2={by - 26}
+                      stroke={palette.scaffoldColor}
+                      strokeWidth="1.5"
+                    />
+                    <polygon
+                      points={`${bx},${by - 26} ${bx + 14},${by - 22} ${bx},${by - 18}`}
+                      fill={palette.scaffoldColor}
+                    />
+                    <text
+                      x={bx + 4}
+                      y={by - 21}
+                      fill="#FFFFFF"
+                      fontSize="7"
+                      fontFamily="monospace"
+                      fontWeight="bold"
+                    >
+                      ?
+                    </text>
+                  </g>
+                )}
 
-                  {state === 'complete' && (
-                    /* COMPLETE STATE SVG */
-                    <g className="building-complete">
-                      <polygon
-                        points={`${bx - bldgW / 2},${by} ${bx},${by + bldgW / 4} ${bx},${by + bldgW / 4 - bldgH} ${bx - bldgW / 2},${by - bldgH}`}
-                        fill={palette.buildingFrontLeft}
-                        stroke={palette.glowColor}
-                        strokeWidth="1.2"
-                      />
-                      <polygon
-                        points={`${bx},${by + bldgW / 4} ${bx + bldgW / 2},${by} ${bx + bldgW / 2},${by - bldgH} ${bx},${by + bldgW / 4 - bldgH}`}
-                        fill={palette.buildingFrontRight}
-                        stroke={palette.glowColor}
-                        strokeWidth="1.2"
-                      />
+                {state === 'partial' && (
+                  /* PARTIAL STATE: Solid foundation + scaffold lines */
+                  <g className="building-partial">
+                    {/* Solid Lower Foundation */}
+                    <polygon
+                      points={`${bx - bldgW / 2},${by} ${bx},${by + bldgW / 4} ${bx},${by + bldgW / 4 - bldgH / 2} ${bx - bldgW / 2},${by - bldgH / 2}`}
+                      fill={palette.buildingFrontLeft}
+                      stroke={palette.tileBorder}
+                      strokeWidth="1"
+                    />
+                    <polygon
+                      points={`${bx},${by + bldgW / 4} ${bx + bldgW / 2},${by} ${bx + bldgW / 2},${by - bldgH / 2} ${bx},${by + bldgW / 4 - bldgH / 2}`}
+                      fill={palette.buildingFrontRight}
+                      stroke={palette.tileBorder}
+                      strokeWidth="1"
+                    />
+
+                    {/* Small lower windows */}
+                    <rect
+                      x={bx - bldgW / 3}
+                      y={by - bldgH / 3}
+                      width="5"
+                      height="3"
+                      transform={`matrix(1, 0.5, 0, 1, 0, 0)`}
+                      fill={palette.windowGlow}
+                      opacity="0.8"
+                    />
+                    <rect
+                      x={bx + bldgW / 6}
+                      y={by - bldgH / 3 + 2}
+                      width="5"
+                      height="3"
+                      transform={`matrix(1, -0.5, 0, 1, 0, 0)`}
+                      fill={palette.windowGlow}
+                      opacity="0.8"
+                    />
+
+                    {/* Scaffold Upper Frame (Dashed Lines & 40% Opacity) */}
+                    <g opacity="0.8" stroke={palette.scaffoldColor} strokeWidth="1.2">
+                      <line x1={bx - bldgW / 2} y1={by - bldgH / 2} x2={bx - bldgW / 2} y2={by - bldgH} strokeDasharray="3,2" />
+                      <line x1={bx + bldgW / 2} y1={by - bldgH / 2} x2={bx + bldgW / 2} y2={by - bldgH} strokeDasharray="3,2" />
+                      <line x1={bx} y1={by + bldgW / 4 - bldgH / 2} x2={bx} y2={by + bldgW / 4 - bldgH} strokeDasharray="3,2" />
                       <polygon
                         points={`${bx},${by - bldgH - bldgW / 4} ${bx + bldgW / 2},${by - bldgH} ${bx},${by + bldgW / 4 - bldgH} ${bx - bldgW / 2},${by - bldgH}`}
-                        fill={palette.buildingRoof}
-                        stroke="#FFFFFF"
-                        strokeWidth="1"
-                      />
-                      <line
-                        x1={bx}
-                        y1={by - bldgH - bldgW / 4}
-                        x2={bx}
-                        y2={by - bldgH - bldgW / 4 - 14}
-                        stroke={palette.buildingAccent}
-                        strokeWidth="2.5"
-                      />
-                      <circle
-                        cx={bx}
-                        cy={by - bldgH - bldgW / 4 - 14}
-                        r="3.5"
-                        fill="#FFFFFF"
-                        stroke={palette.buildingAccent}
-                        strokeWidth="1.5"
+                        fill={`${palette.scaffoldColor}20`}
+                        stroke={palette.scaffoldColor}
+                        strokeDasharray="2,2"
                       />
                     </g>
-                  )}
-                </g>
+                  </g>
+                )}
 
-                {/* 3. AI-Generated Building Image (Pollinations.ai / Supabase Cached) */}
-                {pollinationsUrl && !isFailed && (
+                {state === 'complete' && (
+                  /* COMPLETE STATE: Solid 3D building + Windows + Antenna + Glow */
+                  <g className="building-complete" filter={`url(#themeEdgeGlow_${activeThemeKey})`}>
+                    {/* Left Darker Face (Depth) */}
+                    <polygon
+                      points={`${bx - bldgW / 2},${by} ${bx},${by + bldgW / 4} ${bx},${by + bldgW / 4 - bldgH} ${bx - bldgW / 2},${by - bldgH}`}
+                      fill={palette.buildingFrontLeft}
+                      stroke={palette.glowColor}
+                      strokeWidth="1.2"
+                    />
+
+                    {/* Right Illuminated Face */}
+                    <polygon
+                      points={`${bx},${by + bldgW / 4} ${bx + bldgW / 2},${by} ${bx + bldgW / 2},${by - bldgH} ${bx},${by + bldgW / 4 - bldgH}`}
+                      fill={palette.buildingFrontRight}
+                      stroke={palette.glowColor}
+                      strokeWidth="1.2"
+                    />
+
+                    {/* Left Face Glowing Window Slits */}
+                    {[14, 28, 42].map((offsetY, wIdx) => (
+                      <g key={`l_win_${wIdx}`} className="window-glow">
+                        <polygon
+                          points={`${bx - 16},${by - offsetY + 2} ${bx - 7},${by - offsetY + 6} ${bx - 7},${by - offsetY + 11} ${bx - 16},${by - offsetY + 7}`}
+                          fill={palette.windowGlow}
+                          stroke="#FFFFFF"
+                          strokeWidth="0.5"
+                        />
+                      </g>
+                    ))}
+
+                    {/* Right Face Glowing Window Slits */}
+                    {[14, 28, 42].map((offsetY, wIdx) => (
+                      <g key={`r_win_${wIdx}`} className="window-glow">
+                        <polygon
+                          points={`${bx + 7},${by - offsetY + 6} ${bx + 16},${by - offsetY + 2} ${bx + 16},${by - offsetY + 7} ${bx + 7},${by - offsetY + 11}`}
+                          fill={palette.windowGlow}
+                          stroke="#FFFFFF"
+                          strokeWidth="0.5"
+                        />
+                      </g>
+                    ))}
+
+                    {/* Top Roof Diamond */}
+                    <polygon
+                      points={`${bx},${by - bldgH - bldgW / 4} ${bx + bldgW / 2},${by - bldgH} ${bx},${by + bldgW / 4 - bldgH} ${bx - bldgW / 2},${by - bldgH}`}
+                      fill={palette.buildingRoof}
+                      stroke="#FFFFFF"
+                      strokeWidth="1"
+                    />
+
+                    {/* Roof Antenna Spire / Peak */}
+                    <line
+                      x1={bx}
+                      y1={by - bldgH - bldgW / 4}
+                      x2={bx}
+                      y2={by - bldgH - bldgW / 4 - 16}
+                      stroke={palette.buildingAccent}
+                      strokeWidth="2.5"
+                    />
+                    {/* Blinking Beacon Light */}
+                    <circle
+                      cx={bx}
+                      cy={by - bldgH - bldgW / 4 - 16}
+                      r="3.5"
+                      className="antenna-tip"
+                      stroke={palette.buildingAccent}
+                      strokeWidth="1.5"
+                    />
+                  </g>
+                )}
+
+                {/* 3. AI-Generated Building Image Overlay (Pollinations via /api/worldimage proxy) */}
+                {proxyImageUrl && !isFailed && (
                   <image
-                    href={pollinationsUrl}
-                    xlinkHref={pollinationsUrl}
+                    href={proxyImageUrl}
+                    xlinkHref={proxyImageUrl}
                     x={x - 60}
                     y={y - 80}
                     width={120}
@@ -441,7 +522,7 @@ export default function WorldRenderer({
                     preserveAspectRatio="xMidYMid meet"
                     style={{
                       imageRendering: 'auto',
-                      filter: state === 'complete' ? 'drop-shadow(0 8px 16px rgba(0,240,255,0.3))' : undefined,
+                      filter: state === 'complete' ? `drop-shadow(0 8px 16px ${palette.glowColor}60)` : undefined,
                     }}
                     className={`transition-opacity duration-500 pointer-events-none ${
                       isLoaded ? 'opacity-100' : 'opacity-0'

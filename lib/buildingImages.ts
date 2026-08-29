@@ -29,7 +29,7 @@ export function generateBuildingPrompt(conceptName: string, theme: string, state
   const style = themeStyle[theme] || themeStyle.cosmos;
   const status = stateDesc[state] || stateDesc.complete;
 
-  return `isometric 3D ${conceptName} ${status}, ${style}, game asset style, centered, no text, no background, cinematic lighting`;
+  return `isometric 3D ${conceptName} ${status}, ${style}, game asset style, centered, no text, no background, professional, cinematic lighting`;
 }
 
 export function getBuildingSeed(conceptName: string, theme: string): number {
@@ -43,61 +43,8 @@ export function getBuildingSeed(conceptName: string, theme: string): number {
 }
 
 export function getPollinationsImageUrl(conceptName: string, theme: string, state: BuildingState): string {
-  const prompt = generateBuildingPrompt(conceptName, theme, state);
-  const seed = getBuildingSeed(conceptName, theme);
-  const cleanPrompt = prompt.replace(/\s+/g, ' ').trim();
-  const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(cleanPrompt)}?width=256&height=256&nologo=true&seed=${seed}`;
-  return url;
-}
-
-// In-memory / local storage cache for building image URLs
-const imageCache: Map<string, string> = new Map();
-
-export async function getBuildingImageUrl(
-  conceptName: string,
-  theme: string,
-  state: BuildingState
-): Promise<string> {
-  const slug = slugify(conceptName);
-  const cacheKey = `building_img_${theme}_${slug}_${state}`;
-
-  // 1. Check in-memory / localStorage cache
-  if (imageCache.has(cacheKey)) {
-    return imageCache.get(cacheKey)!;
-  }
-
-  if (typeof window !== 'undefined') {
-    try {
-      const stored = localStorage.getItem(cacheKey);
-      if (stored) {
-        imageCache.set(cacheKey, stored);
-        return stored;
-      }
-    } catch (e) {}
-  }
-
-  // 2. Check Supabase Storage if configured
-  if (isSupabaseConfigured && supabase) {
-    try {
-      const path = `buildings/${theme}/${slug}_${state}.png`;
-      const { data } = supabase.storage.from('worlds').getPublicUrl(path);
-      if (data?.publicUrl) {
-        const check = await fetch(data.publicUrl, { method: 'HEAD' });
-        if (check.ok) {
-          imageCache.set(cacheKey, data.publicUrl);
-          if (typeof window !== 'undefined') {
-            localStorage.setItem(cacheKey, data.publicUrl);
-          }
-          return data.publicUrl;
-        }
-      }
-    } catch (err) {}
-  }
-
-  // 3. Fallback to Pollinations CDN URL
-  const pollinationsUrl = getPollinationsImageUrl(conceptName, theme, state);
-  imageCache.set(cacheKey, pollinationsUrl);
-  return pollinationsUrl;
+  // Use our local CORS-bypassing proxy API route
+  return `/api/worldimage?concept=${encodeURIComponent(conceptName)}&theme=${encodeURIComponent(theme)}&state=${encodeURIComponent(state)}`;
 }
 
 export async function cacheBuildingImageToSupabase(
