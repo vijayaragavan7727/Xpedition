@@ -18,7 +18,6 @@ interface ChatExchange {
 export default function HomePage() {
   const router = useRouter();
   const [storeData, setStoreData] = useState<UserStoreData | null>(null);
-  const [quickQuery, setQuickQuery] = useState<string>('');
   const [robotImgPath, setRobotImgPath] = useState<string>('/robot.png');
 
   // Inline Ask XYRA State
@@ -88,12 +87,6 @@ export default function HomePage() {
   if (!storeData || !target) {
     return <div className="py-12 text-center text-muted font-mono text-sm animate-pulse">Loading dashboard...</div>;
   }
-
-  const handleQuickLearnSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!quickQuery.trim()) return;
-    router.push(`/tutor/quick?q=${encodeURIComponent(quickQuery.trim())}`);
-  };
 
   const stopAudio = () => {
     if (audioRef.current) {
@@ -176,7 +169,7 @@ export default function HomePage() {
             goal: storeData.goalText,
             concepts: storeData.concepts,
             fadingConcepts: fadingConcepts,
-            language: storeData.learnerProfile?.language || 'english',
+            language: storeData?.learnerProfile?.language || 'english',
           },
         }),
       });
@@ -228,6 +221,11 @@ export default function HomePage() {
     ? `${lessonPath}/${encodeURIComponent(target.conceptId)}`
     : `/quest?concept=${encodeURIComponent(target.conceptId)}`;
 
+  // Ensure real concept name is resolved (never placeholder "Core Concept")
+  const realConceptName = (target.conceptName && target.conceptName !== 'Core Concept')
+    ? target.conceptName
+    : storeData.concepts?.[0]?.name || storeData.goalText || 'Active Topic';
+
   return (
     <div className="space-y-5 select-none relative pb-16">
       
@@ -236,7 +234,7 @@ export default function HomePage() {
         <XyraGreetingWidget
           storeData={storeData}
           continueHref={continueHref}
-          continueLabel={`Continue: ${target.conceptName}`}
+          continueLabel={`Continue: ${realConceptName}`}
           fadingConcepts={fadingConcepts}
           streak={streak}
         />
@@ -371,52 +369,23 @@ export default function HomePage() {
         </form>
       </section>
 
-      {/* QUICK LEARN ENTRY */}
-      <section className="bg-[#120E22]/90 border border-line rounded-[16px] p-4 sm:p-5 backdrop-blur-xl">
-        <form onSubmit={handleQuickLearnSubmit} className="space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="font-mono text-[10px] tracking-eyebrow uppercase text-cyan font-bold flex items-center gap-1.5">
-              <span>⚡</span> QUICK LEARN — ASK A SINGLE QUESTION
-            </span>
-            <span className="font-mono text-[9px] text-muted">2-Min Lesson & Passport Credit</span>
-          </div>
-
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={quickQuery}
-              onChange={(e) => setQuickQuery(e.target.value)}
-              placeholder="e.g. what is recursion, or how does gradient descent work"
-              className="flex-1 h-[42px] px-3.5 rounded-[10px] bg-panel border border-line/60 font-sans text-xs text-text placeholder:text-muted/60 focus:outline-none focus:border-cyan transition-all"
-            />
-            <button
-              type="submit"
-              disabled={!quickQuery.trim()}
-              className="h-[42px] px-5 rounded-[10px] bg-signature-gradient text-white font-sans font-semibold text-xs flex items-center gap-1 hover:brightness-108 transition-all disabled:opacity-50 cursor-pointer shrink-0"
-            >
-              <span>Get Answer</span>
-              <span>&rarr;</span>
-            </button>
-          </div>
-        </form>
-      </section>
-
-      {/* 3. CLEAN CONTINUE CARD (Only Concept Name, Mastery %, Progress Bar, Continue Button) */}
+      {/* 2. CLEAN CONTINUE CARD (Real Concept Name, Mastery %, 6px Progress Bar, Continue Button) */}
       <section className="sticky top-0 z-20 pt-1 -mt-1 bg-ink/95 backdrop-blur-md rounded-[18px]">
         <div className="card-glass-neon p-5 sm:p-6 rounded-[16px]">
         {hasSkillGraph ? (
-          <div className="space-y-4">
+          <div className="space-y-3.5">
             <div>
-              <h2 className="font-sans font-bold text-xl text-text mb-1">
-                {target.conceptName}
+              <h2 className="font-sans font-bold text-xl text-text mb-1 tracking-tight">
+                {realConceptName}
               </h2>
               <span className="font-mono text-xs text-cyan font-medium block mb-2.5">
                 {target.masteryPercentage}% mastery
               </span>
 
-              <div className="h-2.5 w-full bg-raised/80 rounded-full overflow-hidden p-0.5 border border-line/40">
+              {/* 6px Thicker, Highly Visible Progress Bar */}
+              <div className="h-[6px] w-full bg-raised/90 rounded-full overflow-hidden border border-line/40">
                 <div
-                  className="h-full bg-signature-gradient rounded-full transition-all duration-500"
+                  className="h-full bg-signature-gradient rounded-full transition-all duration-500 shadow-[0_0_8px_rgba(0,240,255,0.4)]"
                   style={{
                     width: target.inProgress
                       ? `${(target.currentIndex / target.totalLength) * 100}%`
@@ -450,7 +419,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* SKILL GRAPH CONCEPTS BREAKDOWN — 1-TAP DIRECT ROUTING */}
+      {/* 3. SKILL GRAPH CONCEPTS BREAKDOWN — 1-TAP DIRECT ROUTING */}
       <section className="bg-[#120E22]/90 border border-line/60 rounded-[16px] p-5 space-y-4">
         <div className="flex items-center justify-between border-b border-line/40 pb-3">
           <span className="font-mono text-[10px] tracking-eyebrow uppercase text-muted font-bold">

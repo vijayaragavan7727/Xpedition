@@ -292,9 +292,15 @@ export function selectNextTarget(store: UserStoreData): NextTargetResult {
   if (activeSession && activeSession.conceptId && activeSession.currentIndex < activeSession.totalLength) {
     const concept = concepts.find((c) => c.id === activeSession.conceptId);
     const hasAtt = attempts.some((a) => a.conceptId === activeSession.conceptId);
+    const realConceptName = (concept?.name && concept.name !== 'Core Concept')
+      ? concept.name
+      : (activeSession.conceptName && activeSession.conceptName !== 'Core Concept')
+      ? activeSession.conceptName
+      : concepts[0]?.name || activeGraph?.goalText || 'Active Concept';
+
     return {
       conceptId: activeSession.conceptId,
-      conceptName: activeSession.conceptName || concept?.name || activeGraph?.goalText || 'Active Topic',
+      conceptName: realConceptName,
       itemsRemaining: activeSession.totalLength - activeSession.currentIndex,
       totalLength: activeSession.totalLength,
       currentIndex: activeSession.currentIndex,
@@ -330,6 +336,10 @@ export function selectNextTarget(store: UserStoreData): NextTargetResult {
   });
 
   const target = sorted[0];
+  const realTargetName = (target.name && target.name !== 'Core Concept')
+    ? target.name
+    : concepts.find((c) => c.name && c.name !== 'Core Concept')?.name || target.name || activeGraph?.goalText || 'Core Concept';
+
   const hasAtt = attempts.some((a) => a.conceptId === target.id);
   const itemsNeeded = Math.max(3, Math.min(6, Math.ceil((100 - target.masteryPercentage) / 15)));
 
@@ -340,7 +350,7 @@ export function selectNextTarget(store: UserStoreData): NextTargetResult {
 
   return {
     conceptId: target.id,
-    conceptName: target.name,
+    conceptName: realTargetName,
     itemsRemaining: itemsNeeded,
     totalLength: itemsNeeded,
     currentIndex: 0,
