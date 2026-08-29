@@ -29,7 +29,7 @@ export function generateBuildingPrompt(conceptName: string, theme: string, state
   const style = themeStyle[theme] || themeStyle.cosmos;
   const status = stateDesc[state] || stateDesc.complete;
 
-  return `isometric 3D ${conceptName} ${status}, ${style}, game asset style, centered, no text, no background, professional, cinematic lighting`;
+  return `isometric 3D ${conceptName} ${status}, ${style}, game asset style, centered, no text, no background, cinematic lighting`;
 }
 
 export function getBuildingSeed(conceptName: string, theme: string): number {
@@ -45,7 +45,9 @@ export function getBuildingSeed(conceptName: string, theme: string): number {
 export function getPollinationsImageUrl(conceptName: string, theme: string, state: BuildingState): string {
   const prompt = generateBuildingPrompt(conceptName, theme, state);
   const seed = getBuildingSeed(conceptName, theme);
-  return `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=512&height=512&nologo=true&seed=${seed}`;
+  const cleanPrompt = prompt.replace(/\s+/g, ' ').trim();
+  const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(cleanPrompt)}?width=256&height=256&nologo=true&seed=${seed}`;
+  return url;
 }
 
 // In-memory / local storage cache for building image URLs
@@ -80,7 +82,6 @@ export async function getBuildingImageUrl(
       const path = `buildings/${theme}/${slug}_${state}.png`;
       const { data } = supabase.storage.from('worlds').getPublicUrl(path);
       if (data?.publicUrl) {
-        // Check if file exists via head request
         const check = await fetch(data.publicUrl, { method: 'HEAD' });
         if (check.ok) {
           imageCache.set(cacheKey, data.publicUrl);
@@ -111,12 +112,10 @@ export async function cacheBuildingImageToSupabase(
     const slug = slugify(conceptName);
     const path = `buildings/${theme}/${slug}_${state}.png`;
 
-    // Fetch image as blob
     const res = await fetch(imageUrl);
     if (!res.ok) return;
     const blob = await res.blob();
 
-    // Upload to Supabase worlds bucket
     await supabase.storage.from('worlds').upload(path, blob, {
       contentType: 'image/png',
       upsert: true,

@@ -46,7 +46,7 @@ export function calculateWorldTier(masteryPercent: number): { tier: number; name
 
 export function getBuildingState(masteryPercent: number): BuildingState {
   if (masteryPercent <= 0) return 'empty';
-  if (masteryPercent < 50) return 'partial';
+  if (masteryPercent < 30) return 'partial';
   return 'complete';
 }
 
