@@ -502,14 +502,6 @@ export default function WorldRenderer({
         </g>
       </svg>
 
-      {/* GENERATING STATUS NOTICE ON FIRST RUN */}
-      {isAnyGenerating && !isMiniPreview && (
-        <div className="absolute bottom-3.5 left-3.5 px-3 py-1.5 rounded-full bg-black/75 backdrop-blur-md border border-[#00F0FF]/30 font-mono text-[10px] text-[#00F0FF] flex items-center gap-1.5 shadow-lg">
-          <RefreshCw className="w-3 h-3 animate-spin text-[#00F0FF]" />
-          <span>Terraforming world assets...</span>
-        </div>
-      )}
-
       {/* TAPPED BUILDING TOOLTIP OVERLAY */}
       {activeTooltip && !isMiniPreview && (
         <div className="absolute top-3.5 left-3.5 right-3.5 bg-black/85 backdrop-blur-md border border-[#00F0FF]/40 p-3 rounded-2xl flex items-center justify-between gap-3 shadow-2xl animate-fadeIn">

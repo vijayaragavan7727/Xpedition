@@ -112,7 +112,17 @@ export default function HomePage() {
           .catch(() => {});
       }
     }
-  }, [storeData?.activeGraphId, target?.conceptId]);
+
+    // PRE-FETCH WORLD BUILDING ASSETS IN BACKGROUND ON HOME MOUNT
+    if (worldState?.buildings && typeof window !== 'undefined') {
+      worldState.buildings.forEach((b) => {
+        if (b.imageUrl) {
+          const img = new Image();
+          img.src = b.imageUrl;
+        }
+      });
+    }
+  }, [storeData?.activeGraphId, target?.conceptId, worldState?.buildings]);
 
   if (!storeData || !target) {
     return <div className="py-12 text-center text-muted font-mono text-sm animate-pulse">Loading dashboard...</div>;
