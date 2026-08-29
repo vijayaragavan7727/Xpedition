@@ -264,11 +264,11 @@ export default function WorldRenderer({
             const isLoaded = loadedImages[imageKey];
             const isFailed = failedImages[imageKey];
 
-            // Build dynamic prompt and proxy image URL
+            // Build dynamic prompt and proxy image URL (or use persisted bldg.imageUrl)
             const buildingPrompt = bldg ? generateBuildingPrompt(conceptName, activeThemeKey, state) : '';
-            const proxyImageUrl = bldg
+            const proxyImageUrl = bldg?.imageUrl || (bldg
               ? `/api/worldimage?prompt=${encodeURIComponent(buildingPrompt)}`
-              : null;
+              : null);
 
             // Tile Path: Diamond (Top, Right, Bottom, Left)
             const tileTopPt = `${x},${y - tileH / 2}`;
@@ -475,7 +475,7 @@ export default function WorldRenderer({
                   </g>
                 )}
 
-                {/* 3. AI-Generated Building Image Overlay (Pollinations via /api/worldimage?prompt=...) */}
+                {/* 3. Persistent AI Building Image Overlay with Eager Loading */}
                 {proxyImageUrl && !isFailed && (
                   <image
                     href={proxyImageUrl}
@@ -484,6 +484,8 @@ export default function WorldRenderer({
                     y={y - 80}
                     width={120}
                     height={120}
+                    // @ts-ignore
+                    loading="eager"
                     preserveAspectRatio="xMidYMid meet"
                     style={{
                       imageRendering: 'auto',

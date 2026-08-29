@@ -2,6 +2,7 @@ import { UserStoreData, getStoreData, saveStoreData } from './store';
 import { thetaToPercent } from './engine/mastery';
 import { WorldThemeId, getThemeConfig } from './themes';
 import { supabase, isSupabaseConfigured } from './supabase';
+import { generateBuildingPrompt } from './buildingImages';
 
 export type BuildingState = 'empty' | 'partial' | 'complete';
 
@@ -12,6 +13,7 @@ export interface WorldBuilding {
   buildingName: string;
   masteryPercent: number;
   state: BuildingState;
+  imageUrl?: string;
   unlockedAt?: string;
 }
 
@@ -89,20 +91,46 @@ export function computeWorldState(store: UserStoreData): WorldState {
   const activeTheme = (store.learnerProfile?.worldTheme as WorldThemeId) || 'cosmos';
   const concepts = store.concepts || [];
 
+  // Read existing cached building images from localStorage to prevent re-generating on refresh
+  const cachedImageMap: Record<string, string> = {};
+  if (typeof window !== 'undefined') {
+    try {
+      const cached = localStorage.getItem(`xpedition_world_${activeGraphId}`);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed.buildings)) {
+          parsed.buildings.forEach((b: WorldBuilding) => {
+            if (b.imageUrl) {
+              cachedImageMap[`${b.buildingId}_${b.state}`] = b.imageUrl;
+            }
+          });
+        }
+      }
+    } catch (e) {}
+  }
+
   let totalMasterySum = 0;
   const buildings: WorldBuilding[] = concepts.map((c, idx) => {
     const masteryPct = c.thetaAssisted !== undefined ? thetaToPercent(c.thetaAssisted) : c.masteryPercentage || 0;
     totalMasterySum += masteryPct;
     const state = getBuildingState(masteryPct);
     const buildingName = deriveBuildingName(c.name, idx);
+    const buildingId = `bldg_${c.id}`;
+
+    // Persistent image URL resolution
+    const prompt = generateBuildingPrompt(c.name, activeTheme, state);
+    const resolvedImageUrl =
+      cachedImageMap[`${buildingId}_${state}`] ||
+      `/api/worldimage?prompt=${encodeURIComponent(prompt)}`;
 
     return {
-      buildingId: `bldg_${c.id}`,
+      buildingId,
       conceptId: c.id,
       conceptName: c.name,
       buildingName,
       masteryPercent: masteryPct,
       state,
+      imageUrl: resolvedImageUrl,
       unlockedAt: state !== 'empty' ? new Date().toISOString() : undefined,
     };
   });
@@ -125,7 +153,7 @@ export function computeWorldState(store: UserStoreData): WorldState {
 export async function syncWorldState(storeData: UserStoreData): Promise<WorldState> {
   const world = computeWorldState(storeData);
 
-  // Cache in localStorage for immediate fast rendering
+  // Cache in localStorage for instant retrieval on reload
   if (typeof window !== 'undefined') {
     try {
       localStorage.setItem(`xpedition_world_${world.skillGraphId}`, JSON.stringify(world));
