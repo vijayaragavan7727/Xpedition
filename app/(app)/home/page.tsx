@@ -231,12 +231,6 @@ export default function HomePage() {
   return (
     <div className="space-y-5 select-none relative pb-16">
       
-      {/* REVIEW MODE BANNER */}
-      <div className="bg-amber-500/15 border border-amber-500/30 text-amber-300 font-mono text-[11px] sm:text-xs px-3.5 py-1.5 rounded-xl text-center flex items-center justify-center gap-1.5 shadow-sm">
-        <span>👀</span>
-        <span className="font-semibold">Review Mode — Login disabled temporarily</span>
-      </div>
-
       {/* 1. XYRA GREETING WIDGET (Top of Home Page) */}
       <section className="pt-1">
         <XyraGreetingWidget

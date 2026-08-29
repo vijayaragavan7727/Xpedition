@@ -1,18 +1,10 @@
 'use client';
 
-import React, { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import React from 'react';
 import { ArtBackdrop } from '@/components/ArtBackdrop';
 import { AuthCard } from '@/components/AuthCard';
 
 export default function HomePage() {
-  const router = useRouter();
-
-  // TEMPORARY REVIEW MODE: Skip login and go directly to /home
-  useEffect(() => {
-    router.replace('/home');
-  }, [router]);
-
   return (
     <div className="relative min-h-[100dvh] w-full overflow-x-hidden selection:bg-violet selection:text-white">
       {/* Full-bleed Neon Backdrop Layer Stack (L0-L4) */}

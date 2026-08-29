@@ -5,7 +5,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { DashBackdrop } from '@/components/DashBackdrop';
 import { TopBar } from '@/components/TopBar';
 import { TabBar } from '@/components/TabBar';
-import { getStoreData, saveStoreData, UserStoreData } from '@/lib/store';
+import { getStoreData, UserStoreData } from '@/lib/store';
 import { getNextStep, OnboardingStep } from '@/lib/onboarding';
 
 export default function AppLayout({
@@ -20,54 +20,14 @@ export default function AppLayout({
   const [loopBrokenNotice, setLoopBrokenNotice] = useState<boolean>(false);
 
   useEffect(() => {
-    let data = getStoreData();
-
-    // TEMPORARY REVIEW MODE: Ensure demo profile & concepts are ready for guest
-    if (!data.handle || data.handle === 'Learner' || !data.goalText || data.concepts.length === 0) {
-      const demoConcepts = [
-        { id: 'concept_blender_1', name: '3D Viewport & Navigation', masteryPercentage: 65, itemsNext: 3, retentionRisk: 0.1, ptsSinceCalibration: 4, baselineTheta: -0.2 },
-        { id: 'concept_blender_2', name: 'Mesh Modeling & Extrusions', masteryPercentage: 40, itemsNext: 4, retentionRisk: 0.25, ptsSinceCalibration: 2, baselineTheta: -0.4 },
-        { id: 'concept_blender_3', name: 'Modifiers & Subdivision Surface', masteryPercentage: 15, itemsNext: 5, retentionRisk: 0.45, ptsSinceCalibration: 1, baselineTheta: -0.5 },
-        { id: 'concept_blender_4', name: 'Material Nodes & PBR Shading', masteryPercentage: 0, itemsNext: 5, retentionRisk: 0.0, ptsSinceCalibration: 0, baselineTheta: -0.6 },
-        { id: 'concept_blender_5', name: 'Lighting & Cycles Rendering', masteryPercentage: 0, itemsNext: 5, retentionRisk: 0.0, ptsSinceCalibration: 0, baselineTheta: -0.6 },
-      ];
-      data = {
-        ...data,
-        handle: data.handle && data.handle !== 'Learner' ? data.handle : 'Demo User',
-        goalText: data.goalText && data.goalText !== 'Initial Skill Goal' ? data.goalText : 'Blender designing',
-        learnerProfile: {
-          name: 'Demo User',
-          pathType: 'goal',
-          topic: 'Blender designing',
-          language: 'english',
-          startingLevel: 'Complete beginner',
-          dailyMinutes: 60,
-          learningMode: 'tutor',
-        },
-        concepts: data.concepts?.length > 0 ? data.concepts : demoConcepts,
-        graphs: data.graphs?.length > 0 && data.graphs[0].concepts?.length > 0 ? data.graphs : [
-          {
-            id: data.activeGraphId || 'graph_demo',
-            goalText: 'Blender designing',
-            createdAt: Date.now(),
-            concepts: demoConcepts,
-            attempts: data.attempts || [],
-          },
-        ],
-      };
-      saveStoreData(data);
-    }
-
+    const data = getStoreData();
     setStoreData(data);
 
-    // TEMPORARY REVIEW MODE: Skip session check and gate redirects
-    setStep('ready');
-
-    /* ORIGINAL GATE LOGIC COMMENTED OUT FOR REVIEW MODE:
     // 1. Check Exit Override
     if (typeof window !== 'undefined') {
       const exitOverride = sessionStorage.getItem('xpedition_exit_override');
       if (exitOverride === 'true') {
+        console.log('[AppLayout Gate] User explicitly exited onboarding. Bypassing gate redirects.');
         setStep('ready');
         return;
       }
@@ -83,6 +43,7 @@ export default function AppLayout({
       const count = parseInt(rawCount || '0', 10);
 
       if (count >= 2) {
+        console.warn('[AppLayout Gate] HARD STOP: Gate redirected 2 times in session. Breaking loop and forcing ready state.');
         setLoopBrokenNotice(true);
         setStep('ready');
         return;
@@ -96,11 +57,10 @@ export default function AppLayout({
         router.replace('/calibrate');
       }
     }
-    */
   }, [pathname, router]);
 
   // Render skeleton loader while resolving
-  if (!storeData || step === null) {
+  if (!storeData || step === null || (step !== 'ready' && typeof window !== 'undefined' && sessionStorage.getItem('xpedition_exit_override') !== 'true' && !loopBrokenNotice)) {
     return (
       <div className="flex flex-col h-screen overflow-hidden bg-ink text-text relative">
         <DashBackdrop src="/art/hero-left.jpg" />
@@ -142,7 +102,7 @@ export default function AppLayout({
 
       {loopBrokenNotice && (
         <div className="bg-amber-500/15 border-b border-amber-500/30 text-amber-300 font-mono text-xs px-4 py-2 text-center relative z-40 shrink-0">
-          ?? Review Mode: Navigation state was restored to Home.
+          ⚠️ Loop Guard: Navigation state was restored to Home. You can resume calibration anytime.
         </div>
       )}
 
