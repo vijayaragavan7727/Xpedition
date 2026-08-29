@@ -1,924 +1,814 @@
-"use client";
+'use client';
 
-import { useState, useEffect } from "react";
-import { useQuest, RewardDrop } from "@/lib/QuestContext";
-import TopBar from "@/components/TopBar";
-import BottomNav from "@/components/BottomNav";
-import RewardModal from "@/components/RewardModal";
-import FlowExplanationModal from "@/components/FlowExplanationModal";
-import { Question, QuestionType } from "@/lib/types";
-import { supabase, isSupabaseConfigured } from "@/lib/supabase";
-import {
-  selectArm,
-  recordOutcome,
-  ArmType,
-  RewardArm,
-  BANDIT_ARMS,
-} from "@/lib/bandit";
-import {
-  getOrStartSession,
-  updateSessionProgress,
-  closeSession,
-} from "@/lib/studySessions";
-import Link from "next/link";
-import {
-  Zap,
-  CheckCircle2,
-  XCircle,
-  Loader2,
-  Flame,
-  HelpCircle,
-  Info,
-  Sparkles,
-  Mic,
-  ArrowRight,
-  RotateCcw,
-  BookOpen,
-  Trophy,
-  Code,
-  AlertTriangle,
-} from "lucide-react";
-import TutorOverlay from "@/components/TutorOverlay";
-import XpAsset from "@/components/XpAsset";
-import { getModuleTheme } from "@/lib/moduleThemes";
-import QuestResultsView, { QuestionRecord } from "@/components/QuestResultsView";
-import LearningModuleReader, { LearningModuleData } from "@/components/LearningModuleReader";
-import LevelNavigationStrip, { LevelStatus } from "@/components/LevelNavigationStrip";
-import ShadowChaseTrack from "@/components/ShadowChaseTrack";
-import { getShadowMistakes, recordShadowMistake, resolveShadowMistake } from "@/lib/shadowMemory";
-import ShadowStage from "@/components/ShadowStage";
-import { motion, AnimatePresence } from "framer-motion";
+import React, { useState, useEffect, useRef, Suspense } from 'react';
+import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { StateHud } from '@/components/StateHud';
+import { getStoreData, recordAttempt, saveActiveSession, clearActiveSession, selectNextTarget, setGraphContent, computeItemHash, Attempt, FlowState } from '@/lib/store';
+import { selectQuest, TARGET_SUCCESS, idealDifficulty } from '@/lib/engine/difficulty';
+import { MotivationState, Quest as SeededItem } from '@/lib/types';
+import { HelpCircle, Sparkles, X, Volume2, Play, ArrowRight } from 'lucide-react';
 
-export default function QuestPage() {
-  const {
-    user,
-    isAuthLoading,
-    course,
-    activeSkillIndex,
-    setActiveSkillIndex,
-    currentQuestion,
-    flowDifficulty,
-    pKnow,
-    goalText,
-    flowExplanation,
-    answerQuestion,
-    claimReward,
-    setNextQuestion,
-    accessibilitySettings,
-  } = useQuest();
+const SESSION_STORAGE_KEY = 'xpedition_active_quest_session';
 
-  const isReducedMotion = accessibilitySettings?.reducedMotion ?? false;
+interface SessionState {
+  items: SeededItem[];
+  currentIndex: number;
+  attempts: Attempt[];
+  initialFlowState: FlowState;
+  conceptId?: string;
+  totalLength: number;
+  isSolo?: boolean;
+}
 
-  // Learn-Then-Test Platform State
-  const [viewMode, setViewMode] = useState<"module" | "test">("module");
-  const [moduleData, setModuleData] = useState<LearningModuleData | null>(null);
-  const [loadingModule, setLoadingModule] = useState<boolean>(false);
-  const [moduleError, setModuleError] = useState<string | null>(null);
+function QuestContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
 
-  // Level & Quest Progression State
-  const [currentLevel, setCurrentLevel] = useState<number>(1);
-  const [questionNumber, setQuestionNumber] = useState<number>(1); // 1 to 10
-  const [sessionAnswers, setSessionAnswers] = useState<QuestionRecord[]>([]);
-  const [initialMastery, setInitialMastery] = useState<number>(pKnow || 0.15);
-  const [isQuestFinished, setIsQuestFinished] = useState<boolean>(false);
+  const conceptParam = searchParams.get('concept');
+  const lenParam = searchParams.get('len');
+  const modeParam = searchParams.get('mode');
+  const isSoloRequested = modeParam === 'solo';
 
-  // Question UI Interaction state
-  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
-  const [isAnswered, setIsAnswered] = useState(false);
-  const [showExplanation, setShowExplanation] = useState(false);
-  const [loadingNext, setLoadingNext] = useState(false);
-  const [activeRewardDrop, setActiveRewardDrop] = useState<RewardDrop | null>(null);
-  const [userArms, setUserArms] = useState<RewardArm[]>([]);
-  const [lastClaimedArm, setLastClaimedArm] = useState<ArmType | null>(null);
+  const [session, setSession] = useState<SessionState | null>(null);
+  const [selectedOption, setSelectedOption] = useState<number | null>(null);
+  const [userConfidence, setUserConfidence] = useState<'known' | 'unsure' | null>(null);
+  const [isSubmitted, setIsSubmitted] = useState<boolean>(false);
+  const [isExhausted, setIsExhausted] = useState<boolean>(false);
+  const [isRegenerating, setIsRegenerating] = useState<boolean>(false);
+  const [showSoloPreScreen, setShowSoloPreScreen] = useState<boolean>(isSoloRequested);
 
-  // Latency & Overlays
-  const [renderTimestamp, setRenderTimestamp] = useState<number>(Date.now());
-  const [showWhyModal, setShowWhyModal] = useState(false);
-  const [showTutorOverlay, setShowTutorOverlay] = useState(false);
-  const [hintsUsedCount, setHintsUsedCount] = useState(0);
+  const isSoloMode = Boolean(session?.isSolo || (isSoloRequested && showSoloPreScreen));
 
-  // Shadow Escape state
-  const [gapDistance, setGapDistance] = useState<number>(6);
-  const [shadowMistakes, setShadowMistakes] = useState<string[]>([]);
-  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+  // Telemetry metrics
+  const [hesitationSeconds, setHesitationSeconds] = useState<number>(0);
+  const [retryCount, setRetryCount] = useState<number>(0);
+  const [hintCount, setHintCount] = useState<number>(0);
+  const [tabSwitchCount, setTabSwitchCount] = useState<number>(0);
+  const [showHint, setShowHint] = useState<boolean>(false);
 
-  const currentSkill = course?.skills[activeSkillIndex] || {
-    id: "s1",
-    name: "Python Core Syntax & Data Structures",
-    difficulty: 1,
-  };
+  // Dynamic Learner State Metrics
+  const [currentFlowState, setCurrentFlowState] = useState<FlowState>('flow');
+  const [targetSuccessRate, setTargetSuccessRate] = useState<number>(78);
+  const [abilityTheta, setAbilityTheta] = useState<number>(0.45);
+  const [nextDifficultyB, setNextDifficultyB] = useState<number>(0.50);
+  const [whySignals, setWhySignals] = useState<string[]>([
+    'Balanced response latency',
+    'Accuracy on recent items',
+    'Adaptive challenge alignment',
+  ]);
 
-  const storageKey = `xpedition_quest_${user?.id || "anon"}_${currentSkill.id}`;
+  // Ask XYRA Modal State in Quest
+  const [isAskXyraOpen, setIsAskXyraOpen] = useState<boolean>(false);
+  const [xyraResponse, setXyraResponse] = useState<string | null>(null);
+  const [xyraLoading, setXyraLoading] = useState<boolean>(false);
+  const [isSpeaking, setIsSpeaking] = useState<boolean>(false);
 
-  // Quest Level unlock & progress tracking
-  const [maxUnlockedLevel, setMaxUnlockedLevel] = useState<number>(1);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // 1. Restore Persisted Quest State on Mount / Skill Change
+  // Track tab switches for behavioral telemetry
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    try {
-      const savedStr = localStorage.getItem(storageKey);
-      const savedUnlocked = localStorage.getItem(`xpedition_unlocked_lvl_${user?.id || "anon"}_${currentSkill.id}`);
-      if (savedUnlocked) {
-        const parsedLvl = parseInt(savedUnlocked, 10);
-        if (!isNaN(parsedLvl)) setMaxUnlockedLevel(parsedLvl);
-      }
-      if (savedStr) {
-        const saved = JSON.parse(savedStr);
-        if (saved && typeof saved.questionNumber === "number" && !saved.isCompleted) {
-          setQuestionNumber(saved.questionNumber);
-          setSessionAnswers(saved.sessionAnswers || []);
-          setCurrentLevel(saved.currentLevel || 1);
-          setInitialMastery(saved.initialMastery ?? pKnow);
-        }
-      } else {
-        setInitialMastery(pKnow);
-      }
-    } catch (e) {
-      console.warn("Failed restoring quest state:", e);
-    }
-  }, [currentSkill.id, user?.id]);
-
-  // 2. Persist Quest State to LocalStorage on progress updates
-  const persistQuestState = (
-    qNum: number,
-    answers: QuestionRecord[],
-    lvl: number,
-    completed: boolean = false
-  ) => {
-    if (typeof window === "undefined") return;
-    try {
-      localStorage.setItem(
-        storageKey,
-        JSON.stringify({
-          questionNumber: qNum,
-          sessionAnswers: answers,
-          currentLevel: lvl,
-          initialMastery,
-          isCompleted: completed,
-        })
-      );
-    } catch (e) {
-      console.warn("Failed persisting quest state:", e);
-    }
-  };
-
-  useEffect(() => {
-    setRenderTimestamp(Date.now());
-    setHintsUsedCount(0);
-    setShowExplanation(false);
-    fetchUserArms();
-  }, [currentQuestion?.prompt]);
-
-  // Init Study Session
-  useEffect(() => {
-    let sessId: string | null = null;
-    async function initSession() {
-      if (!user?.id || !currentSkill?.id) return;
-      const sess = await getOrStartSession(
-        user.id,
-        goalText || "goal-default",
-        course?.title || "Python Mastery",
-        currentSkill.id,
-        currentSkill.name
-      );
-      if (sess?.id) {
-        setCurrentSessionId(sess.id);
-        sessId = sess.id;
-      }
-    }
-
-    initSession();
-
-    const handleBeforeUnload = () => {
-      if (sessId) {
-        closeSession(sessId, "abandoned");
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        setTabSwitchCount((prev) => prev + 1);
       }
     };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, []);
 
-    window.addEventListener("beforeunload", handleBeforeUnload);
+  // Initialize or resume quest session with adaptive unseen item selection
+  useEffect(() => {
+    const store = getStoreData();
+    const target = selectNextTarget(store);
+
+    const targetConceptId = conceptParam || (target.inProgress ? target.conceptId : undefined);
+
+    if (typeof window !== 'undefined' && !isSoloRequested) {
+      const stored = localStorage.getItem(SESSION_STORAGE_KEY);
+      if (stored) {
+        try {
+          const parsed: SessionState = JSON.parse(stored);
+          if (parsed && parsed.items && parsed.items.length > 0 && parsed.currentIndex < parsed.totalLength) {
+            if (!targetConceptId || parsed.conceptId === targetConceptId || parsed.items[0]?.conceptId === targetConceptId) {
+              setSession(parsed);
+              setCurrentFlowState(parsed.initialFlowState || 'flow');
+              return;
+            }
+          }
+        } catch (e) {
+          localStorage.removeItem(SESSION_STORAGE_KEY);
+        }
+      }
+    }
+
+    let totalLen = isSoloRequested ? 6 : (target.totalLength || 6);
+    if (lenParam && !isSoloRequested) {
+      totalLen = parseInt(lenParam, 10) || 3;
+    }
+
+    const seenIds = new Set<string>();
+    store.attempts?.forEach((att) => {
+      if (att.itemHash) seenIds.add(att.itemHash);
+    });
+
+    const activeGraph = store.graphs?.find((g) => g.id === store.activeGraphId) || store.graphs?.[0];
+    let pool: SeededItem[] = (activeGraph?.quests as SeededItem[]) || [];
+
+    if (targetConceptId) {
+      const filtered = pool.filter((q) => q.conceptId === targetConceptId);
+      if (filtered.length > 0) pool = filtered;
+    }
+
+    const selectedItems: SeededItem[] = [];
+    const poolCopy = [...pool];
+    let currentTheta = activeGraph?.calibratedTheta ?? -0.4;
+    let simMotivation: MotivationState = (store.flowState as MotivationState) || 'flow';
+
+    for (let i = 0; i < totalLen; i++) {
+      const { quest, ideal } = selectQuest(poolCopy, currentTheta, simMotivation, seenIds);
+      if (quest) {
+        selectedItems.push(quest);
+        seenIds.add(quest.id);
+        const idx = poolCopy.findIndex((q) => q.id === quest.id);
+        if (idx >= 0) poolCopy.splice(idx, 1);
+        currentTheta = ideal;
+      } else {
+        break;
+      }
+    }
+
+    if (selectedItems.length === 0) {
+      setIsExhausted(true);
+      return;
+    }
+
+    const initialSession: SessionState = {
+      items: selectedItems,
+      currentIndex: 0,
+      attempts: [],
+      initialFlowState: store.flowState || 'flow',
+      conceptId: targetConceptId || selectedItems[0]?.conceptId,
+      totalLength: selectedItems.length,
+      isSolo: isSoloRequested,
+    };
+
+    setSession(initialSession);
+    setCurrentFlowState(initialSession.initialFlowState);
+
+    if (!isSoloRequested) {
+      saveActiveSession({
+        conceptId: initialSession.conceptId || selectedItems[0]?.conceptId || 'c_1',
+        conceptName: selectedItems[0]?.conceptName || 'Core Concept',
+        currentIndex: 0,
+        totalLength: selectedItems.length,
+        completedItemIds: [],
+        updatedAt: Date.now(),
+      });
+    }
+  }, [conceptParam, lenParam, isSoloRequested]);
+
+  // Live item hesitation timer
+  useEffect(() => {
+    if (isSubmitted || !session) return;
+    timerRef.current = setInterval(() => {
+      setHesitationSeconds((prev) => prev + 1);
+    }, 1000);
 
     return () => {
-      window.removeEventListener("beforeunload", handleBeforeUnload);
-      if (sessId) {
-        closeSession(sessId, "abandoned");
-      }
+      if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [user?.id, activeSkillIndex, course]);
+  }, [isSubmitted, session]);
 
-  const fetchUserArms = async () => {
-    if (isSupabaseConfigured() && user?.id) {
-      try {
-        const { data } = await supabase
-          .from("reward_arms")
-          .select("*")
-          .eq("user_id", user.id);
+  const handleRegeneratePool = async () => {
+    setIsRegenerating(true);
+    const store = getStoreData();
+    const goal = store.goalText || 'Python Core';
 
-        if (data && data.length > 0) {
-          setUserArms(
-            data.map((d) => ({
-              arm: d.arm as ArmType,
-              alpha: d.alpha,
-              beta: d.beta,
-              pulls: d.pulls,
-              returns: d.returns,
-            }))
-          );
+    try {
+      const res = await fetch('/api/goal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ goal, bypassCache: true }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data && Array.isArray(data.concepts) && Array.isArray(data.quests)) {
+          const formattedConcepts = data.concepts.map((c: any) => ({
+            id: c.id,
+            name: c.name,
+            masteryPercentage: 0,
+            itemsNext: 3,
+            retentionRisk: 0,
+            ptsSinceCalibration: 0,
+            baselineTheta: -0.4,
+          }));
+
+          setGraphContent(goal, formattedConcepts, data.quests, false);
+          clearActiveSession();
+          window.location.reload();
           return;
         }
-      } catch (err) {
-        console.warn("Supabase fetch user arms notice:", err);
-      }
-    }
-
-    setUserArms(
-      BANDIT_ARMS.map((arm) => ({
-        arm,
-        alpha: 1,
-        beta: 1,
-        pulls: 0,
-        returns: 0,
-      }))
-    );
-  };
-
-  const handleSelectOption = (index: number) => {
-    if (isAnswered || loadingNext || activeRewardDrop || isQuestFinished) return;
-    setSelectedIndex(index);
-  };
-
-  const handleSubmitAnswer = async () => {
-    if (selectedIndex === null || isAnswered || loadingNext || activeRewardDrop || !currentQuestion) return;
-
-    const clickTimestamp = Date.now();
-    const latencyMs = Math.max(100, clickTimestamp - renderTimestamp);
-
-    setIsAnswered(true);
-    setShowExplanation(true);
-
-    const clientIsCorrect = Number(selectedIndex) === Number(currentQuestion.correctIndex);
-    let finalIsCorrect = clientIsCorrect;
-
-    // Call server-side answer verification guard
-    try {
-      const res = await fetch("/api/submit-answer", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userId: user?.id || "anonymous-learner",
-          skillId: currentSkill.id,
-          skillName: currentSkill.name,
-          selectedIndex: Number(selectedIndex),
-          correctIndex: Number(currentQuestion.correctIndex),
-          currentPKnow: pKnow,
-          latencyMs,
-          hintsUsed: hintsUsedCount,
-        }),
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        finalIsCorrect = Boolean(data.verifiedCorrect);
-        answerQuestion(finalIsCorrect, latencyMs, hintsUsedCount);
-      } else {
-        answerQuestion(clientIsCorrect, latencyMs, hintsUsedCount);
       }
     } catch (err) {
-      console.warn("Fallback to client answer evaluation notice:", err);
-      answerQuestion(clientIsCorrect, latencyMs, hintsUsedCount);
-    }
-
-    // Record question answer record for session review
-    const explanationText =
-      Array.isArray(currentQuestion.explanations) && currentQuestion.explanations[selectedIndex]
-        ? currentQuestion.explanations[selectedIndex]
-        : currentQuestion.conceptSummary || "Evaluation specific to concept.";
-
-    const newRecord: QuestionRecord = {
-      question: currentQuestion,
-      userAnswerIndex: selectedIndex,
-      isCorrect: finalIsCorrect,
-      explanation: explanationText,
-    };
-
-    if (finalIsCorrect) {
-      setGapDistance((prev) => Math.min(10, prev + 1));
-      resolveShadowMistake(user?.id || "anon", currentSkill.name);
-    } else {
-      setGapDistance((prev) => Math.max(0, prev - 2));
-      recordShadowMistake(
-        user?.id || "anon",
-        currentQuestion.conceptSummary || currentSkill.name,
-        currentSkill.name
-      );
-    }
-
-    const updatedAnswers = [...sessionAnswers, newRecord];
-    setSessionAnswers(updatedAnswers);
-    persistQuestState(questionNumber, updatedAnswers, currentLevel, false);
-
-    if (currentSessionId && currentSkill) {
-      updateSessionProgress(
-        currentSessionId,
-        currentSkill.id,
-        currentSkill.name,
-        finalIsCorrect,
-        finalIsCorrect ? 30 : 0
-      );
-    }
-
-    if (lastClaimedArm && user?.id) {
-      recordOutcome(user.id, lastClaimedArm, true, userArms);
-      setLastClaimedArm(null);
+      console.error('Failed to regenerate item bank:', err);
+    } finally {
+      setIsRegenerating(false);
     }
   };
 
-  // Active Quiz Bank served directly from module data (10 of 12 questions sorted by ascending difficulty)
-  const [activeQuizBank, setActiveQuizBank] = useState<Question[]>([]);
-
-  const startTestFromModuleBank = (qList?: Question[]) => {
-    const rawBank = qList || moduleData?.questions || [];
-    if (rawBank.length === 0) return;
-
-    // Sort by difficulty ascending (1 -> 5)
-    const sorted = [...rawBank].sort((a, b) => (a.difficulty || 1) - (b.difficulty || 1));
-    // Serve 10 of 12 (keeping 2 in reserve)
-    const selectedTen = sorted.slice(0, 10);
-    setActiveQuizBank(selectedTen);
-    setNextQuestion(selectedTen[0]);
-    setViewMode("test");
+  const handleOptionSelect = (index: number) => {
+    if (isSubmitted) return;
+    if (selectedOption !== null && selectedOption !== index) {
+      setRetryCount((prev) => prev + 1);
+    }
+    setSelectedOption(index);
   };
 
-  // Learner taps "NEXT QUESTION" or "FINISH QUEST" button (NO AUTO-ADVANCING)
-  const handleNextQuestionClick = async () => {
-    setShowExplanation(false);
-
-    if (questionNumber >= 10) {
-      // Finished all 10 questions -> calculate score and update level unlock state
-      const correctCount = sessionAnswers.filter((a) => a.isCorrect).length;
-      if (correctCount >= 7) {
-        const nextUnlocked = Math.max(maxUnlockedLevel, currentLevel + 1);
-        setMaxUnlockedLevel(nextUnlocked);
-        if (typeof window !== "undefined") {
-          localStorage.setItem(`xpedition_unlocked_lvl_${user?.id || "anon"}_${currentSkill.id}`, String(nextUnlocked));
-        }
-      }
-      setIsQuestFinished(true);
-      persistQuestState(10, sessionAnswers, currentLevel, true);
-
-      if (currentSessionId) {
-        const status = correctCount >= 7 ? "completed" : "eliminated";
-        closeSession(currentSessionId, status);
-      }
-    } else {
-      // Advance to next question (Question N of 10) from module bank
-      const nextNum = questionNumber + 1;
-      setQuestionNumber(nextNum);
-      if (activeQuizBank[nextNum - 1]) {
-        setNextQuestion(activeQuizBank[nextNum - 1]);
-      }
-      persistQuestState(nextNum, sessionAnswers, currentLevel, false);
-      setSelectedIndex(null);
-      setIsAnswered(false);
+  const handleToggleHint = () => {
+    if (session?.isSolo) return;
+    if (!showHint) {
+      setHintCount((prev) => prev + 1);
     }
+    setShowHint(!showHint);
   };
 
-  // Fetch Teaching Module & 12-Question Bank
-  useEffect(() => {
-    async function fetchModule() {
-      if (!currentSkill?.name) return;
-      setLoadingModule(true);
-      setModuleError(null);
-      try {
-        const res = await fetch("/api/generate-module", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            skillId: currentSkill.id,
-            skillName: currentSkill.name,
-            level: currentLevel,
-            learningStyle: user.learningStyle || "story",
-            goal: goalText,
-          }),
-        });
+  // ASK XYRA HANDLER IN QUEST
+  const handleAskXyra = async (type: 'explain' | 'hint' | 'lost') => {
+    const currentItem = session?.items[session.currentIndex];
+    if (!currentItem) return;
+    setXyraLoading(true);
+    setXyraResponse(null);
 
-        if (res.ok) {
-          const data = await res.json();
-          setModuleData(data);
-          setModuleError(null);
-          if (data.questions && Array.isArray(data.questions) && data.questions.length > 0) {
-            const sorted = [...data.questions].sort((a, b) => (a.difficulty || 1) - (b.difficulty || 1));
-            setActiveQuizBank(sorted.slice(0, 10));
-          }
-        } else {
-          const errData = await res.json().catch(() => ({}));
-          setModuleError(errData.details || errData.error || "Failed to generate learning module and questions.");
-        }
-      } catch (err: any) {
-        console.warn("Failed fetching learning module:", err);
-        setModuleError(err?.message || "Network error fetching module.");
-      } finally {
-        setLoadingModule(false);
-      }
+    if (type === 'hint') {
+      const hintMsg = currentItem.explanation
+        ? `Hint: ${currentItem.explanation.split('.')[0]}. Consider what the question is asking step-by-step.`
+        : `Focus on the core principle of ${currentItem.conceptName || 'this concept'} and eliminate contradictory options.`;
+      setXyraResponse(hintMsg);
+      setXyraLoading(false);
+      setHintCount((prev) => prev + 1);
+      return;
     }
 
-    if (viewMode === "module") {
-      fetchModule();
+    if (type === 'lost') {
+      const lostMsg = `Don't worry! For "${currentItem.conceptName || 'this concept'}", think of the simplest everyday example. Look at the key terms in the prompt and match them with fundamentals.`;
+      setXyraResponse(lostMsg);
+      setXyraLoading(false);
+      return;
     }
-  }, [currentSkill.id, currentLevel, viewMode, user.learningStyle, goalText]);
 
-  const handleRetryLevel = async () => {
-    localStorage.removeItem(storageKey);
-    setSessionAnswers([]);
-    setQuestionNumber(1);
-    setIsQuestFinished(false);
-    setViewMode("module");
-    setSelectedIndex(null);
-    setIsAnswered(false);
-    setShowExplanation(false);
-
-    // Regenerate fresh question bank from SAME module content
     try {
-      const res = await fetch("/api/generate-module", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      const res = await fetch('/api/coach', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          skillId: currentSkill.id,
-          skillName: currentSkill.name,
-          level: currentLevel,
-          learningStyle: user.learningStyle || "story",
-          goal: goalText,
-          regenerateQuestionsOnly: true,
+          concept: currentItem.conceptName || 'Core Concept',
+          prompt: currentItem.prompt,
+          chosen: selectedOption !== null ? currentItem.options[selectedOption] : '',
+          correct: currentItem.options[currentItem.correctIndex ?? currentItem.answerIndex ?? 0],
+          questId: currentItem.id,
         }),
       });
+
       if (res.ok) {
         const data = await res.json();
-        setModuleData(data);
-        if (data.questions && Array.isArray(data.questions) && data.questions.length > 0) {
-          const sorted = [...data.questions].sort((a, b) => (a.difficulty || 1) - (b.difficulty || 1));
-          setActiveQuizBank(sorted.slice(0, 10));
-        }
+        setXyraResponse(data.advice || currentItem.explanation || 'Focus on how the core mechanism operates under standard conditions.');
+      } else {
+        setXyraResponse(currentItem.explanation || 'Focus on the main principle being tested here.');
       }
     } catch (e) {
-      console.warn("Failed regenerating question bank for retry:", e);
+      setXyraResponse(currentItem.explanation || 'Review the core rules of this topic.');
+    } finally {
+      setXyraLoading(false);
     }
   };
 
-  const handleNextLevel = () => {
-    localStorage.removeItem(storageKey);
-    if (currentLevel < 3) {
-      const nextLvl = currentLevel + 1;
-      setCurrentLevel(nextLvl);
-      setMaxUnlockedLevel((prev) => Math.max(prev, nextLvl));
-      setSessionAnswers([]);
-      setQuestionNumber(1);
-      setIsQuestFinished(false);
-      setViewMode("module");
-      setSelectedIndex(null);
-      setIsAnswered(false);
-      setShowExplanation(false);
-    } else {
-      if (course?.skills && activeSkillIndex + 1 < course.skills.length) {
-        setActiveSkillIndex(activeSkillIndex + 1);
-        setCurrentLevel(1);
-        setMaxUnlockedLevel(1);
-        setSessionAnswers([]);
-        setQuestionNumber(1);
-        setIsQuestFinished(false);
-        setViewMode("module");
-        setSelectedIndex(null);
-        setIsAnswered(false);
-        setShowExplanation(false);
+  const handleSpeakXyra = (text: string) => {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 0.95;
+    utterance.pitch = 1.0;
+    utterance.onstart = () => setIsSpeaking(true);
+    utterance.onend = () => setIsSpeaking(false);
+    window.speechSynthesis.speak(utterance);
+  };
+
+  const handleSubmitAnswer = () => {
+    if (selectedOption === null || isSubmitted || !session) return;
+
+    const currentItem = session.items[session.currentIndex];
+    const correctIdx = currentItem.correctIndex ?? currentItem.answerIndex ?? 0;
+    const isCorrect = selectedOption === correctIdx;
+
+    setIsSubmitted(true);
+    if (timerRef.current) clearInterval(timerRef.current);
+
+    const itemHash = computeItemHash(currentItem.prompt, currentItem.options);
+    const attempt: Attempt = {
+      id: `att_${Date.now()}_${session.currentIndex}`,
+      conceptId: currentItem.conceptId,
+      conceptName: currentItem.conceptName || 'Core Concept',
+      isCorrect,
+      confidence: userConfidence || 'known',
+      timestamp: Date.now(),
+      isSolo: Boolean(session.isSolo),
+      chosenIndex: selectedOption,
+      chosenText: currentItem.options[selectedOption],
+      correctIndex: correctIdx,
+      itemHash,
+    };
+
+    const nextMotivation: MotivationState =
+      !isCorrect && (hesitationSeconds > 10 || hintCount > 0 || retryCount > 0)
+        ? 'frustrated'
+        : isCorrect && hesitationSeconds < 4 && hintCount === 0 && retryCount === 0
+          ? 'bored'
+          : 'flow';
+
+    const currentStoreData = getStoreData();
+    const currentTheta = currentStoreData.calibratedTheta ?? -0.4;
+    const target = TARGET_SUCCESS[nextMotivation] ?? 0.8;
+    const idealDiff = idealDifficulty(currentTheta, target);
+
+    setCurrentFlowState(nextMotivation);
+    setTargetSuccessRate(Math.round(target * 100));
+    setAbilityTheta(parseFloat(currentTheta.toFixed(2)));
+    setNextDifficultyB(parseFloat(idealDiff.toFixed(2)));
+
+    const newSignals = [];
+    if (hesitationSeconds > 8) newSignals.push(`Hesitation noted (${hesitationSeconds}s)`);
+    if (retryCount > 0) newSignals.push(`Option shifts detected (${retryCount}x)`);
+    if (hintCount > 0) newSignals.push(`Scaffolding hints utilized`);
+    if (newSignals.length === 0) newSignals.push('Optimal response pace & immediate recall');
+    setWhySignals(newSignals);
+
+    recordAttempt(attempt);
+
+    const nextAttempts = [...session.attempts, attempt];
+    const updatedSession = { ...session, attempts: nextAttempts };
+    setSession(updatedSession);
+
+    if (!session.isSolo && typeof window !== 'undefined') {
+      localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(updatedSession));
+    }
+  };
+
+  const handleNextItem = () => {
+    if (!session) return;
+
+    if (session.currentIndex + 1 >= session.totalLength) {
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem(SESSION_STORAGE_KEY);
+      }
+      const currentConceptName = session.items[session.currentIndex]?.conceptName || 'Core Concept';
+      clearActiveSession(currentConceptName);
+
+      const targetConcept = conceptParam || session.conceptId || session.items[0]?.conceptId;
+      router.push(`/session-summary?concept=${encodeURIComponent(targetConcept || '')}&mode=${session.isSolo ? 'solo' : 'assisted'}`);
+      return;
+    }
+
+    const nextIndex = session.currentIndex + 1;
+    const nextItem = session.items[nextIndex];
+    const nextSession: SessionState = {
+      ...session,
+      currentIndex: nextIndex,
+    };
+
+    setSession(nextSession);
+    setSelectedOption(null);
+    setUserConfidence(null);
+    setIsSubmitted(false);
+    setShowHint(false);
+    setHesitationSeconds(0);
+
+    if (!session.isSolo && nextItem) {
+      saveActiveSession({
+        conceptId: session.conceptId || nextItem.conceptId,
+        conceptName: nextItem.conceptName || 'Core Concept',
+        currentIndex: nextIndex,
+        totalLength: session.totalLength,
+        completedItemIds: nextSession.attempts.map((a) => a.id),
+        updatedAt: Date.now(),
+      });
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(nextSession));
       }
     }
   };
 
-  if (isAuthLoading) {
+  if (isExhausted) {
     return (
-      <main className="min-h-screen bg-[#000000] bg-grid-pattern p-4 sm:p-6 space-y-4">
-        <div className="w-full max-w-2xl mx-auto space-y-4">
-          <div className="h-14 bg-[#0D0D1A] border border-white/10 rounded-2xl animate-pulse" />
-          <div className="h-20 bg-[#0D0D1A] border border-white/10 rounded-3xl animate-pulse" />
-          <div className="h-80 bg-[#0D0D1A] border border-white/10 rounded-3xl animate-pulse" />
+      <div className="min-h-[100dvh] bg-ink text-text flex items-center justify-center p-6 select-none font-sans">
+        <div className="max-w-md w-full bg-panel border border-line rounded-[20px] p-8 text-center space-y-6 shadow-2xl">
+          <div className="space-y-2">
+            <span className="font-mono text-[10px] uppercase text-cyan font-bold tracking-eyebrow">
+              CONCEPT POOL COMPLETED
+            </span>
+            <h1 className="font-sans font-bold text-xl text-text">Item Bank Exhausted</h1>
+            <p className="font-sans text-xs text-muted leading-relaxed">
+              You have completed all generated questions for this concept!
+            </p>
+          </div>
+          <div className="space-y-3 pt-2">
+            <button
+              type="button"
+              disabled={isRegenerating}
+              onClick={handleRegeneratePool}
+              className="w-full h-11 rounded-[12px] bg-signature-gradient text-white font-sans font-semibold text-xs flex items-center justify-center gap-2 hover:brightness-108 transition-all cursor-pointer disabled:opacity-50"
+            >
+              <span>{isRegenerating ? 'Generating fresh questions...' : 'Generate New Item Bank'}</span>
+              <span>&rarr;</span>
+            </button>
+            <Link
+              href="/home"
+              className="w-full h-10 rounded-[12px] border border-line text-muted hover:text-text font-sans font-medium text-xs flex items-center justify-center transition-colors block text-center"
+            >
+              Back to Home
+            </Link>
+          </div>
         </div>
-      </main>
+      </div>
     );
   }
 
-  const mTheme = getModuleTheme(activeSkillIndex + 1);
+  if (showSoloPreScreen && isSoloRequested) {
+    return (
+      <div className="min-h-[100dvh] bg-ink text-text flex items-center justify-center p-6 select-none font-sans">
+        <div className="max-w-md w-full bg-[#1A1430] border border-violet/40 rounded-[20px] p-8 text-center space-y-6 shadow-2xl">
+          <div className="w-12 h-12 rounded-full bg-violet/20 border border-violet flex items-center justify-center text-violet-400 font-mono text-xl mx-auto">
+            🛡️
+          </div>
+          <div className="space-y-2">
+            <span className="font-mono text-[10px] uppercase text-violet font-bold tracking-eyebrow">
+              OFFICIAL ASSESSMENT MODE
+            </span>
+            <h1 className="font-sans font-bold text-xl text-text">Solo Mode</h1>
+            <p className="font-sans text-xs text-muted leading-relaxed">
+              6 items without hints, mid-session feedback, or AI assistance.
+            </p>
+          </div>
+          <div className="space-y-3 pt-2">
+            <button
+              type="button"
+              onClick={() => setShowSoloPreScreen(false)}
+              className="w-full h-11 rounded-[12px] bg-violet hover:bg-violet-hot text-white font-sans font-semibold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer"
+            >
+              <span>Begin Assessment</span>
+              <span>&rarr;</span>
+            </button>
+            <Link
+              href="/home"
+              className="w-full h-10 rounded-[12px] border border-line text-muted hover:text-text font-sans font-medium text-xs flex items-center justify-center transition-colors block text-center"
+            >
+              Cancel
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!session || !session.items[session.currentIndex]) {
+    return (
+      <div className="min-h-[100dvh] bg-ink text-text flex items-center justify-center p-4 font-mono text-sm text-cyan animate-pulse">
+        Initializing adaptive quest...
+      </div>
+    );
+  }
+
+  const currentItem = session.items[session.currentIndex];
+  const isLastItem = session.currentIndex + 1 >= session.totalLength;
 
   return (
-    <ShadowStage shadowProximity={gapDistance / 10} mode={isQuestFinished ? "results" : viewMode}>
-      <div className="w-full max-w-2xl mx-auto space-y-4 z-10 my-auto pb-24 p-4 sm:p-6">
-        <TopBar
-          title="Adaptive Skill Quest"
-          subtitle={`Module ${activeSkillIndex + 1} of ${course?.skills.length || 5}: ${currentSkill.name}`}
-        />
+    <div className="min-h-[100dvh] bg-ink text-text flex flex-col justify-between select-none relative font-sans">
+      
+      {/* Top Header Strip */}
+      <header className="h-12 px-4 bg-ink border-b border-line flex items-center justify-between shrink-0">
+        <div className="flex items-center gap-3">
+          <Link href="/home" className="text-muted hover:text-text font-mono text-sm">
+            &larr;
+          </Link>
+          <span className="font-mono text-xs text-muted">
+            Question {session.currentIndex + 1} of {session.totalLength}
+          </span>
+        </div>
 
-        {/* Level Navigation Strip */}
-        <LevelNavigationStrip
-          currentLevel={currentLevel}
-          levels={[
-            {
-              level: 1,
-              title: "Basics",
-              status: currentLevel > 1 || maxUnlockedLevel > 1 ? "PASSED" : viewMode === "test" ? "TEST_PENDING" : "MODULE_UNREAD",
-              score: currentLevel > 1 || maxUnlockedLevel > 1 ? 8 : undefined,
-            },
-            {
-              level: 2,
-              title: "Intermediate",
-              status: currentLevel > 2 || maxUnlockedLevel > 2 ? "PASSED" : currentLevel === 2 ? (viewMode === "test" ? "TEST_PENDING" : "MODULE_UNREAD") : (maxUnlockedLevel >= 2 ? "MODULE_UNREAD" : "LOCKED"),
-              score: currentLevel > 2 || maxUnlockedLevel > 2 ? 8 : undefined,
-            },
-            {
-              level: 3,
-              title: "Advanced",
-              status: currentLevel === 3 ? (viewMode === "test" ? "TEST_PENDING" : "MODULE_UNREAD") : (maxUnlockedLevel >= 3 ? "MODULE_UNREAD" : "LOCKED"),
-            },
-          ]}
-          onSelectLevel={(lvl) => {
-            if (lvl <= maxUnlockedLevel) {
-              setCurrentLevel(lvl);
-              setViewMode("module");
-            }
-          }}
-        />
+        <div className="flex items-center gap-2">
+          <span className="font-sans font-semibold text-xs text-text truncate max-w-[160px] sm:max-w-[260px]">
+            {currentItem.conceptName}
+          </span>
+          <span className="font-mono text-xs px-2 py-0.5 rounded bg-raised border border-line text-text">
+            Diff (b): {currentItem.difficulty > 0 ? `+${currentItem.difficulty}` : currentItem.difficulty}
+          </span>
+        </div>
+      </header>
 
-        {/* 1. RENDER RESULTS SCREEN AFTER QUESTION 10 */}
-        {isQuestFinished ? (
-          <QuestResultsView
-            skillName={currentSkill.name}
-            currentLevel={currentLevel}
-            sessionAnswers={sessionAnswers}
-            initialMastery={initialMastery}
-            finalMastery={pKnow}
-            onRetryLevel={handleRetryLevel}
-            onNextLevel={handleNextLevel}
-            nextSkillName={course?.skills[activeSkillIndex + 1]?.name}
-            onReviewSection={(secIdx: number) => {
-              setViewMode("module");
-              setTimeout(() => {
-                const el = document.getElementById(`section-${secIdx}`) || document.getElementById(`section-${secIdx + 1}`);
-                if (el) {
-                  el.scrollIntoView({ behavior: "smooth" });
-                }
-              }, 150);
-            }}
+      {/* Main Content Area */}
+      <main className="flex-1 min-h-0 max-w-2xl w-full mx-auto px-3.5 sm:px-6 py-2.5 sm:py-4 flex flex-col justify-between overflow-hidden">
+        
+        {/* Dynamic Learner State HUD Strip */}
+        {!session.isSolo && (
+          <StateHud
+            flowState={currentFlowState}
+            hesitationSeconds={hesitationSeconds}
+            retryCount={retryCount}
+            hintCount={hintCount}
+            tabSwitchCount={tabSwitchCount}
+            abilityTheta={abilityTheta}
+            nextDifficultyB={nextDifficultyB}
+            targetSuccessRate={targetSuccessRate}
+            whySignals={whySignals}
           />
-        ) : viewMode === "module" ? (
-          /* 2. RENDER TEACHING MODULE READER FIRST BEFORE TEST */
-          moduleError ? (
-            <div className="p-8 text-center bg-[#0D0D1A] border border-[#FF0055]/50 rounded-3xl shadow-2xl space-y-4 glow-magenta">
-              <div className="w-12 h-12 rounded-full bg-[#FF0055]/20 border border-[#FF0055]/40 flex items-center justify-center text-[#FF0055] mx-auto animate-pulse">
-                <AlertTriangle className="w-6 h-6" />
+        )}
+
+        {/* Question Card */}
+        <div className="bg-panel border border-line/60 rounded-[18px] p-4 sm:p-5 space-y-4 shadow-2xl my-auto">
+          
+          <div className="space-y-1.5">
+            <span className="font-mono text-[10px] uppercase text-cyan font-bold tracking-eyebrow">
+              {session.isSolo ? 'SOLO EVALUATION ITEM' : 'ADAPTIVE ITEM'}
+            </span>
+            <h1 className="font-sans font-bold text-sm sm:text-base text-text leading-snug">
+              {currentItem.prompt}
+            </h1>
+          </div>
+
+          {/* CONFIDENCE CHECK PRE-STEP (Only in Assisted Mode) */}
+          {!session.isSolo && userConfidence === null ? (
+            <div className="py-6 px-4 rounded-[14px] bg-raised/50 border border-line/80 text-center space-y-4 animate-fadeIn">
+              <div className="text-center space-y-1">
+                <span className="font-mono text-[10px] uppercase text-cyan font-bold tracking-eyebrow">
+                  CONFIDENCE CHECK
+                </span>
+                <h2 className="font-sans font-semibold text-base sm:text-lg text-text">
+                  Do you know this?
+                </h2>
               </div>
-              <div className="space-y-1">
-                <p className="text-base font-bold text-white font-heading">
-                  AI Question Generation Failed
-                </p>
-                <p className="text-xs text-slate-300 max-w-md mx-auto leading-relaxed font-sans">
-                  {moduleError}
-                </p>
+
+              <div className="grid grid-cols-2 gap-3 max-w-sm mx-auto pt-0.5">
+                <button
+                  type="button"
+                  onClick={() => setUserConfidence('known')}
+                  className="h-[44px] px-3 rounded-[12px] bg-cyan/15 border border-cyan/50 hover:border-cyan text-cyan font-sans font-semibold text-xs sm:text-sm flex items-center justify-center gap-1.5 transition-all cursor-pointer hover:bg-cyan/25 active:scale-98 shadow-[0_0_15px_rgba(0,229,255,0.2)]"
+                >
+                  <span>✓</span>
+                  <span>I know this</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setUserConfidence('unsure')}
+                  className="h-[44px] px-3 rounded-[12px] bg-raised border border-line hover:border-muted text-text font-sans font-semibold text-xs sm:text-sm flex items-center justify-center gap-1.5 transition-all cursor-pointer hover:bg-raised/80 active:scale-98"
+                >
+                  <span>?</span>
+                  <span>Not sure</span>
+                </button>
+              </div>
+            </div>
+          ) : (
+            /* OPTIONS */
+            <div className="space-y-2 sm:space-y-3 animate-fadeIn">
+              {currentItem.options.map((optionText, idx) => {
+                const isSelected = selectedOption === idx;
+                const isCorrect = idx === (currentItem.correctIndex ?? currentItem.answerIndex ?? 0);
+
+                let optionStyle = 'bg-[#1A1430]/85 border-white/[0.09] hover:border-cyan text-text';
+
+                if (isSubmitted) {
+                  if (session.isSolo) {
+                    optionStyle = isSelected
+                      ? 'bg-violet-600/30 border-violet text-text font-semibold'
+                      : 'bg-[#1A1430]/40 border-transparent text-muted/50';
+                  } else {
+                    if (isCorrect) {
+                      optionStyle = 'bg-success/15 border-success text-success font-semibold';
+                    } else if (isSelected) {
+                      optionStyle = 'bg-danger/15 border-danger text-danger font-semibold';
+                    } else {
+                      optionStyle = 'bg-[#1A1430]/40 border-transparent text-muted/50';
+                    }
+                  }
+                } else if (isSelected) {
+                  optionStyle = 'bg-raised border-cyan text-text shadow-[0_0_15px_rgba(0,229,255,0.2)]';
+                }
+
+                return (
+                  <button
+                    key={idx}
+                    type="button"
+                    disabled={isSubmitted}
+                    onClick={() => handleOptionSelect(idx)}
+                    className={`w-full min-h-[46px] p-3 rounded-[12px] border text-left font-sans text-xs sm:text-sm flex items-center justify-between transition-all cursor-pointer ${optionStyle}`}
+                  >
+                    <div className="flex items-center gap-3 pr-2">
+                      <span className="font-mono text-xs font-bold text-muted min-w-[20px]">
+                        {String.fromCharCode(65 + idx)}.
+                      </span>
+                      <span className="leading-snug">{optionText}</span>
+                    </div>
+
+                    {!session.isSolo && isSubmitted && isCorrect && (
+                      <span className="w-5 h-5 rounded-full bg-success text-ink flex items-center justify-center font-bold text-xs shrink-0">
+                        ✓
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Explanation Banner */}
+          {!session.isSolo && isSubmitted && (
+            <div className="p-4 rounded-[12px] bg-panel border border-line space-y-1 animate-fadeIn">
+              <span className="font-mono text-[10px] uppercase text-cyan font-bold tracking-eyebrow">
+                EXPLANATION
+              </span>
+              <p className="font-sans text-xs text-muted leading-relaxed">
+                {currentItem.explanation}
+              </p>
+            </div>
+          )}
+
+          {/* Scaffolding Hint */}
+          {!session.isSolo && showHint && (
+            <div className="p-3.5 rounded-[12px] bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-sans animate-fadeIn">
+              💡 <strong>Hint:</strong> Focus on the primary metabolic output or key mechanism involved.
+            </div>
+          )}
+
+          {/* Action Bar */}
+          <div className="flex items-center justify-between pt-2 border-t border-line/50">
+            {!session.isSolo ? (
+              <button
+                type="button"
+                onClick={handleToggleHint}
+                className="font-mono text-xs text-muted hover:text-cyan transition-colors flex items-center gap-1 cursor-pointer"
+              >
+                <span>{showHint ? 'Hide Hint' : '💡 Hint'}</span>
+              </button>
+            ) : (
+              <span className="font-mono text-[10px] uppercase text-violet-400 font-bold tracking-wider">
+                🛡️ Solo (No Assistance)
+              </span>
+            )}
+
+            {!isSubmitted ? (
+              <button
+                type="button"
+                disabled={selectedOption === null}
+                onClick={handleSubmitAnswer}
+                className={`h-[46px] px-6 rounded-[12px] font-sans font-semibold text-xs transition-all cursor-pointer ${
+                  selectedOption !== null
+                    ? 'bg-signature-gradient text-white hover:brightness-108'
+                    : 'bg-raised/60 text-muted border border-line/40 cursor-not-allowed'
+                }`}
+              >
+                Submit Answer
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleNextItem}
+                className="h-[46px] px-6 rounded-[12px] bg-signature-gradient text-white font-sans font-semibold text-xs flex items-center gap-2 hover:brightness-108 transition-all cursor-pointer"
+              >
+                <span>{isLastItem ? 'Complete Quest' : 'Next Question'}</span>
+                <span>&rarr;</span>
+              </button>
+            )}
+          </div>
+
+        </div>
+
+      </main>
+
+      {/* 3. ASK XYRA FLOATING BUTTON (Visible in Assisted Quest Mode) */}
+      {!session.isSolo && (
+        <div className="fixed bottom-5 right-5 z-40">
+          <button
+            type="button"
+            onClick={() => setIsAskXyraOpen(true)}
+            className="h-11 px-4 rounded-full bg-[#0D0D1A] border border-[#00F0FF]/50 hover:border-[#00F0FF] text-[#00F0FF] font-mono font-bold text-xs flex items-center gap-2 shadow-[0_0_20px_rgba(0,240,255,0.35)] hover:scale-105 transition-all cursor-pointer group backdrop-blur-md"
+          >
+            <div className="w-6 h-6 rounded-full bg-[#00F0FF]/20 border border-[#00F0FF] flex items-center justify-center text-[10px] font-bold text-[#00F0FF] shadow-[0_0_8px_rgba(0,240,255,0.5)]">
+              X
+            </div>
+            <span>Ask XYRA</span>
+            <span className="w-2 h-2 rounded-full bg-[#00FF87] animate-pulse" />
+          </button>
+        </div>
+      )}
+
+      {/* ASK XYRA MODAL */}
+      {isAskXyraOpen && (
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-end sm:items-center justify-center p-4 animate-fadeIn">
+          <div className="bg-[#0D0D1A] border border-[#00F0FF]/40 rounded-3xl p-5 max-w-sm w-full space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+              <div className="flex items-center gap-2 font-mono text-xs font-bold text-[#00F0FF]">
+                <div className="w-5 h-5 rounded-full border border-[#00F0FF] bg-[#00F0FF]/20 text-[#00F0FF] font-mono font-bold text-[9px] flex items-center justify-center shrink-0">
+                  X
+                </div>
+                <span>Ask XYRA</span>
               </div>
               <button
                 type="button"
                 onClick={() => {
-                  setModuleError(null);
-                  setLoadingModule(true);
-                  // Trigger reload by switching viewMode or resetting skill state
-                  const key = `xpedition_quest_${user?.id || "anon"}_${currentSkill.id}`;
-                  localStorage.removeItem(key);
-                  window.location.reload();
+                  setIsAskXyraOpen(false);
+                  setXyraResponse(null);
                 }}
-                className="px-6 py-3 rounded-2xl bg-gradient-to-r from-[#FF0055] to-[#7C3AED] hover:brightness-110 text-white font-bold text-xs font-heading uppercase tracking-wider transition-all cursor-pointer shadow-lg inline-flex items-center gap-2"
+                className="text-slate-400 hover:text-white p-1 cursor-pointer"
               >
-                <RotateCcw className="w-4 h-4" />
-                <span>Retry AI Generation</span>
+                <X className="w-4 h-4" />
               </button>
             </div>
-          ) : loadingModule || !moduleData ? (
-            <div className="p-12 text-center bg-[#0D0D1A] border border-white/10 rounded-3xl shadow-2xl space-y-4">
-              <Loader2 className="w-8 h-8 text-[#00F0FF] animate-spin mx-auto" />
-              <div className="space-y-1">
-                <p className="text-sm font-bold text-white font-heading">
-                  Generating Grounded Learning Module...
-                </p>
-                <p className="text-xs text-slate-400 font-mono">
-                  Fetching Tavily Web Sources & OpenAI/Groq AI for Level {currentLevel}: {currentSkill.name}
-                </p>
-              </div>
-            </div>
-          ) : (
-            <LearningModuleReader
-              skillName={currentSkill.name}
-              currentLevel={currentLevel}
-              learningStyle={user.learningStyle || "story"}
-              moduleData={moduleData}
-              onStartTest={() => startTestFromModuleBank()}
-            />
-          )
-        ) : (
-          /* 3. RENDER 10-QUESTION LEVEL TEST VIEW (1 of 10) */
-          <>
-            {/* 10-QUESTION PROGRESS BAR & COUNTER */}
-            <div className="bg-[#0D0D1A] border border-[#00F0FF]/30 rounded-3xl p-4 shadow-2xl space-y-2.5 glow-cyan font-mono text-xs">
-              <div className="flex items-center justify-between font-bold">
-                <span className="text-[#00F0FF] flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5 text-[#FFB800]" />
-                  <span>Question {questionNumber} of 10</span>
-                </span>
-                <span className="text-slate-300">
-                  {Math.round((questionNumber / 10) * 100)}% Complete
-                </span>
-              </div>
-              <div className="w-full h-2.5 bg-[#000000] rounded-full overflow-hidden border border-white/10 p-0.5">
-                <div
-                  className="h-full bg-gradient-to-r from-[#00F0FF] via-[#A855F7] to-[#00FF87] rounded-full transition-all duration-300"
-                  style={{ width: `${(questionNumber / 10) * 100}%` }}
-                />
-              </div>
-            </div>
 
-            {/* BLACK + NEON QUEST HEADER */}
-            <div className="bg-[#0D0D1A] border border-[#00F0FF]/30 rounded-3xl p-4 sm:p-5 shadow-2xl space-y-3 glow-cyan">
-              <div className="flex items-center justify-between flex-wrap gap-2 text-xs font-mono">
-                <div className="flex items-center gap-2">
-                  <span className="px-2.5 py-1 rounded-full bg-[#00F0FF]/10 border border-[#00F0FF]/40 text-[#00F0FF] font-bold font-mono">
-                    Level {currentLevel} of 3
-                  </span>
-                  <span className="text-white font-bold">{currentSkill.name}</span>
+            {!xyraResponse ? (
+              <div className="space-y-2 pt-1 font-sans text-xs">
+                <button
+                  type="button"
+                  disabled={xyraLoading}
+                  onClick={() => handleAskXyra('explain')}
+                  className="w-full p-3 rounded-2xl bg-[#00F0FF]/10 border border-[#00F0FF]/30 text-[#00F0FF] hover:bg-[#00F0FF]/20 font-semibold text-left transition-all cursor-pointer flex items-center justify-between"
+                >
+                  <span>&ldquo;Explain this&rdquo;</span>
+                  <span className="font-mono text-xs">&rarr;</span>
+                </button>
+
+                <button
+                  type="button"
+                  disabled={xyraLoading}
+                  onClick={() => handleAskXyra('hint')}
+                  className="w-full p-3 rounded-2xl bg-[#00F0FF]/10 border border-[#00F0FF]/30 text-[#00F0FF] hover:bg-[#00F0FF]/20 font-semibold text-left transition-all cursor-pointer flex items-center justify-between"
+                >
+                  <span>&ldquo;Give a hint&rdquo;</span>
+                  <span className="font-mono text-xs">&rarr;</span>
+                </button>
+
+                <button
+                  type="button"
+                  disabled={xyraLoading}
+                  onClick={() => handleAskXyra('lost')}
+                  className="w-full p-3 rounded-2xl bg-[#00F0FF]/10 border border-[#00F0FF]/30 text-[#00F0FF] hover:bg-[#00F0FF]/20 font-semibold text-left transition-all cursor-pointer flex items-center justify-between"
+                >
+                  <span>&ldquo;I&apos;m lost&rdquo;</span>
+                  <span className="font-mono text-xs">&rarr;</span>
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3 animate-fadeIn">
+                <div className="p-3.5 rounded-2xl bg-[#00F0FF]/15 border border-[#00F0FF]/40 text-slate-100 text-xs font-sans space-y-2">
+                  <div className="flex items-center justify-between border-b border-[#00F0FF]/20 pb-1.5">
+                    <div className="flex items-center gap-1.5 text-[10px] font-mono text-[#00F0FF] font-bold">
+                      <span>XYRA says:</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleSpeakXyra(xyraResponse)}
+                      className="text-[10px] font-mono text-[#00F0FF] hover:underline flex items-center gap-1 cursor-pointer"
+                    >
+                      <Volume2 className="w-3.5 h-3.5" />
+                      <span>{isSpeaking ? 'Speaking...' : 'Read Aloud'}</span>
+                    </button>
+                  </div>
+                  <p className="leading-relaxed font-medium">{xyraResponse}</p>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <span className="text-[#FFB800] font-bold font-mono flex items-center gap-1">
-                    <Sparkles className="w-3.5 h-3.5" /> +120 XP
-                  </span>
+                <div className="flex items-center justify-between pt-1 font-mono text-xs">
                   <button
                     type="button"
-                    onClick={() => setShowWhyModal(true)}
-                    className="p-1 rounded-lg bg-white/5 border border-white/10 text-slate-400 hover:text-white transition-all cursor-pointer"
-                    title="View Adaptive AI Engine Status"
+                    onClick={() => setXyraResponse(null)}
+                    className="text-slate-400 hover:text-white transition-colors cursor-pointer text-[11px]"
                   >
-                    <Info className="w-4 h-4 text-[#A855F7]" />
+                    &larr; Ask another question
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsAskXyraOpen(false);
+                      setXyraResponse(null);
+                    }}
+                    className="px-4 py-1.5 rounded-xl bg-[#00F0FF] text-black font-bold hover:brightness-110 cursor-pointer transition-all"
+                  >
+                    Got it
                   </button>
                 </div>
               </div>
-
-              {/* Shadow Chase Track */}
-              <ShadowChaseTrack
-                currentLevel={currentLevel}
-                gapDistance={gapDistance}
-                rememberedConcepts={getShadowMistakes(user?.id || "anon").map((m) => m.conceptName).slice(0, 2)}
-                timeLeftSeconds={currentLevel >= 2 ? 25 : undefined}
-                lastOutcome={isAnswered ? (selectedIndex === currentQuestion?.correctIndex ? "correct" : "wrong") : null}
-              />
-            </div>
-
-            {/* SINGLE QUESTION CARD WITH FRAMER MOTION STAGGER SLIDE */}
-            {currentQuestion && (
-              <AnimatePresence mode="wait">
-                <motion.div
-                  key={questionNumber}
-                  initial={isReducedMotion ? { opacity: 1 } : { opacity: 0, x: 40 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={isReducedMotion ? { opacity: 0 } : { opacity: 0, x: -40 }}
-                  transition={{ duration: isReducedMotion ? 0 : 0.14, ease: "easeInOut" }}
-                  className="bg-[#0D0D1A] border border-white/10 rounded-3xl p-5 sm:p-6 shadow-2xl space-y-5"
-                >
-                  {/* Scenario Setup or Question Type Badge */}
-                  <div className="flex items-center justify-between text-xs font-mono">
-                    <span className="px-2.5 py-0.5 rounded-full bg-[#A855F7]/10 border border-[#A855F7]/40 text-[#A855F7] font-bold uppercase tracking-wider font-mono">
-                      {currentQuestion.questionType || "Concept Challenge"}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setShowTutorOverlay(true)}
-                      className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#00F0FF]/10 border border-[#00F0FF]/40 text-[#00F0FF] font-bold text-xs hover:bg-[#00F0FF]/20 transition-all cursor-pointer shadow-[0_0_10px_rgba(0,240,255,0.2)]"
-                    >
-                      <Mic className="w-3.5 h-3.5 animate-pulse" />
-                      <span>Voice AI Tutor</span>
-                    </button>
-                  </div>
-
-                  {/* CODING LAB PROMPT BANNER FOR CODING SKILLS */}
-                  {(currentSkill.name.toLowerCase().includes("python") ||
-                    currentSkill.name.toLowerCase().includes("sql") ||
-                    currentSkill.name.toLowerCase().includes("code") ||
-                    currentSkill.name.toLowerCase().includes("java") ||
-                    currentSkill.name.toLowerCase().includes("c++") ||
-                    currentSkill.name.toLowerCase().includes("algorithm")) && (
-                    <div className="p-3.5 rounded-2xl bg-[#000000] border border-[#00F0FF]/40 flex items-center justify-between gap-3 text-xs font-mono glow-cyan">
-                      <div className="flex items-center gap-2 truncate">
-                        <Code className="w-4 h-4 text-[#00FF87] shrink-0" />
-                        <span className="text-white font-bold truncate">
-                          Hands-on Coding Challenge Available
-                        </span>
-                      </div>
-                      <Link
-                        href={`/lab/c1`}
-                        className="px-3 py-1.5 rounded-xl bg-[#00F0FF] text-black font-bold font-mono text-[11px] shrink-0 hover:brightness-110 flex items-center gap-1 transition-all"
-                      >
-                        <span>Open Code Lab</span>
-                        <ArrowRight className="w-3 h-3" />
-                      </Link>
-                    </div>
-                  )}
-
-                  {currentQuestion.scenarioSetup && (
-                    <div className="p-3.5 rounded-2xl bg-[#000000]/60 border border-white/10 text-xs text-slate-300 leading-relaxed font-sans">
-                      <span className="font-bold text-[#00F0FF] block mb-1 font-mono uppercase text-[10px]">
-                        Scenario Context:
-                      </span>
-                      {currentQuestion.scenarioSetup}
-                    </div>
-                  )}
-
-                  {/* Prompt Title */}
-                  <h2 className="text-lg sm:text-xl font-black text-white font-heading tracking-tight leading-snug">
-                    {currentQuestion.prompt}
-                  </h2>
-
-                  {/* Code Snippet Block (If Applicable) */}
-                  {currentQuestion.codeSnippet && (
-                    <pre className="p-4 rounded-2xl bg-[#000000] border border-[#00F0FF]/30 text-xs font-mono text-[#00F0FF] overflow-x-auto shadow-inner">
-                      <code>{currentQuestion.codeSnippet}</code>
-                    </pre>
-                  )}
-
-                  {/* LARGE CLICKABLE ANSWER CARDS WITH SHARP RPG PRESS TRANSFORM */}
-                  <div className="space-y-3 pt-2">
-                    {currentQuestion.options?.map((optionText, idx) => {
-                      const isSelected = selectedIndex === idx;
-                      const letter = String.fromCharCode(65 + idx); // A, B, C, D
-
-                      let cardStyle = "bg-[#0D0D1A] border-white/10 text-slate-200 hover:border-[#00F0FF]/50";
-                      if (isSelected) {
-                        cardStyle = "bg-[#0D0D1A] border-[#00F0FF] text-white shadow-[0_0_20px_rgba(0,240,255,0.3)] glow-cyan";
-                      }
-
-                      if (isAnswered) {
-                        if (idx === currentQuestion.correctIndex) {
-                          cardStyle = "bg-[#0D0D1A] border-[#00FF87] text-white shadow-[0_0_20px_rgba(0,255,135,0.3)] glow-green";
-                        } else if (isSelected) {
-                          cardStyle = "bg-[#0D0D1A] border-[#FF0055] text-white shadow-[0_0_20px_rgba(255,0,85,0.3)] glow-magenta";
-                        }
-                      }
-
-                      return (
-                        <button
-                          key={idx}
-                          type="button"
-                          onClick={() => handleSelectOption(idx)}
-                          disabled={isAnswered || loadingNext}
-                          className={`w-full min-h-[56px] p-4 btn-game-sharp border text-left flex items-center justify-between gap-3 cursor-pointer ${cardStyle}`}
-                        >
-                          <div className="flex items-center gap-3.5">
-                            <span
-                              className={`w-8 h-8 rounded-xl border flex items-center justify-center font-mono font-black text-xs shrink-0 ${
-                                isSelected
-                                  ? "bg-[#00F0FF] text-black border-[#00F0FF]"
-                                  : "bg-black/40 border-white/10 text-slate-400"
-                              }`}
-                            >
-                              {letter}
-                            </span>
-                            <span className="text-sm font-semibold leading-normal">{optionText}</span>
-                          </div>
-
-                          {isAnswered && idx === currentQuestion.correctIndex && (
-                            <CheckCircle2 className="w-5 h-5 text-[#00FF87] shrink-0" />
-                          )}
-                          {isAnswered && isSelected && idx !== currentQuestion.correctIndex && (
-                            <XCircle className="w-5 h-5 text-[#FF0055] shrink-0" />
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  {/* PROMINENT SUBMIT ANSWER BUTTON */}
-                  {selectedIndex !== null && !isAnswered && (
-                    <button
-                      type="button"
-                      onClick={handleSubmitAnswer}
-                      className="w-full py-4 btn-game-sharp bg-gradient-to-r from-[#00F0FF] via-[#A855F7] to-[#00FF87] text-black font-black font-heading text-sm uppercase tracking-wider shadow-lg hover:brightness-110 cursor-pointer mt-3 glow-cyan"
-                    >
-                      Submit Answer →
-                    </button>
-                  )}
-                </motion.div>
-              </AnimatePresence>
             )}
-
-            {/* FEEDBACK PANEL & EXPLICIT "NEXT QUESTION" ADVANCE BUTTON */}
-            {isAnswered && showExplanation && currentQuestion && (
-              <div
-                className={`p-5 rounded-3xl border text-left space-y-4 shadow-2xl animate-fadeIn ${
-                  selectedIndex === currentQuestion.correctIndex
-                    ? "bg-[#0D0D1A] border-[#00FF87]/50 glow-green"
-                    : "bg-[#0D0D1A] border-[#FF0055]/50 glow-magenta"
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    {selectedIndex === currentQuestion.correctIndex ? (
-                      <CheckCircle2 className="w-6 h-6 text-[#00FF87]" />
-                    ) : (
-                      <XCircle className="w-6 h-6 text-[#FF0055]" />
-                    )}
-                    <span className="text-base font-black font-heading text-white">
-                      {selectedIndex === currentQuestion.correctIndex
-                        ? "Correct Answer!"
-                        : "Incorrect"}
-                    </span>
-                  </div>
-
-                  <span
-                    className={`text-xs font-mono font-bold px-3 py-1 rounded-full border ${
-                      selectedIndex === currentQuestion.correctIndex
-                        ? "bg-[#00FF87]/10 border-[#00FF87]/40 text-[#00FF87]"
-                        : "bg-[#FF0055]/10 border-[#FF0055]/40 text-[#FF0055]"
-                    }`}
-                  >
-                    {selectedIndex === currentQuestion.correctIndex ? "+120 XP" : "+0 XP"}
-                  </span>
-                </div>
-
-                {/* Educational Explanation */}
-                <p className="text-sm text-slate-200 font-sans leading-relaxed">
-                  {selectedIndex !== null && Array.isArray(currentQuestion.explanations)
-                    ? currentQuestion.explanations[selectedIndex]
-                    : currentQuestion.conceptSummary}
-                </p>
-
-                {/* Visible BKT Adaptation Feedback Line */}
-                <div className="p-3 rounded-2xl bg-[#000000] border border-white/10 text-xs font-mono text-slate-300 space-y-1">
-                  <div className="flex items-center justify-between text-[#00F0FF] font-bold">
-                    <span>Adaptive BKT Mastery Update:</span>
-                    <span>P(know): {Math.round(pKnow * 100)}%</span>
-                  </div>
-                  <p className="text-[11px] text-slate-400">
-                    {selectedIndex === currentQuestion.correctIndex
-                      ? `✓ Mastery increased to ${Math.round(pKnow * 100)}%. Next challenge calibrated for Level ${currentLevel}.`
-                      : `⚠️ Mastery decreased to ${Math.round(pKnow * 100)}%. System queued target reinforcement.`}
-                  </p>
-                </div>
-
-                {/* EXPLICIT NEXT BUTTON */}
-                <button
-                  type="button"
-                  onClick={handleNextQuestionClick}
-                  disabled={loadingNext}
-                  className="w-full py-4 btn-game-sharp bg-[#00F0FF] text-black font-black font-heading text-sm uppercase tracking-wider shadow-lg hover:brightness-110 flex items-center justify-center gap-2 cursor-pointer glow-cyan"
-                >
-                  {loadingNext ? (
-                    <>
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                      <span>Generating Challenge...</span>
-                    </>
-                  ) : (
-                    <>
-                      <span>{questionNumber >= 10 ? "See Results →" : "Next Question →"}</span>
-                      <ArrowRight className="w-5 h-5" />
-                    </>
-                  )}
-                </button>
-              </div>
-            )}
-          </>
-        )}
-      </div>
-
-      {/* Voice AI Tutor Overlay Modal */}
-      <TutorOverlay
-        isOpen={showTutorOverlay}
-        onClose={() => setShowTutorOverlay(false)}
-        questionPrompt={currentQuestion?.prompt || "Current Question"}
-        options={currentQuestion?.options || []}
-        skillName={currentSkill.name}
-        masteryLevel={Math.round(pKnow * 100)}
-        onHintRequested={() => setHintsUsedCount((prev) => prev + 1)}
-      />
-
-      {/* Why AI Explanation Modal */}
-      {showWhyModal && (
-        <FlowExplanationModal
-          pKnow={pKnow}
-          flowDifficulty={flowDifficulty}
-          explanation={flowExplanation}
-          onClose={() => setShowWhyModal(false)}
-        />
+          </div>
+        </div>
       )}
 
-      {/* Bandit Reward Drop Modal */}
-      {activeRewardDrop && (
-        <RewardModal
-          reward={activeRewardDrop}
-          question={currentQuestion}
-          onClaim={(bonusXp) => claimReward({ ...activeRewardDrop, xpBonus: (activeRewardDrop.xpBonus || 30) + (bonusXp || 0) })}
-        />
-      )}
-    </ShadowStage>
+    </div>
+  );
+}
+
+export default function QuestPage() {
+  return (
+    <Suspense fallback={<div className="min-h-[100dvh] bg-ink text-text flex items-center justify-center p-4 font-mono text-sm text-muted animate-pulse">Loading quest environment...</div>}>
+      <QuestContent />
+    </Suspense>
   );
 }
