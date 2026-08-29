@@ -71,6 +71,7 @@ export interface LearnerProfileData {
   testDate?: string;
   syllabusText?: string;
   learningMode?: 'tutor' | 'quest' | 'read';
+  worldTheme?: 'cosmos' | 'cyber_city' | 'enchanted_kingdom' | 'ocean_world' | 'desert_empire';
   currentStep?: number;
   studyPlan?: {
     totalHours: number;

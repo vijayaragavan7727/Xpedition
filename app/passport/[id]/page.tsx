@@ -2,7 +2,8 @@
 
 import React from 'react';
 import Link from 'next/link';
-import WorldBiomeCanvas, { getWorldTier } from '@/components/WorldBiomeCanvas';
+import WorldBiomeCanvas from '@/components/WorldBiomeCanvas';
+import { getThemeConfig, getThemeTierInfo } from '@/lib/themes';
 import { Compass, ShieldCheck, CheckCircle2, Award, Sparkles } from 'lucide-react';
 
 export default function PublicPassportPage({ params }: { params: { id: string } }) {
@@ -15,7 +16,9 @@ export default function PublicPassportPage({ params }: { params: { id: string } 
   ];
 
   const overallMastery = 65;
-  const tierInfo = getWorldTier(overallMastery);
+  const themeId = 'cosmos';
+  const tierInfo = getThemeTierInfo(themeId, overallMastery);
+  const theme = getThemeConfig(themeId);
 
   return (
     <div className="min-h-screen bg-[#070414] text-white p-4 sm:p-8 select-none font-sans flex flex-col items-center justify-center">
@@ -50,6 +53,7 @@ export default function PublicPassportPage({ params }: { params: { id: string } 
             goalText="Verified Skill Mastery Domain"
             learnerName="Learner Domain"
             concepts={demoConcepts}
+            themeId={themeId}
           />
         </div>
 

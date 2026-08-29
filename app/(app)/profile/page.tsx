@@ -5,12 +5,14 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { getStoreData, clearStoreData, switchActiveGraph, saveLearnerProfile, saveStoreData, UserStoreData, SkillGraph } from '@/lib/store';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { WORLD_THEMES, WorldThemeId, getThemeConfig } from '@/lib/themes';
 import { User, Globe, Clock, Sparkles, Check, CheckCircle2, Shield, AlertCircle, Save, LogOut, RefreshCw, HelpCircle, X, Trash2 } from 'lucide-react';
 
 export default function ProfilePage() {
   const router = useRouter();
   const [storeData, setStoreData] = useState<UserStoreData | null>(null);
   const [showRecalibrateConfirm, setShowRecalibrateConfirm] = useState<boolean>(false);
+  const [showThemeModal, setShowThemeModal] = useState<boolean>(false);
 
   // Editable Form Fields
   const [handle, setHandle] = useState<string>('Learner');
@@ -18,6 +20,7 @@ export default function ProfilePage() {
   const [dailyMinutes, setDailyMinutes] = useState<number>(60);
   const [learningMode, setLearningMode] = useState<'tutor' | 'read' | 'quest'>('tutor');
   const [startingLevel, setStartingLevel] = useState<string>('Complete beginner');
+  const [currentWorldTheme, setCurrentWorldTheme] = useState<WorldThemeId>('cosmos');
 
   // UI state
   const [saving, setSaving] = useState<boolean>(false);
@@ -34,6 +37,7 @@ export default function ProfilePage() {
       if (store.learnerProfile?.dailyMinutes) setDailyMinutes(store.learnerProfile.dailyMinutes);
       if (store.learnerProfile?.learningMode) setLearningMode(store.learnerProfile.learningMode as any);
       if (store.learnerProfile?.startingLevel) setStartingLevel(store.learnerProfile.startingLevel);
+      if (store.learnerProfile?.worldTheme) setCurrentWorldTheme(store.learnerProfile.worldTheme);
 
       // Check if logged in with Supabase and fetch latest cloud profile
       if (isSupabaseConfigured && supabase) {
@@ -54,7 +58,7 @@ export default function ProfilePage() {
 
             const { data: learnerRow } = await supabase
               .from('learner_profile')
-              .select('language, daily_minutes, learning_mode, starting_level')
+              .select('language, daily_minutes, learning_mode, starting_level, world_theme')
               .eq('user_id', userId)
               .maybeSingle();
 
@@ -63,6 +67,9 @@ export default function ProfilePage() {
               if (learnerRow.daily_minutes) setDailyMinutes(learnerRow.daily_minutes);
               if (learnerRow.learning_mode) setLearningMode(learnerRow.learning_mode as any);
               if (learnerRow.starting_level) setStartingLevel(learnerRow.starting_level);
+              if (learnerRow.world_theme && learnerRow.world_theme in WORLD_THEMES) {
+                setCurrentWorldTheme(learnerRow.world_theme as WorldThemeId);
+              }
             }
           }
         } catch (err) {
@@ -92,6 +99,7 @@ export default function ProfilePage() {
         dailyMinutes,
         learningMode,
         startingLevel,
+        worldTheme: currentWorldTheme,
       };
 
       const updatedStore = saveLearnerProfile(updatedProfile);
@@ -99,102 +107,121 @@ export default function ProfilePage() {
       saveStoreData(updatedStore);
       setStoreData(updatedStore);
 
-      // 2. Save to Supabase (if connected)
+      // 2. Sync to Supabase profiles & learner_profile
       if (isSupabaseConfigured && supabase) {
         const { data: userData } = await supabase.auth.getUser();
         const userId = userData?.user?.id;
 
         if (userId) {
-          // Upsert to profiles table
-          await supabase.from('profiles').upsert({
-            id: userId,
-            handle: trimmedHandle,
-            updated_at: new Date().toISOString(),
-          });
+          await supabase
+            .from('profiles')
+            .upsert({
+              id: userId,
+              handle: trimmedHandle,
+              updated_at: new Date().toISOString(),
+            });
 
-          // Upsert to learner_profile table
-          await supabase.from('learner_profile').upsert(
-            {
+          await supabase
+            .from('learner_profile')
+            .upsert({
               user_id: userId,
-              topic: updatedStore.goalText || 'Skill Goal',
               language,
               daily_minutes: dailyMinutes,
               learning_mode: learningMode,
               starting_level: startingLevel,
+              world_theme: currentWorldTheme,
               updated_at: new Date().toISOString(),
-            },
-            { onConflict: 'user_id' }
-          );
+            });
         }
       }
 
       setSaveSuccess(true);
-      setTimeout(() => setSaveSuccess(false), 3500);
+      setTimeout(() => setSaveSuccess(false), 3000);
     } catch (err: any) {
-      console.error('Failed to save profile:', err);
-      setSaveError(err.message || 'Failed to save profile. Please try again.');
+      setSaveError(err.message || 'Failed to update profile.');
     } finally {
       setSaving(false);
     }
   };
 
+  const handleSelectTheme = async (themeId: WorldThemeId) => {
+    setCurrentWorldTheme(themeId);
+    const updatedStore = saveLearnerProfile({ worldTheme: themeId });
+    setStoreData(updatedStore);
+
+    if (isSupabaseConfigured && supabase) {
+      try {
+        const { data: userData } = await supabase.auth.getUser();
+        if (userData?.user?.id) {
+          await supabase.from('learner_profile').upsert({
+            user_id: userData.user.id,
+            world_theme: themeId,
+            updated_at: new Date().toISOString(),
+          });
+        }
+      } catch (e) {}
+    }
+
+    setShowThemeModal(false);
+    setSaveSuccess(true);
+    setTimeout(() => setSaveSuccess(false), 2500);
+  };
+
   const handleSwitchGoal = (graphId: string) => {
     const updated = switchActiveGraph(graphId);
     setStoreData(updated);
-    window.location.reload();
+    setSaveSuccess(true);
+    setTimeout(() => setSaveSuccess(false), 2000);
   };
 
   const handleDeleteGoal = (graphId: string) => {
     if (!storeData) return;
-    if (confirm('Delete this goal from your profile?')) {
-      const updatedGraphs = (storeData.graphs || []).filter((g) => g.id !== graphId);
-      let newActiveId = storeData.activeGraphId;
-      if (newActiveId === graphId) {
-        newActiveId = updatedGraphs[0]?.id || '';
-      }
-      const activeTargetGraph = updatedGraphs.find((g) => g.id === newActiveId);
-      const updatedStore: UserStoreData = {
-        ...storeData,
-        graphs: updatedGraphs,
-        activeGraphId: newActiveId,
-        concepts: activeTargetGraph?.concepts || [],
-        attempts: activeTargetGraph?.attempts || [],
-        goalText: activeTargetGraph?.goalText || storeData.goalText,
-      };
-      saveStoreData(updatedStore);
-      setStoreData(updatedStore);
+    const remaining = (storeData.graphs || []).filter((g) => g.id !== graphId);
+    if (remaining.length === 0) return;
+
+    const current = { ...storeData };
+    current.graphs = remaining;
+    if (current.activeGraphId === graphId) {
+      current.activeGraphId = remaining[0].id;
+      current.goalText = remaining[0].goalText;
+      current.concepts = remaining[0].concepts || [];
+      current.quests = remaining[0].quests || [];
+      current.attempts = remaining[0].attempts || [];
     }
+    saveStoreData(current);
+    setStoreData(current);
   };
 
   const handleResetData = () => {
-    if (confirm('Reset local store to fresh zero-state? This is useful for testing fresh account states.')) {
+    if (window.confirm('Reset all local data to fresh starting state?')) {
       clearStoreData();
-      window.location.reload();
+      router.push('/onboarding');
     }
   };
 
   const handleSignOut = async () => {
-    if (typeof window !== 'undefined') {
-      sessionStorage.clear();
-    }
     if (isSupabaseConfigured && supabase) {
-      await supabase.auth.signOut().catch(() => {});
+      await supabase.auth.signOut();
     }
-    window.location.href = '/';
+    router.push('/login');
   };
 
+  const activeThemeConfig = getThemeConfig(currentWorldTheme);
+  const themeList = Object.values(WORLD_THEMES);
+
   return (
-    <div className="space-y-6 select-none pt-4 max-w-2xl mx-auto font-sans pb-12">
+    <div className="space-y-6 select-none pt-2 max-w-2xl mx-auto pb-16 font-sans">
       
       {/* Header */}
-      <div>
-        <div className="flex items-center gap-2">
-          <User className="w-6 h-6 text-[#00F0FF]" />
-          <h1 className="font-sans font-bold text-2xl text-white">Profile & Learning Settings</h1>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="font-sans font-bold text-2xl text-white">
+            Profile & Settings
+          </h1>
+          <p className="font-sans text-xs text-slate-400 mt-0.5">
+            Manage your account identity, teaching style, world theme, and active skill paths.
+          </p>
         </div>
-        <p className="font-sans text-xs text-slate-400 mt-1">
-          Customize your learner handle, teaching mode, daily pace, and language preferences.
-        </p>
       </div>
 
       {/* Success Notification Toast */}
@@ -216,7 +243,66 @@ export default function ProfilePage() {
         </div>
       )}
 
-      {/* EDIT PROFILE FORM */}
+      {/* 1. YOUR WORLD SECTION */}
+      <section className="bg-[#120E24] rounded-[24px] border border-white/10 p-5 sm:p-7 space-y-4 shadow-2xl">
+        <div className="flex items-center justify-between border-b border-white/10 pb-3">
+          <div className="flex items-center gap-2">
+            <Globe className="w-4 h-4 text-[#00F0FF]" />
+            <span className="font-mono text-[11px] uppercase text-[#00F0FF] font-bold tracking-wider">
+              YOUR WORLD SYSTEM
+            </span>
+          </div>
+          <Link href="/passport" className="font-mono text-xs text-[#00F0FF] hover:underline">
+            View Skill Passport &rarr;
+          </Link>
+        </div>
+
+        <div className="p-4 rounded-2xl bg-black/30 border border-white/10 flex items-center justify-between flex-wrap gap-4">
+          <div className="flex items-center gap-3.5">
+            <div
+              className="w-13 h-13 p-3 rounded-2xl flex items-center justify-center text-2xl shrink-0 shadow-md border border-white/15"
+              style={{
+                background: `linear-gradient(135deg, ${activeThemeConfig.bgGradients[2]} 0%, ${activeThemeConfig.bgGradients[0]} 100%)`,
+              }}
+            >
+              {activeThemeConfig.icon}
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="font-sans font-bold text-sm text-white">
+                  {activeThemeConfig.name}
+                </h3>
+                <span
+                  className="font-mono text-[9px] px-2 py-0.5 rounded-full border font-bold uppercase"
+                  style={{
+                    backgroundColor: `${activeThemeConfig.color}20`,
+                    color: activeThemeConfig.color,
+                    borderColor: `${activeThemeConfig.color}40`,
+                  }}
+                >
+                  Active World
+                </span>
+              </div>
+              <p className="font-sans text-xs text-slate-300 mt-0.5">
+                {activeThemeConfig.subtitle}
+              </p>
+              <span className="font-mono text-[10px] text-slate-400 block pt-0.5">
+                {activeThemeConfig.bestFor}
+              </span>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setShowThemeModal(true)}
+            className="h-9 px-4 rounded-xl bg-white/10 hover:bg-white/20 border border-white/15 text-white font-mono font-bold text-xs transition-all cursor-pointer shadow-sm"
+          >
+            Change World Theme
+          </button>
+        </div>
+      </section>
+
+      {/* 2. EDIT PROFILE FORM */}
       <form onSubmit={handleSaveProfile} className="bg-[#120E24] rounded-[24px] border border-white/10 p-5 sm:p-7 space-y-6 shadow-2xl">
         
         {/* User Identity Section */}
@@ -356,14 +442,14 @@ export default function ProfilePage() {
             </div>
           </div>
 
-          {/* Daily Minutes Selection */}
+          {/* Daily Study Commitment */}
           <div className="space-y-2">
             <label className="font-mono text-[11px] uppercase text-[#00F0FF] font-bold tracking-wider flex items-center gap-1.5">
               <Clock className="w-3.5 h-3.5" />
-              <span>Daily Practice Goal</span>
+              <span>Daily Target</span>
             </label>
-            <div className="grid grid-cols-4 gap-1.5">
-              {[15, 30, 60, 120].map((mins) => (
+            <div className="grid grid-cols-4 gap-2">
+              {[30, 60, 90, 120].map((mins) => (
                 <button
                   key={mins}
                   type="button"
@@ -379,30 +465,6 @@ export default function ProfilePage() {
               ))}
             </div>
           </div>
-
-        </div>
-
-        {/* 4. Starting Level Selection */}
-        <div className="space-y-2">
-          <label className="font-mono text-[11px] uppercase text-[#00F0FF] font-bold tracking-wider block">
-            Initial Difficulty Baseline
-          </label>
-          <div className="grid grid-cols-3 gap-2">
-            {['Complete beginner', 'Know basics', 'Advanced'].map((lvl) => (
-              <button
-                key={lvl}
-                type="button"
-                onClick={() => setStartingLevel(lvl)}
-                className={`h-10 rounded-xl border font-sans text-xs transition-all cursor-pointer ${
-                  startingLevel === lvl
-                    ? 'bg-[#00FF87] text-black font-bold shadow-md'
-                    : 'bg-black/30 border-white/10 text-slate-400 hover:text-white'
-                }`}
-              >
-                {lvl}
-              </button>
-            ))}
-          </div>
         </div>
 
         {/* Submit Save Button */}
@@ -410,72 +472,40 @@ export default function ProfilePage() {
           <button
             type="submit"
             disabled={saving}
-            className="w-full h-11 rounded-2xl bg-[#00F0FF] text-black font-mono font-bold text-xs flex items-center justify-center gap-2 hover:brightness-110 shadow-lg cursor-pointer transition-all disabled:opacity-50"
+            className="w-full h-12 rounded-2xl bg-signature-gradient text-white font-sans font-bold text-xs flex items-center justify-center gap-2 hover:brightness-110 shadow-lg cursor-pointer transition-all disabled:opacity-50"
           >
             {saving ? (
-              <RefreshCw className="w-4 h-4 animate-spin" />
+              <RefreshCw className="w-4 h-4 animate-spin text-white" />
             ) : (
-              <Save className="w-4 h-4" />
+              <Save className="w-4 h-4 text-white" />
             )}
-            <span>{saving ? 'Saving Profile...' : 'Save Profile Changes'}</span>
+            <span>{saving ? 'Saving changes...' : 'Save Profile Settings'}</span>
           </button>
         </div>
-
       </form>
 
-      {/* SOLO MODE ASSESSMENT SECTION */}
-      <div className="bg-[#120E24] rounded-[24px] border border-[#A855F7]/40 p-5 sm:p-7 space-y-3.5 shadow-2xl">
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-[#A855F7]/20 border border-[#A855F7]/50 flex items-center justify-center text-lg">
-              🎯
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="font-sans font-bold text-sm sm:text-base text-white">
-                  Solo Mode Assessment
-                </h3>
-                <span className="font-mono text-[9px] px-2 py-0.5 rounded bg-[#A855F7]/20 text-[#A855F7] uppercase font-bold border border-[#A855F7]/40">
-                  Zero Assistance
-                </span>
-              </div>
-              <p className="font-sans text-xs text-slate-400 mt-0.5">
-                Take a weekly solo test — 6 items with no hints, mid-session feedback, or AI coaching.
-              </p>
-            </div>
-          </div>
-
-          <Link
-            href="/quest?mode=solo"
-            className="h-10 px-5 rounded-xl bg-[#A855F7] hover:bg-[#9333EA] text-white font-mono font-bold text-xs flex items-center gap-2 transition-all cursor-pointer shadow-[0_0_15px_rgba(168,85,247,0.4)] shrink-0"
-          >
-            <span>Start Now</span>
-            <span>&rarr;</span>
-          </Link>
-        </div>
-      </div>
-
-      {/* SKILL GRAPHS LIST & GOAL SWITCHER */}
+      {/* 3. YOUR LEARNING GOALS (Cleaned & Capped at 5) */}
       {(() => {
-        const validGraphs = (storeData?.graphs || []).filter((g: SkillGraph) => (g.concepts?.length || 0) > 0);
-        const displayedGraphs = validGraphs.slice(-5);
+        const rawGraphs = storeData?.graphs || [];
+        const validGraphs = rawGraphs.filter((g) => (g.concepts?.length || 0) > 0);
+        const displayGraphs = validGraphs.slice(0, 5);
 
         return (
           <div className="bg-[#120E24] rounded-[24px] border border-white/10 p-5 sm:p-7 space-y-4 shadow-2xl">
-            <div className="flex items-center justify-between">
-              <span className="font-mono text-[11px] uppercase text-[#00F0FF] font-bold tracking-wider">
-                YOUR SKILL GRAPHS ({displayedGraphs.length})
+            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+              <span className="font-mono text-[11px] uppercase text-[#00F0FF] font-bold tracking-wider block">
+                YOUR LEARNING GOALS ({displayGraphs.length})
               </span>
               <Link
                 href="/onboarding"
-                className="h-8 px-3 rounded-lg bg-[#00F0FF] text-black font-mono font-bold text-xs flex items-center gap-1.5 hover:brightness-110 transition-all"
+                className="font-mono text-xs text-[#00F0FF] hover:underline"
               >
-                <span>+ New Goal</span>
+                + New Goal
               </Link>
             </div>
 
             <div className="space-y-2.5">
-              {displayedGraphs.map((graph: SkillGraph) => {
+              {displayGraphs.map((graph) => {
                 const isActive = graph.id === storeData?.activeGraphId;
                 const conceptCount = graph.concepts?.length || 0;
                 const attemptCount = graph.attempts?.length || 0;
@@ -485,16 +515,16 @@ export default function ProfilePage() {
                     key={graph.id}
                     className={`p-4 rounded-2xl border transition-all ${
                       isActive
-                        ? 'bg-[#00F0FF]/10 border-[#00F0FF] text-white shadow-md'
-                        : 'bg-black/30 border-white/10 text-slate-400'
+                        ? 'bg-[#00F0FF]/10 border-[#00F0FF] shadow-[0_0_15px_rgba(0,240,255,0.2)]'
+                        : 'bg-black/30 border-white/10 hover:border-white/20'
                     }`}
                   >
-                    <div className="flex items-center justify-between flex-wrap gap-2">
-                      <div>
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0 flex-1">
                         <h3 className="font-sans font-bold text-sm text-white flex items-center gap-2">
-                          <span>{graph.goalText}</span>
+                          <span className="truncate">{graph.goalText}</span>
                           {isActive && (
-                            <span className="font-mono text-[9px] px-2 py-0.5 rounded-full bg-[#00F0FF]/20 text-[#00F0FF] uppercase font-bold border border-[#00F0FF]/40">
+                            <span className="font-mono text-[9px] px-2 py-0.5 rounded-full bg-[#00F0FF]/20 text-[#00F0FF] font-bold shrink-0">
                               ACTIVE
                             </span>
                           )}
@@ -533,7 +563,7 @@ export default function ProfilePage() {
         );
       })()}
 
-      {/* ACCOUNT & PREFERENCES SETTINGS */}
+      {/* 4. ACCOUNT & PREFERENCES SETTINGS */}
       <div className="bg-[#120E24] rounded-[24px] border border-white/10 p-5 sm:p-7 space-y-4 shadow-2xl">
         <span className="font-mono text-[11px] uppercase text-[#00F0FF] font-bold tracking-wider block">
           ACCOUNT & ASSESSMENT SETTINGS
@@ -598,6 +628,76 @@ export default function ProfilePage() {
           <span>Sign out</span>
         </button>
       </div>
+
+      {/* CHANGE WORLD THEME MODAL */}
+      {showThemeModal && (
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 animate-fadeIn select-none font-sans">
+          <div className="bg-[#0E0A1E] border border-[#00F0FF]/40 rounded-[28px] max-w-lg w-full p-5 sm:p-7 space-y-4 shadow-2xl relative overflow-hidden animate-scaleUp">
+            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+              <div className="flex items-center gap-2 font-mono text-xs font-bold text-[#00F0FF]">
+                <Globe className="w-4 h-4" />
+                <span>Select Your World Theme</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowThemeModal(false)}
+                className="text-slate-400 hover:text-white p-1 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Warning Callout */}
+            <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 font-sans text-xs leading-relaxed">
+              ⚠️ <strong>Notice:</strong> Changing theme resets your world visuals but keeps all your mastery data.
+            </div>
+
+            {/* 5 Theme Cards */}
+            <div className="space-y-2 max-h-[360px] overflow-y-auto pr-1">
+              {themeList.map((t) => {
+                const isSelected = currentWorldTheme === t.id;
+                return (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => handleSelectTheme(t.id)}
+                    className={`w-full p-3.5 rounded-2xl text-left border flex items-center justify-between gap-3 transition-all cursor-pointer ${
+                      isSelected
+                        ? 'bg-[#00F0FF]/15 border-[#00F0FF] shadow-md'
+                        : 'bg-black/30 border-white/10 hover:border-white/20'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div
+                        className="w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0 border border-white/15"
+                        style={{
+                          background: `linear-gradient(135deg, ${t.bgGradients[2]} 0%, ${t.bgGradients[0]} 100%)`,
+                        }}
+                      >
+                        {t.icon}
+                      </div>
+                      <div className="min-w-0">
+                        <span className="font-sans font-bold text-sm text-white block">
+                          {t.name}
+                        </span>
+                        <span className="font-sans text-[11px] text-slate-300 block truncate">
+                          {t.subtitle}
+                        </span>
+                      </div>
+                    </div>
+
+                    {isSelected && (
+                      <span className="w-5 h-5 rounded-full bg-[#00F0FF] text-black flex items-center justify-center shrink-0">
+                        <Check className="w-3 h-3 stroke-[3]" />
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* RECALIBRATE CONFIRMATION MODAL */}
       {showRecalibrateConfirm && (

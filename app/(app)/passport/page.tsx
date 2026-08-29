@@ -5,14 +5,14 @@ import Link from 'next/link';
 import { getStoreData, UserStoreData } from '@/lib/store';
 import { calibrationScore, confidenceBreakdown } from '@/lib/engine/calibration';
 import { thetaToPercent } from '@/lib/engine/mastery';
-import WorldBiomeCanvas, { getWorldTier } from '@/components/WorldBiomeCanvas';
+import { getThemeConfig, getThemeTierInfo } from '@/lib/themes';
+import WorldBiomeCanvas from '@/components/WorldBiomeCanvas';
 import WorldShareModal from '@/components/WorldShareModal';
 import { Sparkles, Share2, Shield, CheckCircle2, Award, Zap, Compass, ChevronRight, Lock, Flame } from 'lucide-react';
 
 export default function SkillPassportPage() {
   const [storeData, setStoreData] = useState<UserStoreData | null>(null);
   const [isShareOpen, setIsShareOpen] = useState<boolean>(false);
-  const [selectedBiome, setSelectedBiome] = useState<string | null>(null);
 
   useEffect(() => {
     setStoreData(getStoreData());
@@ -25,6 +25,9 @@ export default function SkillPassportPage() {
       </div>
     );
   }
+
+  const activeThemeId = storeData.learnerProfile?.worldTheme || 'cosmos';
+  const themeConfig = getThemeConfig(activeThemeId);
 
   const breakdown = confidenceBreakdown(storeData.attempts);
   const score = calibrationScore(storeData.attempts);
@@ -44,7 +47,7 @@ export default function SkillPassportPage() {
       )
     : 0;
 
-  const tierInfo = getWorldTier(overallMastery);
+  const tierInfo = getThemeTierInfo(activeThemeId, overallMastery);
 
   // Map concepts to landmarks
   const conceptLandmarks = storeData.concepts.map((c) => ({
@@ -72,7 +75,7 @@ export default function SkillPassportPage() {
             </h1>
           </div>
           <p className="font-sans text-xs text-slate-400 mt-0.5">
-            Verified living knowledge cosmos terraformed by your mastery & metacognitive calibration.
+            {themeConfig.name} domain terraformed by your mastery & metacognitive calibration.
           </p>
         </div>
 
@@ -93,6 +96,7 @@ export default function SkillPassportPage() {
           goalText={storeData.goalText}
           learnerName={storeData.handle}
           concepts={conceptLandmarks}
+          themeId={activeThemeId}
         />
       </section>
 
@@ -101,7 +105,7 @@ export default function SkillPassportPage() {
         <div className="bg-[#120E22]/90 border border-white/10 rounded-2xl p-3.5 text-center space-y-1 shadow-lg">
           <span className="block font-mono text-[9px] uppercase text-slate-400 font-bold">WORLD TIER</span>
           <span className="block font-mono text-base sm:text-lg font-bold" style={{ color: tierInfo.color }}>
-            Tier {tierInfo.tier}
+            Tier {tierInfo.tierNumber}
           </span>
           <span className="block font-sans text-[10px] text-slate-400 truncate">{tierInfo.name}</span>
         </div>
@@ -185,7 +189,7 @@ export default function SkillPassportPage() {
         </div>
 
         <div className="space-y-2.5">
-          {storeData.concepts.map((concept, idx) => {
+          {storeData.concepts.map((concept) => {
             const hasSoloData = (concept.soloAttemptsCount || 0) >= 3 && concept.thetaSolo !== undefined;
             const assistedPct = concept.thetaAssisted !== undefined ? thetaToPercent(concept.thetaAssisted) : concept.masteryPercentage;
             const soloPct = hasSoloData ? thetaToPercent(concept.thetaSolo!) : null;
@@ -208,7 +212,7 @@ export default function SkillPassportPage() {
                     <span
                       className="w-2.5 h-2.5 rounded-full shrink-0"
                       style={{
-                        backgroundColor: isHigh ? '#00FF87' : isMid ? '#00F0FF' : '#A855F7',
+                        backgroundColor: isHigh ? '#00FF87' : isMid ? tierInfo.color : tierInfo.accentColor,
                       }}
                     />
                     <span className="font-sans font-bold text-sm text-white truncate">
@@ -238,7 +242,7 @@ export default function SkillPassportPage() {
                     className="h-full rounded-full transition-all duration-500"
                     style={{
                       width: `${assistedPct}%`,
-                      backgroundColor: isHigh ? '#00FF87' : isMid ? '#00F0FF' : '#A855F7',
+                      backgroundColor: isHigh ? '#00FF87' : isMid ? tierInfo.color : tierInfo.accentColor,
                     }}
                   />
                 </div>
@@ -248,22 +252,21 @@ export default function SkillPassportPage() {
         </div>
       </section>
 
-      {/* 5. WORLD EVOLUTION TIMELINE */}
+      {/* 5. WORLD EVOLUTION TIMELINE (ADAPTED TO CHOSEN THEME) */}
       <section className="bg-[#120E22]/90 border border-white/10 rounded-[22px] p-5 sm:p-6 space-y-4 shadow-xl">
-        <span className="font-mono text-[11px] uppercase text-[#00F0FF] font-bold tracking-wider block">
-          WORLD EVOLUTION MILESTONES
-        </span>
+        <div className="flex items-center justify-between border-b border-white/10 pb-2.5">
+          <span className="font-mono text-[11px] uppercase text-[#00F0FF] font-bold tracking-wider block">
+            {themeConfig.name.toUpperCase()} EVOLUTION MILESTONES
+          </span>
+          <span className="font-mono text-xs text-slate-400">
+            {themeConfig.icon} {themeConfig.name}
+          </span>
+        </div>
 
         <div className="space-y-3">
-          {[
-            { tier: 1, name: 'The Awakening Core', min: 0, desc: 'Primordial obsidian rock with neon core.' },
-            { tier: 2, name: 'Verdant Biosphere', min: 20, desc: 'Bioluminescent flora, crystal springs & monoliths.' },
-            { tier: 3, name: 'Syntropy Archipelago', min: 40, desc: 'Crystalline sky islands with energy bridges.' },
-            { tier: 4, name: 'Nebula Sanctuary', min: 60, desc: 'Planetary rings, floating temples & guardian drones.' },
-            { tier: 5, name: 'The Celestial Utopia', min: 80, desc: 'Ascended cosmos star-world with celestial crowns.' },
-          ].map((m) => {
-            const isUnlocked = overallMastery >= m.min;
-            const isCurrent = tierInfo.tier === m.tier;
+          {themeConfig.tiers.map((m) => {
+            const isUnlocked = overallMastery >= m.minMastery;
+            const isCurrent = tierInfo.tierNumber === m.tier;
 
             return (
               <div
@@ -304,7 +307,7 @@ export default function SkillPassportPage() {
                 </div>
 
                 <span className="font-mono text-xs font-bold shrink-0">
-                  {m.min}%+
+                  {m.minMastery}%+
                 </span>
               </div>
             );
@@ -333,6 +336,7 @@ export default function SkillPassportPage() {
         conceptsCount={storeData.concepts.length}
         soloVerifiedCount={soloSessionsCount}
         accuracyMargin={accuracyMargin}
+        themeId={activeThemeId}
       />
 
     </div>

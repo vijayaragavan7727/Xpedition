@@ -1,884 +1,864 @@
-"use client";
+'use client';
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { useQuest } from "@/lib/QuestContext";
-import { GoalEngineResponse, LearningStyle } from "@/lib/types";
-import { supabase, isSupabaseConfigured } from "@/lib/supabase";
-import { initUserArms, ArmType } from "@/lib/bandit";
-import QuestModal from "@/components/QuestModal";
-import {
-  Compass,
-  Sparkles,
-  Send,
-  Loader2,
-  BookOpen,
-  Play,
-  Star,
-  CheckCircle2,
-  Award,
-  ChevronLeft,
-  Flame,
-  Zap,
-  Trophy,
-  Swords,
-  Shield,
-  ArrowRight,
-  Upload,
-  Paperclip,
-  FileText,
-  X,
-} from "lucide-react";
-import SquidAsset from "@/components/SquidAsset";
-import XpAsset from "@/components/XpAsset";
-import PlacementTestModal from "@/components/PlacementTestModal";
-import LearnerOnboardingModal from "@/components/LearnerOnboardingModal";
+import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { getStoreData, saveLearnerProfile, LearnerProfileData, applySeededCourse, createNewSkillGraph, setGraphContent } from '@/lib/store';
+import { SEEDED_PYTHON_COURSE } from '@/lib/seed';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { WORLD_THEMES, WorldThemeId } from '@/lib/themes';
+import { Sparkles, Check, Globe } from 'lucide-react';
 
-const POPULAR_QUICKSTART_GOALS = [
-  { id: "python", title: "Python Basics", desc: "Syntax, data structures & functions", icon: "🐍", query: "Python Basics for Beginners" },
-  { id: "dsa", title: "DSA for Interviews", desc: "Arrays, trees, graphs & Big-O", icon: "⚡", query: "Data Structures & Algorithms" },
-  { id: "sql", title: "SQL & Databases", desc: "Queries, joins, indexing & schemas", icon: "🗄️", query: "SQL & Database Management" },
-  { id: "ml", title: "Machine Learning Basics", desc: "Supervised ML, regression & scikit", icon: "🤖", query: "Machine Learning Fundamentals" },
-  { id: "webdev", title: "Web Dev (React & Next.js)", desc: "Components, hooks, SSR & Tailwind", icon: "🌐", query: "React & Next.js Web Development" },
-  { id: "aptitude", title: "Aptitude & Reasoning", desc: "Quantitative logic for placements", icon: "🧩", query: "Quantitative Aptitude & Logical Reasoning" },
-  { id: "english", title: "Spoken English", desc: "Communication, fluency & vocabulary", icon: "🗣️", query: "Spoken English & Communication Skills" },
-  { id: "systemdesign", title: "System Design", desc: "Scalability, caching & load balancing", icon: "🏗️", query: "System Design & Distributed Systems" },
-];
-
-
-const LEARNING_STYLE_OPTIONS = [
-  {
-    id: "story" as LearningStyle,
-    label: "Story & Analogy",
-    desc: "Learn through vivid real-world analogies, metaphors & narratives",
-    icon: BookOpen,
-    color: "text-[#22D3EE] bg-[#22D3EE]/20 border-[#22D3EE]/40",
-  },
-  {
-    id: "theory" as LearningStyle,
-    label: "Theory & Concepts",
-    desc: "Master formal definitions, underlying principles & mechanics",
-    icon: Shield,
-    color: "text-[#7C3AED] bg-[#7C3AED]/20 border-[#7C3AED]/40",
-  },
-  {
-    id: "code" as LearningStyle,
-    label: "Code & Examples",
-    desc: "Learn by analyzing clean code blocks, syntax comments & outputs",
-    icon: Sparkles,
-    color: "text-[#34D399] bg-[#34D399]/20 border-[#34D399]/40",
-  },
-  {
-    id: "stepwise" as LearningStyle,
-    label: "Step-by-Step Breakdown",
-    desc: "Break complex concepts down into clear numbered 1-2-3 steps",
-    icon: Compass,
-    color: "text-[#FBBF24] bg-[#FBBF24]/20 border-[#FBBF24]/40",
-  },
-];
-
-const LOADING_STEPS = [
-  "Searching the web via Tavily API...",
-  "Analyzing real-world curriculum & requirements...",
-  "Generating skill path with Groq LLM (llama-3.3-70b)...",
-  "Warm-starting Thompson Sampling Bandit with Alpha = 3...",
-];
+type PathType = 'goal' | 'syllabus';
+type LanguageType = 'english' | 'tanglish' | 'tamil';
 
 export default function OnboardingPage() {
-  const { user, setCourseData, setLearningStyle } = useQuest();
-  const [userName, setUserName] = useState("Adventurer");
-  const [step, setStep] = useState<"learning_style" | "goal">("learning_style");
-  const [selectedStyle, setSelectedStyle] = useState<LearningStyle>("story");
-  const [goal, setGoal] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [loadingStep, setLoadingStep] = useState(0);
-  const [result, setResult] = useState<GoalEngineResponse | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [nonsenseError, setNonsenseError] = useState<{ message: string; examples: string[] } | null>(null);
-
-  // Syllabus File Upload State
-  const [showFileUpload, setShowFileUpload] = useState(false);
-  const [extractingFile, setExtractingFile] = useState(false);
-  const [fileError, setFileError] = useState<string | null>(null);
-  const [extractedTopics, setExtractedTopics] = useState<string[]>([]);
-  const [newTopicInput, setNewTopicInput] = useState("");
   const router = useRouter();
 
-  useEffect(() => {
-    if (user?.name) {
-      setUserName(user.name);
-    }
-  }, [user]);
+  // Intake State
+  const [currentStep, setCurrentStep] = useState<number>(0);
+  const [pathType, setPathType] = useState<PathType>('goal');
+  const [topic, setTopic] = useState<string>('');
+  const [language, setLanguage] = useState<LanguageType>('english');
+  const [dailyMinutes, setDailyMinutes] = useState<number>(60);
+  const [startingLevel, setStartingLevel] = useState<string>('Complete beginner');
+  
+  // Goal Path specific
+  const [whyGoal, setWhyGoal] = useState<string>('Job');
+  const [deadlineDate, setDeadlineDate] = useState<string>('');
+  
+  // Syllabus Path specific
+  const [testDate, setTestDate] = useState<string>('');
+  const [syllabusText, setSyllabusText] = useState<string>('');
+  const [isExtractingFile, setIsExtractingFile] = useState<boolean>(false);
+  const [uploadStatus, setUploadStatus] = useState<string | null>(null);
 
-  const handleSelectLearningStyle = async (style: LearningStyle) => {
-    setSelectedStyle(style);
-    if (setLearningStyle) {
-      await setLearningStyle(style);
-    }
-
-    if (isSupabaseConfigured()) {
-      try {
-        const { data: userData } = await supabase.auth.getUser();
-        if (userData?.user?.id) {
-          await initUserArms(userData.user.id);
-        }
-      } catch (err) {
-        console.warn("Supabase initUserArms notice:", err);
-      }
-    }
-
-    setStep("goal");
-  };
+  // Theme selection state
+  const [selectedTheme, setSelectedTheme] = useState<WorldThemeId>('cosmos');
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // 5MB Size Limit Validation
-    if (file.size > 5 * 1024 * 1024) {
-      setFileError("File is too large (max 5MB). Please upload a smaller file or type your goal manually.");
-      return;
-    }
-
-    setExtractingFile(true);
-    setFileError(null);
-    const isPDF = file.name.toLowerCase().endsWith(".pdf") || file.type === "application/pdf";
+    setIsExtractingFile(true);
+    setUploadStatus(`Extracting text from ${file.name}...`);
 
     try {
-      if (isPDF) {
-        // PDF client-side text extraction via pdfjs-dist
-        try {
-          const pdfjs = await import("pdfjs-dist");
-          pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.mjs`;
+      const formData = new FormData();
+      formData.append('file', file);
 
-          const arrayBuffer = await file.arrayBuffer();
-          const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise;
+      const res = await fetch('/api/extract-syllabus', {
+        method: 'POST',
+        body: formData,
+      });
 
-          let text = "";
-          for (let i = 1; i <= Math.min(pdf.numPages, 10); i++) {
-            const page = await pdf.getPage(i);
-            const content = await page.getTextContent();
-            const pageText = content.items.map((item: any) => item.str).join(" ");
-            text += ` ${pageText}`;
-          }
-
-          if (!text || text.trim().length < 5) {
-            throw new Error("PDF contains no readable text or scanned images.");
-          }
-
-          const res = await fetch("/api/extract-syllabus", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ text, fileName: file.name }),
-          });
-
-          if (res.ok) {
-            const data = await res.json();
-            if (Array.isArray(data.topics) && data.topics.length > 0) {
-              setExtractedTopics(data.topics);
-            } else {
-              throw new Error("Could not detect clear learning topics from PDF.");
-            }
-          } else {
-            throw new Error("Failed to extract syllabus from PDF.");
-          }
-        } catch (pdfErr: any) {
-          if (pdfErr?.name === "PasswordException" || pdfErr?.message?.includes("password")) {
-            throw new Error("PDF is password-protected. Please unlock it or type your goal manually.");
-          }
-          throw pdfErr;
-        }
+      const data = await res.json();
+      if (data.text) {
+        setSyllabusText(data.text);
+        setUploadStatus(`Extracted ${data.text.length} characters from ${file.name}`);
+        updateProfileStep(6, { syllabusText: data.text });
       } else {
-        // Image Vision extraction via /api/extract-syllabus (Gemini Vision API / Groq)
-        const reader = new FileReader();
-        const base64Promise = new Promise<string>((resolve, reject) => {
-          reader.onload = () => resolve(reader.result as string);
-          reader.onerror = reject;
-          reader.readAsDataURL(file);
-        });
+        setUploadStatus(data.error || data.warning || 'Could not extract text automatically. Please paste topics manually.');
+      }
+    } catch (err) {
+      setUploadStatus('File processing failed. Please paste topics manually below.');
+    } finally {
+      setIsExtractingFile(false);
+    }
+  };
 
-        const imageBase64 = await base64Promise;
-        const res = await fetch("/api/extract-syllabus", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
+  // Generated Plan & Mode State
+  const [isGeneratingPlan, setIsGeneratingPlan] = useState<boolean>(false);
+  const [studyPlan, setStudyPlan] = useState<{
+    totalHours: number;
+    weeks: number;
+    topics: { id: string; title: string; hours: number; why: string }[];
+    milestones: { afterTopic: string; checkpoint: string }[];
+    guidance?: string;
+  } | null>(null);
+
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [statusNotice, setStatusNotice] = useState<string | null>(null);
+
+  // Resume step on mount
+  useEffect(() => {
+    const store = getStoreData();
+    if (store.learnerProfile) {
+      const p = store.learnerProfile;
+      setPathType(p.pathType || 'goal');
+      setTopic(p.topic || '');
+      setLanguage(p.language || 'english');
+      setDailyMinutes(p.dailyMinutes || 60);
+      setStartingLevel(p.startingLevel || 'Complete beginner');
+      setWhyGoal(p.whyGoal || 'Job');
+      setDeadlineDate(p.deadlineDate || '');
+      setTestDate(p.testDate || '');
+      setSyllabusText(p.syllabusText || '');
+      if (p.worldTheme) {
+        setSelectedTheme(p.worldTheme);
+      }
+      if (p.currentStep && p.currentStep < 8) {
+        setCurrentStep(p.currentStep);
+      }
+      if (p.studyPlan) {
+        setStudyPlan(p.studyPlan);
+      }
+    }
+  }, []);
+
+  // Save progress step locally
+  const updateProfileStep = (newStep: number, profileData?: Partial<LearnerProfileData>) => {
+    setCurrentStep(newStep);
+    const updated = saveLearnerProfile({
+      pathType,
+      topic,
+      language,
+      dailyMinutes,
+      startingLevel,
+      whyGoal,
+      deadlineDate,
+      testDate,
+      syllabusText,
+      worldTheme: selectedTheme,
+      currentStep: newStep,
+      studyPlan: studyPlan || undefined,
+      ...profileData,
+    });
+
+    // Best-effort database sync to learner_profile table
+    if (isSupabaseConfigured && supabase) {
+      const client = supabase;
+      client.auth.getUser().then(({ data }) => {
+        if (data?.user) {
+          client.from('learner_profile').upsert({
+            user_id: data.user.id,
+            path_type: updated.learnerProfile?.pathType,
+            topic: updated.learnerProfile?.topic || 'Python Programming',
+            language: updated.learnerProfile?.language,
+            daily_minutes: updated.learnerProfile?.dailyMinutes,
+            starting_level: updated.learnerProfile?.startingLevel,
+            why_goal: updated.learnerProfile?.whyGoal,
+            deadline_date: updated.learnerProfile?.deadlineDate || null,
+            test_date: updated.learnerProfile?.testDate || null,
+            syllabus_text: updated.learnerProfile?.syllabusText || null,
+            world_theme: updated.learnerProfile?.worldTheme || selectedTheme,
+            current_step: newStep,
+            updated_at: new Date().toISOString(),
+          }).then(() => {});
+        }
+      });
+    }
+  };
+
+  const handleNextStep = async () => {
+    const next = currentStep + 1;
+
+    // Trigger plan generation on step 6 before rendering step 7
+    if (currentStep === 6) {
+      setIsGeneratingPlan(true);
+      try {
+        const res = await fetch('/api/plan', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            imageBase64,
-            mimeType: file.type || "image/png",
-            fileName: file.name,
+            pathType,
+            topic: topic.trim() || 'Python Programming',
+            language,
+            dailyMinutes,
+            startingLevel,
+            whyGoal,
+            deadlineDate,
+            testDate,
+            syllabusText,
           }),
         });
 
         if (res.ok) {
-          const data = await res.json();
-          if (Array.isArray(data.topics) && data.topics.length > 0) {
-            setExtractedTopics(data.topics);
-          } else {
-            throw new Error("Scanned/blurry image or unreadable text. Try typing your goal manually.");
-          }
+          const planData = await res.json();
+          setStudyPlan(planData);
+          updateProfileStep(7, { studyPlan: planData });
         } else {
-          throw new Error("Could not extract topics from image.");
+          updateProfileStep(7);
         }
+      } catch (err) {
+        updateProfileStep(7);
+      } finally {
+        setIsGeneratingPlan(false);
       }
-    } catch (err: any) {
-      setFileError(err.message || "Could not extract text from this file. Try typing your goal manually.");
-    } finally {
-      setExtractingFile(false);
+      return;
+    }
+
+    updateProfileStep(next);
+  };
+
+  const handlePrevStep = () => {
+    if (currentStep > 0) {
+      updateProfileStep(currentStep - 1);
     }
   };
 
-  const [showPlacementModal, setShowPlacementModal] = useState(false);
-  const [pendingGoal, setPendingGoal] = useState("");
-  const [showContextModal, setShowContextModal] = useState(false);
+  // Final course generation and routing with chosen World Theme
+  const handleBeginJourney = async () => {
+    setIsSubmitting(true);
+    setStatusNotice('Generating skill graph & terraforming world...');
 
-  const triggerGoalPlacement = (targetGoal: string) => {
-    if (!targetGoal.trim()) return;
-    setPendingGoal(targetGoal);
-    setShowPlacementModal(true);
-  };
+    const finalGoalTopic = topic.trim() || 'Python Core & Data Structures';
 
-  const handleGenerateCourse = async (
-    targetGoal: string,
-    startingLevel: number = 1,
-    initialPKnow: number = 0.15
-  ) => {
-    if (!targetGoal.trim()) return;
-
-    setLoading(true);
-    setError(null);
-    setNonsenseError(null);
-    setResult(null);
-    setLoadingStep(0);
-
-    const stepInterval = setInterval(() => {
-      setLoadingStep((prev) => (prev < LOADING_STEPS.length - 1 ? prev + 1 : prev));
-    }, 1100);
+    // Create a new skill graph object so existing graphs are never destroyed
+    createNewSkillGraph(finalGoalTopic);
+    saveLearnerProfile({
+      learningMode: 'tutor',
+      language: language as any,
+      worldTheme: selectedTheme,
+    });
 
     try {
-      const res = await fetch("/api/goal-engine", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ goal: targetGoal }),
+      const res = await fetch('/api/goal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ goal: finalGoalTopic }),
       });
 
-      clearInterval(stepInterval);
-
-      if (res.status === 400) {
-        const errData = await res.json();
-        if (errData.error === "nonsense") {
-          setNonsenseError({
-            message: errData.message || "Could not recognize a valid learning goal.",
-            examples: errData.examples || [
-              "Python Basics for Beginners",
-              "Data Structures & Algorithms",
-              "Machine Learning & AI",
-              "Full Stack Web Development",
-            ],
-          });
-          setLoading(false);
-          return;
+      if (res.ok) {
+        const data = await res.json();
+        if (data && Array.isArray(data.concepts) && Array.isArray(data.quests)) {
+          const formattedConcepts = data.concepts.map((c: any) => ({
+            id: c.id,
+            name: c.name,
+            masteryPercentage: 0,
+            itemsNext: 3,
+            retentionRisk: 0.0,
+            ptsSinceCalibration: 0,
+          }));
+          setGraphContent(finalGoalTopic, formattedConcepts, data.quests, false);
+        } else {
+          setStatusNotice('Using starter Python path.');
+          applySeededCourse(finalGoalTopic, SEEDED_PYTHON_COURSE.concepts, SEEDED_PYTHON_COURSE.items);
         }
+      } else {
+        setStatusNotice('Using starter Python path.');
+        applySeededCourse(finalGoalTopic, SEEDED_PYTHON_COURSE.concepts, SEEDED_PYTHON_COURSE.items);
       }
-
-      if (!res.ok) {
-        throw new Error("Failed to generate course from Goal Engine.");
-      }
-
-      const data: GoalEngineResponse = await res.json();
-      setResult(data);
-      setCourseData(data, data.normalizedTopic || targetGoal);
-
-      // Save goal and skills to Supabase DB with placement starting level
-      if (isSupabaseConfigured()) {
-        try {
-          const { data: userData } = await supabase.auth.getUser();
-          const userId = userData?.user?.id;
-
-          if (userId) {
-            const { data: goalRecord } = await supabase
-              .from("goals")
-              .insert({
-                user_id: userId,
-                goal_text: targetGoal,
-                title: data.title,
-              })
-              .select("id")
-              .single();
-
-            if (goalRecord?.id && Array.isArray(data.skills)) {
-              const skillRecords = data.skills.map((s, idx) => ({
-                goal_id: goalRecord.id,
-                name: s.name,
-                difficulty: s.difficulty,
-                order_index: idx,
-              }));
-
-              await supabase.from("skills").insert(skillRecords);
-
-              // Set placement user_module_progress if starting at Level 2 or Level 3
-              if (startingLevel > 1) {
-                for (const s of data.skills) {
-                  await supabase.from("user_module_progress").upsert({
-                    user_id: userId,
-                    skill_id: s.id || `skill-${s.name}`,
-                    level: 1,
-                    read_completed: true,
-                    test_passed: true,
-                    score: 8,
-                  });
-                  if (startingLevel > 2) {
-                    await supabase.from("user_module_progress").upsert({
-                      user_id: userId,
-                      skill_id: s.id || `skill-${s.name}`,
-                      level: 2,
-                      read_completed: true,
-                      test_passed: true,
-                      score: 8,
-                    });
-                  }
-                }
-              }
-            }
-
-            await initUserArms(userId);
-          }
-        } catch (dbErr) {
-          console.warn("Supabase database insert warning:", dbErr);
-        }
-      }
-    } catch (err: any) {
-      clearInterval(stepInterval);
-      setError(err.message || "An error occurred while generating your goal path.");
+    } catch (err) {
+      setStatusNotice('Using starter Python path.');
+      applySeededCourse(finalGoalTopic, SEEDED_PYTHON_COURSE.concepts, SEEDED_PYTHON_COURSE.items);
     } finally {
-      setLoading(false);
+      setTimeout(() => {
+        setIsSubmitting(false);
+        const store = getStoreData();
+        const firstConceptId = store.concepts[0]?.id || 'c_1';
+        router.push(`/tutor/${encodeURIComponent(firstConceptId)}`);
+      }, 600);
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    triggerGoalPlacement(goal);
-  };
-
-  const handleSelectSuggested = (suggested: string) => {
-    setGoal(suggested);
-    triggerGoalPlacement(suggested);
-  };
+  const themeList = Object.values(WORLD_THEMES);
 
   return (
-    <main className="min-h-screen bg-[#0A0A1A] bg-grid-pattern relative flex flex-col justify-between p-4 sm:p-8">
-      {/* Background Orbs */}
-      <div className="absolute top-10 right-10 w-96 h-96 bg-[#7C3AED]/15 rounded-full blur-[130px] pointer-events-none" />
-      <div className="absolute bottom-10 left-10 w-96 h-96 bg-[#22D3EE]/15 rounded-full blur-[130px] pointer-events-none" />
+    <div className="min-h-[100dvh] bg-ink text-text flex items-center justify-center p-4 sm:p-6 select-none relative overflow-hidden font-sans">
+      {/* Background Neon Glow */}
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[350px] bg-violet/15 rounded-full blur-[120px] pointer-events-none" />
 
-      {/* Top Bar */}
-      <header className="w-full max-w-5xl mx-auto flex items-center justify-between z-10 py-2">
-        <button
-          onClick={() => {
-            if (step === "goal") setStep("learning_style");
-            else router.push("/home");
-          }}
-          className="flex items-center gap-2 text-xs text-[#94A3B8] hover:text-white transition-colors cursor-pointer"
-        >
-          <ChevronLeft className="w-4 h-4" />
-          <span>
-            {step === "goal"
-              ? "Change Learning Style"
-              : "Back to Home"}
-          </span>
-        </button>
-
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#1B1B3A] border border-white/10 text-xs">
-            <Award className="w-4 h-4 text-[#FBBF24]" />
-            <span className="text-slate-200 font-bold">{userName}</span>
-            <span className="text-[#34D399] font-mono">{user.xp} XP</span>
+      <div className="w-full max-w-xl bg-[#120E22]/90 border border-line rounded-[20px] p-6 sm:p-8 backdrop-blur-xl relative z-10 space-y-6">
+        
+        {/* Header Action Bar with Working Back Arrow & Cancel */}
+        <div className="flex items-center justify-between border-b border-line/60 pb-3.5">
+          <div className="flex items-center gap-3">
+            {currentStep > 0 ? (
+              <button
+                type="button"
+                onClick={handlePrevStep}
+                className="font-mono text-xs text-muted hover:text-text flex items-center gap-1 transition-colors cursor-pointer"
+              >
+                &larr; Back
+              </button>
+            ) : (
+              <span className="font-mono text-[10px] tracking-eyebrow text-cyan uppercase font-bold">
+                TUTOR INTAKE
+              </span>
+            )}
           </div>
+
+          {/* Progress Indicator Dots */}
+          <div className="flex items-center gap-1.5">
+            {[0, 1, 2, 3, 4, 5, 6, 7, 8].map((s) => (
+              <span
+                key={s}
+                className={`h-1.5 rounded-full transition-all duration-300 ${
+                  s === currentStep
+                    ? 'w-6 bg-cyan'
+                    : s < currentStep
+                    ? 'w-2 bg-violet font-bold'
+                    : 'w-1.5 bg-line/80'
+                }`}
+              />
+            ))}
+          </div>
+
+          <Link href="/home" className="font-mono text-xs text-muted hover:text-text transition-colors">
+            Exit
+          </Link>
         </div>
-      </header>
 
-      {/* Main Content */}
-      <div className="w-full max-w-3xl mx-auto z-10 my-auto py-8">
+        {/* Status Notice Banner */}
+        {statusNotice && (
+          <div className="p-3 bg-cyan/15 border border-cyan/40 rounded-[10px] text-xs font-mono text-cyan text-center">
+            {statusNotice}
+          </div>
+        )}
 
-
-        {/* Step 1.5: Learning Style Selection Screen */}
-        {step === "learning_style" && !loading && (
-          <div className="text-center space-y-6 animate-fadeIn">
-            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#1B1B3A] border border-[#7C3AED]/40 text-xs text-[#22D3EE] font-mono">
-              <Sparkles className="w-3.5 h-3.5 text-[#FBBF24]" />
-              PEDAGOGICAL ADAPTATION ENGINE
+        {/* =================================================================== */}
+        {/* STEP 0: THE FORK CHOICE (Goal vs Syllabus) */}
+        {/* =================================================================== */}
+        {currentStep === 0 && (
+          <div className="space-y-6 animate-fadeIn">
+            <div className="text-center space-y-1.5">
+              <h1 className="font-sans font-semibold text-xl sm:text-2xl text-text">
+                What brings you here today?
+              </h1>
+              <p className="font-sans text-xs text-muted">
+                Choose the path that fits your current objective best.
+              </p>
             </div>
 
-            <h1 className="text-3xl sm:text-5xl font-black text-white font-heading tracking-tight">
-              How do you learn best?
-            </h1>
-            <p className="text-sm sm:text-base text-[#94A3B8] max-w-lg mx-auto">
-              Select your preferred teaching style. Questions, concept primers, and explanations will adapt strictly to your style.
-            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* GOAL CARD */}
+              <button
+                type="button"
+                onClick={() => {
+                  setPathType('goal');
+                  updateProfileStep(1, { pathType: 'goal' });
+                }}
+                className="bg-[#1A1430]/85 border border-white/[0.09] hover:border-violet-hot p-5 rounded-[16px] text-left transition-all hover:bg-[#1A1430] group cursor-pointer space-y-3"
+              >
+                <div className="w-10 h-10 rounded-full bg-violet/20 text-violet flex items-center justify-center font-mono font-bold text-lg group-hover:scale-110 transition-transform">
+                  🎯
+                </div>
+                <div>
+                  <h3 className="font-sans font-semibold text-base text-text group-hover:text-violet-hot transition-colors">
+                    Learning something new
+                  </h3>
+                  <p className="font-sans text-xs text-muted mt-1 leading-relaxed">
+                    Measured in weeks or months. Build deep foundations for a job, project, or long-term skill.
+                  </p>
+                </div>
+                <span className="font-mono text-[10px] uppercase text-cyan font-semibold block pt-1">
+                  Goal Path &rarr;
+                </span>
+              </button>
 
-            {/* 4 Tappable Learning Style Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl mx-auto pt-2">
-              {LEARNING_STYLE_OPTIONS.map((item) => {
-                const Icon = item.icon;
+              {/* SYLLABUS CARD */}
+              <button
+                type="button"
+                onClick={() => {
+                  setPathType('syllabus');
+                  updateProfileStep(1, { pathType: 'syllabus' });
+                }}
+                className="bg-[#1A1430]/85 border border-white/[0.09] hover:border-cyan p-5 rounded-[16px] text-left transition-all hover:bg-[#1A1430] group cursor-pointer space-y-3"
+              >
+                <div className="w-10 h-10 rounded-full bg-cyan/20 text-cyan flex items-center justify-center font-mono font-bold text-lg group-hover:scale-110 transition-transform">
+                  📝
+                </div>
+                <div>
+                  <h3 className="font-sans font-semibold text-base text-text group-hover:text-cyan transition-colors">
+                    Studying for a specific exam
+                  </h3>
+                  <p className="font-sans text-xs text-muted mt-1 leading-relaxed">
+                    Measured in days or weeks. Upload or paste a fixed syllabus with a hard deadline.
+                  </p>
+                </div>
+                <span className="font-mono text-[10px] uppercase text-violet font-semibold block pt-1">
+                  Syllabus Path &rarr;
+                </span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* =================================================================== */}
+        {/* STEP 1: TOPIC ENTRY */}
+        {/* =================================================================== */}
+        {currentStep === 1 && (
+          <div className="space-y-6 animate-fadeIn">
+            <div className="space-y-1">
+              <span className="font-mono text-[10px] uppercase text-cyan font-bold tracking-eyebrow">
+                QUESTION 1 OF 6
+              </span>
+              <h1 className="font-sans font-semibold text-xl text-text">
+                {pathType === 'goal' ? 'What do you want to learn?' : 'What exam or subject are you preparing for?'}
+              </h1>
+              <p className="font-sans text-xs text-muted">
+                Be as specific as possible (e.g. &ldquo;Python for Backend&rdquo; or &ldquo;Blender 3D Modeling&rdquo;).
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              <input
+                type="text"
+                value={topic}
+                onChange={(e) => setTopic(e.target.value)}
+                placeholder="e.g. Python Programming, Blender 3D, SQL Database"
+                className="w-full h-[52px] px-4 rounded-[12px] bg-[#1A1430]/85 border border-white/[0.09] text-[15px] font-sans text-text focus:outline-none focus:border-cyan transition-all"
+                autoFocus
+              />
+
+              <button
+                type="button"
+                disabled={!topic.trim()}
+                onClick={handleNextStep}
+                className="w-full h-[50px] rounded-[12px] bg-signature-gradient text-white font-sans font-semibold text-[15px] flex items-center justify-center gap-2 hover:brightness-108 transition-all disabled:opacity-40 cursor-pointer"
+              >
+                <span>Continue</span>
+                <span>&rarr;</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* =================================================================== */}
+        {/* STEP 2: LANGUAGE */}
+        {/* =================================================================== */}
+        {currentStep === 2 && (
+          <div className="space-y-6 animate-fadeIn">
+            <div className="space-y-1">
+              <span className="font-mono text-[10px] uppercase text-cyan font-bold tracking-eyebrow">
+                QUESTION 2 OF 6
+              </span>
+              <h1 className="font-sans font-semibold text-xl text-text">
+                What language do you prefer for explanations?
+              </h1>
+              <p className="font-sans text-xs text-muted">
+                XYRA speaks with fluent native voice and text in these languages.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-3 gap-3">
+              {[
+                { id: 'english', label: 'English', desc: 'Global technical standard' },
+                { id: 'tanglish', label: 'Tanglish', desc: 'Tamil + English mix' },
+                { id: 'tamil', label: 'Tamil', desc: 'Full native Tamil' },
+              ].map((lang) => (
+                <button
+                  key={lang.id}
+                  type="button"
+                  onClick={() => {
+                    setLanguage(lang.id as LanguageType);
+                    updateProfileStep(3, { language: lang.id as LanguageType });
+                  }}
+                  className={`p-4 rounded-[14px] border text-center transition-all cursor-pointer ${
+                    language === lang.id
+                      ? 'bg-cyan/20 border-cyan text-text'
+                      : 'bg-[#1A1430]/85 border-white/[0.09] hover:border-line text-muted hover:text-text'
+                  }`}
+                >
+                  <span className="font-sans font-semibold text-sm block">{lang.label}</span>
+                  <span className="font-sans text-[10px] text-muted block mt-1">{lang.desc}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* =================================================================== */}
+        {/* STEP 3: DAILY COMMITMENT */}
+        {/* =================================================================== */}
+        {currentStep === 3 && (
+          <div className="space-y-6 animate-fadeIn">
+            <div className="space-y-1">
+              <span className="font-mono text-[10px] uppercase text-cyan font-bold tracking-eyebrow">
+                QUESTION 3 OF 6
+              </span>
+              <h1 className="font-sans font-semibold text-xl text-text">
+                How much time can you spend each day?
+              </h1>
+              <p className="font-sans text-xs text-muted">
+                Used to calculate an honest, realistic study schedule.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {[
+                { min: 30, label: '30 mins', badge: 'Micro' },
+                { min: 60, label: '1 hour', badge: 'Standard' },
+                { min: 120, label: '2 hours', badge: 'Intensive' },
+                { min: 180, label: '3+ hours', badge: 'Immersive' },
+              ].map((item) => (
+                <button
+                  key={item.min}
+                  type="button"
+                  onClick={() => {
+                    setDailyMinutes(item.min);
+                    updateProfileStep(4, { dailyMinutes: item.min });
+                  }}
+                  className={`p-4 rounded-[14px] border text-center transition-all cursor-pointer ${
+                    dailyMinutes === item.min
+                      ? 'bg-violet/20 border-violet-hot text-text'
+                      : 'bg-[#1A1430]/85 border-white/[0.09] hover:border-line text-muted hover:text-text'
+                  }`}
+                >
+                  <span className="font-mono text-[10px] uppercase text-violet font-semibold block mb-1">
+                    {item.badge}
+                  </span>
+                  <span className="font-sans font-bold text-base block">{item.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* =================================================================== */}
+        {/* STEP 4: STARTING LEVEL */}
+        {/* =================================================================== */}
+        {currentStep === 4 && (
+          <div className="space-y-6 animate-fadeIn">
+            <div className="space-y-1">
+              <span className="font-mono text-[10px] uppercase text-cyan font-bold tracking-eyebrow">
+                QUESTION 4 OF 6
+              </span>
+              <h1 className="font-sans font-semibold text-xl text-text">
+                Where are you starting from?
+              </h1>
+              <p className="font-sans text-xs text-muted">
+                We calibrate difficulty to avoid boring you with basics or overwhelming you.
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              {[
+                { title: 'Complete beginner', desc: 'Starting from scratch, never touched this before.' },
+                { title: 'Some familiarity', desc: 'Know high-level terms, but haven\'t built or practiced much.' },
+                { title: 'Working knowledge', desc: 'Used it before, want to master edge-cases and go deep.' },
+              ].map((lvl) => (
+                <button
+                  key={lvl.title}
+                  type="button"
+                  onClick={() => {
+                    setStartingLevel(lvl.title);
+                    updateProfileStep(5, { startingLevel: lvl.title });
+                  }}
+                  className={`w-full p-4 rounded-[14px] border text-left transition-all cursor-pointer ${
+                    startingLevel === lvl.title
+                      ? 'bg-cyan/15 border-cyan text-text'
+                      : 'bg-[#1A1430]/85 border-white/[0.09] hover:border-line text-muted hover:text-text'
+                  }`}
+                >
+                  <span className="font-sans font-semibold text-sm block text-text">{lvl.title}</span>
+                  <span className="font-sans text-xs text-muted block mt-0.5">{lvl.desc}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* =================================================================== */}
+        {/* STEP 5: WHY GOAL */}
+        {/* =================================================================== */}
+        {currentStep === 5 && (
+          <div className="space-y-6 animate-fadeIn">
+            <div className="space-y-1">
+              <span className="font-mono text-[10px] uppercase text-cyan font-bold tracking-eyebrow">
+                QUESTION 5 OF 6
+              </span>
+              <h1 className="font-sans font-semibold text-xl text-text">
+                Why are you learning this?
+              </h1>
+              <p className="font-sans text-xs text-muted">
+                Helps XYRA tailor examples and analogies to your real context.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              {[
+                { label: 'Job / Placement', desc: 'Preparing for interviews' },
+                { label: 'College Exam', desc: 'Passing university tests' },
+                { label: 'Building a Project', desc: 'Shipping a real app' },
+                { label: 'Curiosity & Fun', desc: 'Exploring for fun' },
+              ].map((item) => (
+                <button
+                  key={item.label}
+                  type="button"
+                  onClick={() => {
+                    setWhyGoal(item.label);
+                    updateProfileStep(6, { whyGoal: item.label });
+                  }}
+                  className={`p-4 rounded-[14px] border text-left transition-all cursor-pointer ${
+                    whyGoal === item.label
+                      ? 'bg-violet/20 border-violet-hot text-text'
+                      : 'bg-[#1A1430]/85 border-white/[0.09] hover:border-line text-muted hover:text-text'
+                  }`}
+                >
+                  <span className="font-sans font-semibold text-sm block text-text">{item.label}</span>
+                  <span className="font-sans text-xs text-muted block mt-0.5">{item.desc}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* =================================================================== */}
+        {/* STEP 6: DEADLINE OR SYLLABUS UPLOAD */}
+        {/* =================================================================== */}
+        {currentStep === 6 && (
+          <div className="space-y-6 animate-fadeIn">
+            {pathType === 'goal' ? (
+              <>
+                <div className="space-y-1">
+                  <span className="font-mono text-[10px] uppercase text-cyan font-bold tracking-eyebrow">
+                    QUESTION 6 OF 6
+                  </span>
+                  <h1 className="font-sans font-semibold text-xl text-text">
+                    Do you have a target deadline in mind?
+                  </h1>
+                  <p className="font-sans text-xs text-muted">
+                    Optional — helps us pace your daily milestones.
+                  </p>
+                </div>
+
+                <div className="space-y-3">
+                  <input
+                    type="date"
+                    value={deadlineDate}
+                    onChange={(e) => setDeadlineDate(e.target.value)}
+                    className="w-full h-[52px] px-4 rounded-[12px] bg-[#1A1430]/85 border border-white/[0.09] text-[15px] font-sans text-text focus:outline-none focus:border-cyan"
+                  />
+
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDeadlineDate('');
+                        handleNextStep();
+                      }}
+                      className="flex-1 h-[48px] rounded-[12px] bg-panel border border-line text-muted hover:text-text font-sans font-medium text-xs transition-colors cursor-pointer"
+                    >
+                      No strict deadline
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleNextStep}
+                      className="flex-1 h-[48px] rounded-[12px] bg-signature-gradient text-white font-sans font-semibold text-xs flex items-center justify-center gap-1 hover:brightness-108 transition-all cursor-pointer"
+                    >
+                      <span>Continue &rarr;</span>
+                    </button>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="space-y-1">
+                  <span className="font-mono text-[10px] uppercase text-cyan font-bold tracking-eyebrow">
+                    QUESTION 6 OF 6 (SYLLABUS PATH)
+                  </span>
+                  <h1 className="font-sans font-semibold text-xl text-text">
+                    What is on the test?
+                  </h1>
+                  <p className="font-sans text-xs text-muted">
+                    Paste topics manually OR upload a syllabus document.
+                  </p>
+                </div>
+
+                <div className="bg-[#1A1430]/60 border border-dashed border-line/80 p-3.5 rounded-[12px] flex items-center justify-between gap-3">
+                  <div className="text-xs font-sans text-muted">
+                    {uploadStatus ? (
+                      <span className="text-cyan font-mono">{uploadStatus}</span>
+                    ) : (
+                      <span>Upload document (PDF, DOCX, JPG, PNG &le; 5MB)</span>
+                    )}
+                  </div>
+
+                  <label className="h-8 px-3 rounded-[8px] bg-raised border border-line text-xs font-sans text-text font-medium hover:border-cyan transition-colors cursor-pointer shrink-0 flex items-center gap-1">
+                    <span>{isExtractingFile ? 'Extracting...' : '📄 Upload File'}</span>
+                    <input
+                      type="file"
+                      accept=".pdf,.docx,.doc,.jpg,.jpeg,.png,.txt"
+                      disabled={isExtractingFile}
+                      onChange={handleFileUpload}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+
+                <textarea
+                  rows={4}
+                  value={syllabusText}
+                  onChange={(e) => setSyllabusText(e.target.value)}
+                  className="w-full p-3.5 rounded-[12px] bg-[#1A1430]/85 border border-white/[0.09] text-[15px] font-sans text-text focus:outline-none focus:border-cyan"
+                  placeholder="e.g. Unit 1: Arrays, Unit 2: Stack & Queue, Unit 3: Tree traversals"
+                />
+
+                <button
+                  type="button"
+                  onClick={handleNextStep}
+                  className="w-full h-[50px] rounded-[12px] bg-signature-gradient text-white font-sans font-semibold text-[15px] flex items-center justify-center gap-2 hover:brightness-108 transition-all cursor-pointer"
+                >
+                  <span>Generate Exam Plan</span>
+                  <span>&rarr;</span>
+                </button>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* =================================================================== */}
+        {/* STEP 7: STUDY PLAN */}
+        {/* =================================================================== */}
+        {currentStep === 7 && (
+          <div className="space-y-5 animate-fadeIn">
+            <div className="space-y-1 border-b border-line/60 pb-3">
+              <span className="font-mono text-[10px] uppercase text-cyan font-bold tracking-eyebrow">
+                PERSONALIZED STUDY ESTIMATE
+              </span>
+              <h1 className="font-sans font-semibold text-xl text-text">
+                Your Learning Roadmap
+              </h1>
+            </div>
+
+            {isGeneratingPlan ? (
+              <div className="py-12 text-center space-y-3">
+                <div className="font-mono text-sm text-cyan animate-pulse">
+                  ⟳ Calculating realistic timeline with Groq...
+                </div>
+                <p className="font-sans text-xs text-muted">
+                  Grounding estimates in your pace of {dailyMinutes} mins/day
+                </p>
+              </div>
+            ) : studyPlan ? (
+              <div className="space-y-4 max-h-[380px] overflow-y-auto pr-1">
+                {studyPlan.guidance && (
+                  <div className="p-3.5 bg-violet/15 border border-violet/30 rounded-[12px] font-sans text-xs text-text/90 leading-relaxed">
+                    💡 <span className="font-semibold text-violet-hot">Honest Estimate:</span> {studyPlan.guidance}
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-[#150F2A] p-3 rounded-[12px] text-center">
+                    <span className="block font-mono text-[9px] uppercase text-muted">TOTAL HOURS</span>
+                    <span className="block font-mono text-xl font-bold text-cyan">{studyPlan.totalHours} hrs</span>
+                  </div>
+                  <div className="bg-[#150F2A] p-3 rounded-[12px] text-center">
+                    <span className="block font-mono text-[9px] uppercase text-muted">ESTIMATED WEEKS</span>
+                    <span className="block font-mono text-xl font-bold text-violet">{studyPlan.weeks} weeks</span>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <span className="font-mono text-[10px] tracking-eyebrow uppercase text-muted font-bold block">
+                    RECOMMENDED TOPICS
+                  </span>
+
+                  {studyPlan.topics.map((t) => (
+                    <div key={t.id} className="bg-[#150F2A] p-3.5 rounded-[12px] space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="font-sans font-medium text-sm text-text">{t.title}</span>
+                        <span className="font-mono text-xs text-cyan font-bold">{t.hours} hrs</span>
+                      </div>
+                      <p className="font-sans text-xs text-muted leading-snug">{t.why}</p>
+                    </div>
+                  ))}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => updateProfileStep(8)}
+                  className="w-full h-[50px] rounded-[12px] bg-signature-gradient text-white font-sans font-semibold text-[15px] flex items-center justify-center gap-2 hover:brightness-108 transition-all cursor-pointer mt-2 shadow-lg"
+                >
+                  <span>Choose Your World Theme</span>
+                  <span>&rarr;</span>
+                </button>
+              </div>
+            ) : null}
+          </div>
+        )}
+
+        {/* =================================================================== */}
+        {/* STEP 8: CHOOSE YOUR WORLD THEME */}
+        {/* =================================================================== */}
+        {currentStep === 8 && (
+          <div className="space-y-5 animate-fadeIn">
+            <div className="text-center space-y-1">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#00F0FF]/15 border border-[#00F0FF]/30 text-[#00F0FF] font-mono text-[10px] font-bold">
+                <Globe className="w-3 h-3" />
+                <span>SKILL PASSPORT TERRAFORMING</span>
+              </div>
+              <h1 className="font-sans font-bold text-2xl text-white">
+                Choose Your World
+              </h1>
+              <p className="font-sans text-xs text-slate-400 max-w-md mx-auto">
+                Your knowledge will terraform this living world as you master concepts. You can change this anytime from your profile.
+              </p>
+            </div>
+
+            {/* 5 Theme Cards Grid (2-column, 5th centered) */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+              {themeList.map((t, idx) => {
+                const isSelected = selectedTheme === t.id;
+                const isFifth = idx === 4;
+
                 return (
                   <button
-                    key={item.id}
-                    onClick={() => handleSelectLearningStyle(item.id)}
-                    className="bg-[#1B1B3A] border border-white/10 hover:border-[#34D399] p-5 rounded-3xl transition-all duration-200 hover:scale-[1.02] text-left cursor-pointer group glow-box-violet space-y-3"
+                    key={t.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedTheme(t.id);
+                      saveLearnerProfile({ worldTheme: t.id });
+                    }}
+                    className={`p-3.5 rounded-[16px] text-left transition-all cursor-pointer border flex items-start gap-3 relative ${
+                      isFifth ? 'sm:col-span-2 sm:max-w-[280px] sm:mx-auto w-full' : ''
+                    } ${
+                      isSelected
+                        ? 'bg-[#00F0FF]/15 border-[#00F0FF] shadow-[0_0_20px_rgba(0,240,255,0.3)] ring-1 ring-[#00F0FF]'
+                        : 'bg-[#150F2A]/90 border-white/10 hover:border-white/25 hover:bg-[#1A1430]'
+                    }`}
                   >
-                    <div className="flex items-center justify-between">
-                      <div className={`p-3 rounded-2xl ${item.color}`}>
-                        <Icon className="w-6 h-6" />
-                      </div>
-                      <span className="text-[10px] font-mono text-slate-400 group-hover:text-[#34D399]">
-                        Pedagogical Mode
-                      </span>
+                    {/* Small Colored Gradient Preview Square with Icon */}
+                    <div
+                      className="w-11 h-11 rounded-xl flex items-center justify-center text-xl shrink-0 shadow-md border border-white/15"
+                      style={{
+                        background: `linear-gradient(135deg, ${t.bgGradients[2]} 0%, ${t.bgGradients[0]} 100%)`,
+                      }}
+                    >
+                      {t.icon}
                     </div>
 
-                    <div>
-                      <h3 className="text-base font-bold text-white font-heading group-hover:text-[#34D399] transition-colors">
-                        {item.label}
-                      </h3>
-                      <p className="text-xs text-[#94A3B8] mt-1 leading-relaxed">{item.desc}</p>
+                    <div className="space-y-1 min-w-0 flex-1">
+                      <div className="flex items-center justify-between">
+                        <span className="font-sans font-bold text-sm text-white truncate">
+                          {t.name}
+                        </span>
+                        {isSelected && (
+                          <span className="w-5 h-5 rounded-full bg-[#00F0FF] text-black flex items-center justify-center shrink-0">
+                            <Check className="w-3 h-3 stroke-[3]" />
+                          </span>
+                        )}
+                      </div>
+                      <p className="font-sans text-[11px] text-slate-300 line-clamp-2 leading-tight">
+                        {t.subtitle}
+                      </p>
+                      <span className="font-mono text-[9px] text-slate-400 block pt-0.5 truncate">
+                        {t.bestFor}
+                      </span>
                     </div>
                   </button>
                 );
               })}
             </div>
-          </div>
-        )}
 
-        {/* Step 2: Goal Prompt Screen */}
-        {step === "goal" && !result && !loading && extractedTopics.length === 0 && (
-          <div className="text-center space-y-6 animate-fadeIn">
-            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#1B1B3A] border border-[#7C3AED]/40 text-xs text-[#22D3EE] font-mono">
-              <CheckCircle2 className="w-3.5 h-3.5 text-[#34D399]" />
-              THOMPSON SAMPLING BANDIT ARMS READY
-            </div>
-
-            <div className="flex items-center justify-center gap-3">
-              <XpAsset name="sparkles" alt="Goal Analysis Icon" width={40} height={40} className="shrink-0 text-[#00F0FF]" />
-              <h1 className="text-3xl sm:text-5xl font-black text-white font-heading tracking-tight">
-                What do you want to learn?
-              </h1>
-            </div>
-            <p className="text-sm sm:text-base text-[#94A3B8] max-w-lg mx-auto">
-              State your target role, exam, or skill. Tavily & Groq AI will construct your adaptive curriculum.
-            </p>
-
-            <form onSubmit={handleSubmit} className="relative max-w-2xl mx-auto space-y-3">
-              <div className="relative flex items-center bg-[#1B1B3A] border border-[#7C3AED]/40 rounded-2xl p-2 shadow-2xl focus-within:border-[#22D3EE] focus-within:ring-2 focus-within:ring-[#22D3EE]/30 transition-all glow-box-violet">
-                <input
-                  type="text"
-                  required={!showFileUpload}
-                  value={goal}
-                  onChange={(e) => setGoal(e.target.value)}
-                  placeholder="e.g. Python basics, or DSA for a FAANG interview"
-                  className="w-full bg-transparent text-white placeholder:text-slate-500 px-4 py-3.5 text-sm sm:text-base focus:outline-none"
-                />
-                <button
-                  type="submit"
-                  disabled={!goal.trim()}
-                  className="bg-gradient-to-r from-[#7C3AED] to-[#22D3EE] hover:from-[#6D28D9] hover:to-[#06B6D4] text-white p-3.5 rounded-xl font-bold transition-all shadow-md shadow-[#7C3AED]/30 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shrink-0"
-                >
-                  <Send className="w-5 h-5" />
-                </button>
-              </div>
-
-              {/* Optional Syllabus File Upload Link & Inline Input */}
-              <div className="text-center pt-1">
-                {!showFileUpload ? (
-                  <button
-                    type="button"
-                    onClick={() => setShowFileUpload(true)}
-                    className="inline-flex items-center gap-1.5 text-xs text-[#22D3EE] hover:underline font-mono font-bold cursor-pointer"
-                  >
-                    <Paperclip className="w-3.5 h-3.5 text-[#FBBF24]" />
-                    <span>or upload your syllabus (PDF / Image max 5MB)</span>
-                  </button>
-                ) : (
-                  <div className="bg-[#1B1B3A] border border-[#22D3EE]/40 rounded-2xl p-4 space-y-3 max-w-md mx-auto animate-fadeIn">
-                    <div className="flex items-center justify-between text-xs font-mono">
-                      <span className="text-[#22D3EE] font-bold flex items-center gap-1.5">
-                        <Upload className="w-3.5 h-3.5" /> Upload Syllabus File
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setShowFileUpload(false);
-                          setFileError(null);
-                        }}
-                        className="text-slate-400 hover:text-white"
-                      >
-                        ✕
-                      </button>
-                    </div>
-
-                    <label className="block w-full border-2 border-dashed border-white/20 hover:border-[#22D3EE]/60 rounded-xl p-4 text-center cursor-pointer transition-all bg-[#0A0A1A]">
-                      <FileText className="w-6 h-6 text-[#22D3EE] mx-auto mb-1" />
-                      <span className="text-xs text-slate-300 font-bold block">Select PDF or Image (JPG / PNG)</span>
-                      <span className="text-[10px] text-slate-500 block mt-0.5">Max file size 5MB</span>
-                      <input
-                        type="file"
-                        accept=".pdf,image/png,image/jpeg,image/webp"
-                        onChange={handleFileUpload}
-                        disabled={extractingFile}
-                        className="hidden"
-                      />
-                    </label>
-
-                    {extractingFile && (
-                      <div className="flex items-center justify-center gap-2 text-xs font-mono text-[#22D3EE]">
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        <span>Parsing syllabus file & extracting topics...</span>
-                      </div>
-                    )}
-
-                    {fileError && (
-                      <p className="text-xs text-red-400 font-bold leading-relaxed">{fileError}</p>
-                    )}
-                  </div>
-                )}
-              </div>
-            </form>
-
-            {/* 8 Curated Quick-Start Tappable Cards */}
-            <div className="pt-6 space-y-3">
-              <div className="flex items-center justify-between text-xs font-mono text-[#94A3B8]">
-                <span className="uppercase tracking-wider font-bold">Curated Quick-Start Goals (Tap to Launch):</span>
-                <span className="text-[#22D3EE] font-bold">8 Popular Tracks</span>
-              </div>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                {POPULAR_QUICKSTART_GOALS.map((card) => (
-                  <button
-                    key={card.id}
-                    type="button"
-                    onClick={() => handleSelectSuggested(card.query)}
-                    className="bg-[#1B1B3A] border border-white/10 hover:border-[#7C3AED] p-3.5 rounded-2xl transition-all duration-200 hover:scale-[1.03] text-left cursor-pointer group space-y-1.5 glow-box-violet"
-                  >
-                    <div className="text-xl">{card.icon}</div>
-                    <h4 className="text-xs font-bold text-white group-hover:text-[#22D3EE] transition-colors line-clamp-1">
-                      {card.title}
-                    </h4>
-                    <p className="text-[10px] text-slate-400 line-clamp-2 leading-tight">{card.desc}</p>
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Syllabus Extracted Topics Confirmation Screen */}
-        {extractedTopics.length > 0 && !result && !loading && (
-          <div className="bg-[#1B1B3A] border border-[#22D3EE]/40 rounded-3xl p-6 sm:p-8 text-center space-y-5 max-w-xl mx-auto shadow-2xl animate-fadeIn glow-box-cyan">
-            <div className="space-y-1">
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#22D3EE]/20 border border-[#22D3EE]/40 text-[#22D3EE] text-xs font-mono font-bold mb-2">
-                <BookOpen className="w-3.5 h-3.5 text-[#FBBF24]" />
-                Syllabus Topics Extracted ({extractedTopics.length})
-              </div>
-              <h3 className="text-xl font-bold text-white font-heading">
-                We found these topics in your syllabus — look right?
-              </h3>
-              <p className="text-xs text-slate-300">
-                Remove any unwanted topics or add extra ones before generating your course.
-              </p>
-            </div>
-
-            {/* Extracted Topic Chips */}
-            <div className="flex flex-wrap justify-center gap-2 pt-2">
-              {extractedTopics.map((topic, idx) => (
-                <div
-                  key={idx}
-                  className="px-3 py-1.5 rounded-xl bg-[#0A0A1A] border border-[#22D3EE]/40 text-xs font-bold text-slate-200 flex items-center gap-2"
-                >
-                  <span>{topic}</span>
-                  <button
-                    type="button"
-                    onClick={() => setExtractedTopics(extractedTopics.filter((_, i) => i !== idx))}
-                    className="text-slate-400 hover:text-red-400 text-xs font-mono font-bold cursor-pointer"
-                  >
-                    ✕
-                  </button>
-                </div>
-              ))}
-            </div>
-
-            {/* Add Custom Topic Input */}
-            <div className="flex items-center gap-2 max-w-md mx-auto pt-2">
-              <input
-                type="text"
-                value={newTopicInput}
-                onChange={(e) => setNewTopicInput(e.target.value)}
-                placeholder="Add another topic..."
-                className="w-full bg-[#0A0A1A] border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-[#22D3EE]"
-              />
+            {/* Begin Journey Button */}
+            <div className="pt-2">
               <button
                 type="button"
-                onClick={() => {
-                  if (newTopicInput.trim()) {
-                    setExtractedTopics([...extractedTopics, newTopicInput.trim()]);
-                    setNewTopicInput("");
-                  }
-                }}
-                className="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs cursor-pointer shrink-0"
+                disabled={isSubmitting}
+                onClick={handleBeginJourney}
+                className="w-full h-12 rounded-[14px] bg-signature-gradient text-white font-sans font-bold text-sm flex items-center justify-center gap-2 hover:brightness-110 transition-all cursor-pointer shadow-[0_8px_30px_-6px_rgba(168,85,247,0.6)] disabled:opacity-50"
               >
-                + Add
-              </button>
-            </div>
-
-            <div className="pt-3 flex flex-col sm:flex-row gap-2">
-              <button
-                type="button"
-                onClick={() => setExtractedTopics([])}
-                className="w-full sm:w-1/3 py-3 rounded-2xl bg-white/5 hover:bg-white/10 text-slate-400 font-bold text-xs cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  const combinedGoal = extractedTopics.join(", ");
-                  setGoal(combinedGoal);
-                  handleGenerateCourse(combinedGoal);
-                }}
-                disabled={extractedTopics.length === 0}
-                className="w-full sm:w-2/3 py-3 rounded-2xl bg-gradient-to-r from-[#7C3AED] to-[#22D3EE] hover:from-[#6D28D9] hover:to-[#06B6D4] text-white font-black font-heading text-xs uppercase tracking-wider transition-all cursor-pointer shadow-lg shadow-[#7C3AED]/30"
-              >
-                Generate Course from Syllabus →
+                <Sparkles className="w-4 h-4 text-amber-300" />
+                <span>{isSubmitting ? 'Terraforming World...' : 'Begin Journey →'}</span>
               </button>
             </div>
           </div>
         )}
 
-        {/* Loading State - Streaming Real Open Web Sources */}
-        {loading && (
-          <div className="bg-[#1B1B3A]/90 border border-[#7C3AED]/40 rounded-3xl p-8 text-center space-y-6 shadow-2xl glow-box-violet max-w-xl mx-auto backdrop-blur-xl animate-fadeIn">
-            <div className="relative w-20 h-20 mx-auto flex items-center justify-center">
-              <div className="absolute inset-0 rounded-full border-4 border-[#7C3AED]/20 border-t-[#22D3EE] animate-spin" />
-              <Compass className="w-8 h-8 text-[#7C3AED] animate-pulse" />
-            </div>
-
-            <div className="space-y-3">
-              <h2 className="text-xl font-bold text-white font-heading">
-                Building Your Quest Line...
-              </h2>
-
-              <div className="bg-[#0A0A1A] border border-white/10 p-4 rounded-2xl space-y-2 text-left text-xs font-mono">
-                <span className="text-[#22D3EE] font-bold block mb-1">Live Web Research Progress:</span>
-                {[
-                  "Reading geeksforgeeks.org...",
-                  "Reading developer.mozilla.org...",
-                  "Reading freecodecamp.org...",
-                  "Reading docs.python.org...",
-                ].map((stepLabel, idx) => {
-                  const isDone = loadingStep > idx;
-                  const isCurrent = loadingStep === idx;
-
-                  return (
-                    <div key={idx} className="flex items-center gap-2">
-                      {isDone ? (
-                        <CheckCircle2 className="w-4 h-4 text-[#34D399] shrink-0" />
-                      ) : isCurrent ? (
-                        <Loader2 className="w-4 h-4 text-[#22D3EE] animate-spin shrink-0" />
-                      ) : (
-                        <span className="w-4 h-4 rounded-full border border-white/20 shrink-0" />
-                      )}
-                      <span className={isDone ? "text-slate-300 font-bold" : isCurrent ? "text-[#22D3EE] font-bold" : "text-slate-500"}>
-                        {stepLabel}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Nonsense Error Display with 4 Tappable Example Chips */}
-        {nonsenseError && !loading && (
-          <div className="bg-[#1B1B3A] border border-red-500/40 rounded-3xl p-6 sm:p-8 text-center space-y-5 max-w-xl mx-auto shadow-2xl animate-fadeIn glow-box-violet">
-            <div className="w-12 h-12 rounded-2xl bg-red-500/20 border border-red-500/40 flex items-center justify-center mx-auto text-red-400 text-xl font-bold">
-              ❓
-            </div>
-            <div className="space-y-1">
-              <h3 className="text-lg font-bold text-white font-heading">Goal Not Recognized</h3>
-              <p className="text-xs text-slate-300">{nonsenseError.message}</p>
-            </div>
-            <div className="pt-2 space-y-2">
-              <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wider block">Try one of these real topics:</span>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {nonsenseError.examples.map((ex, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => {
-                      setNonsenseError(null);
-                      setGoal(ex);
-                      handleGenerateCourse(ex);
-                    }}
-                    className="p-3 rounded-xl bg-[#0A0A1A] hover:bg-[#22D3EE]/10 border border-white/10 hover:border-[#22D3EE]/50 text-xs font-bold text-slate-200 hover:text-[#22D3EE] transition-all text-left cursor-pointer flex items-center justify-between group"
-                  >
-                    <span>{ex}</span>
-                    <ArrowRight className="w-3.5 h-3.5 text-[#22D3EE] group-hover:translate-x-0.5 transition-transform" />
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Generic Error Display */}
-        {error && !loading && (
-          <div className="bg-red-500/10 border border-red-500/40 rounded-2xl p-6 text-center space-y-4 max-w-xl mx-auto">
-            <p className="text-red-400 text-sm font-semibold">{error}</p>
-            <button
-              onClick={() => setError(null)}
-              className="px-4 py-2 rounded-xl bg-red-500/20 text-white text-xs font-bold hover:bg-red-500/30 transition-colors cursor-pointer"
-            >
-              Try Again
-            </button>
-          </div>
-        )}
-
-        {/* Generated Skill Tree View */}
-        {result && !loading && (
-          <div className="space-y-6 animate-fadeIn">
-            {/* Interpreted Topic Header Banner */}
-            {result.normalizedTopic && (
-              <div className="bg-[#22D3EE]/10 border border-[#22D3EE]/40 rounded-2xl p-3.5 flex items-center justify-between gap-3 text-xs shadow-lg">
-                <span className="text-slate-200">
-                  Building your course on: <strong className="text-[#22D3EE] font-bold">"{result.normalizedTopic}"</strong>
-                </span>
-                <button
-                  onClick={() => {
-                    setResult(null);
-                    setGoal(result.normalizedTopic || goal);
-                    setStep("goal");
-                  }}
-                  className="text-[11px] font-mono text-[#22D3EE] hover:underline font-bold shrink-0 cursor-pointer bg-[#22D3EE]/20 hover:bg-[#22D3EE]/30 px-3 py-1 rounded-lg transition-colors"
-                >
-                  Not what you meant? Edit
-                </button>
-              </div>
-            )}
-
-            <div className="bg-[#1B1B3A] border border-[#7C3AED]/40 rounded-3xl p-6 sm:p-8 shadow-2xl glow-box-violet relative overflow-hidden space-y-6">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                <div>
-                  <div
-                    className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-mono font-bold mb-2 border ${
-                      result.isWebGrounded !== false
-                        ? "bg-[#34D399]/20 border-[#34D399]/40 text-[#34D399]"
-                        : "bg-[#FBBF24]/20 border-[#FBBF24]/40 text-[#FBBF24]"
-                    }`}
-                  >
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                    {result.isWebGrounded !== false
-                      ? "CURRICULUM GROUNDED IN LIVE WEB RESEARCH"
-                      : "GENERATED FROM AI KNOWLEDGE (WITHOUT WEB SOURCES)"}
-                  </div>
-                  <h2 className="text-2xl sm:text-3xl font-black text-white font-heading">
-                    {result.title}
-                  </h2>
-                  <p className="text-xs text-[#94A3B8] mt-1">
-                    Target Goal: <span className="text-slate-200 font-semibold">"{goal}"</span>
-                  </p>
-                </div>
-
-                <button
-                  onClick={() => router.push("/home")}
-                  className="bg-gradient-to-r from-[#7C3AED] to-[#22D3EE] hover:from-[#6D28D9] hover:to-[#06B6D4] text-white font-bold px-6 py-3.5 rounded-2xl transition-all shadow-lg shadow-[#7C3AED]/30 flex items-center gap-2 cursor-pointer text-sm shrink-0 glow-box-cyan"
-                >
-                  <Play className="w-4 h-4 fill-current" />
-                  <span>Enter Home Arena</span>
-                </button>
-              </div>
-
-              {/* Skills Tree Preview */}
-              <div className="space-y-2">
-                <span className="text-xs font-bold text-[#94A3B8] font-mono uppercase tracking-wider block">
-                  Generated Mastery Skills ({result.skills.length})
-                </span>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                  {result.skills.map((s, idx) => (
-                    <div key={s.id || idx} className="bg-[#0A0A1A] border border-white/10 p-3 rounded-2xl flex items-center justify-between text-xs">
-                      <span className="font-bold text-white truncate">{s.name}</span>
-                      <span className="text-[10px] font-mono text-[#FBBF24] bg-[#FBBF24]/20 px-2 py-0.5 rounded-full border border-[#FBBF24]/40 shrink-0">
-                        Lvl {s.difficulty}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Grounded in these sources section */}
-              {result.sources && result.sources.length > 0 && (
-                <div className="bg-[#0A0A1A] border border-[#22D3EE]/30 rounded-2xl p-4 space-y-3">
-                  <div className="space-y-0.5">
-                    <h4 className="text-xs font-bold text-[#22D3EE] font-mono uppercase tracking-wider flex items-center gap-1.5">
-                      <BookOpen className="w-4 h-4 text-[#FBBF24]" />
-                      Grounded in these sources
-                    </h4>
-                    <p className="text-[11px] text-[#94A3B8]">
-                      Your course was built from these live sources, not from a fixed template.
-                    </p>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {result.sources.map((src, idx) => (
-                      <a
-                        key={idx}
-                        href={src.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="bg-[#12122C] border border-white/10 hover:border-[#22D3EE]/50 p-2.5 rounded-xl transition-all flex items-center gap-2.5 text-xs text-slate-200 hover:text-white group cursor-pointer"
-                      >
-                        {/* Favicon */}
-                        <img
-                          src={`https://www.google.com/s2/favicons?domain=${src.domain}&sz=32`}
-                          alt={src.domain}
-                          className="w-5 h-5 rounded shrink-0 bg-white/10 p-0.5"
-                          onError={(e) => {
-                            (e.target as HTMLElement).style.display = "none";
-                          }}
-                        />
-                        <div className="overflow-hidden">
-                          <p className="font-bold text-white text-[11px] truncate group-hover:text-[#22D3EE] transition-colors">
-                            {src.title}
-                          </p>
-                          <span className="text-[10px] font-mono text-slate-400 block truncate">
-                            {src.domain}
-                          </span>
-                        </div>
-                      </a>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
       </div>
-
-      {showPlacementModal && pendingGoal && (
-        <PlacementTestModal
-          goalTitle={pendingGoal}
-          onSkipBeginner={() => {
-            setShowPlacementModal(false);
-            handleGenerateCourse(pendingGoal, 1, 0.15);
-          }}
-          onComplete={(startingLevel, initialPKnow) => {
-            setShowPlacementModal(false);
-            handleGenerateCourse(pendingGoal, startingLevel, initialPKnow);
-          }}
-        />
-      )}
-
-      <LearnerOnboardingModal
-        isOpen={showContextModal}
-        onClose={() => setShowContextModal(false)}
-      />
-
-      <footer className="w-full max-w-5xl mx-auto text-center text-xs text-slate-500 z-10 py-2">
-        XPedition Goal Engine • Thompson Sampling Bandit & Groq AI Active
-      </footer>
-    </main>
+    </div>
   );
 }

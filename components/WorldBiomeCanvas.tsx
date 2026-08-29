@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
-import { Sparkles, Globe, Eye, Volume2, VolumeX, ShieldCheck, Zap } from 'lucide-react';
+import { Sparkles, Globe, Volume2, VolumeX } from 'lucide-react';
+import { getThemeConfig, getThemeTierInfo, WorldThemeId } from '@/lib/themes';
 
 export interface ConceptLandmark {
   id: string;
@@ -15,69 +16,9 @@ interface WorldBiomeCanvasProps {
   goalText: string;
   learnerName: string;
   concepts: ConceptLandmark[];
+  themeId?: string;
   onSelectConcept?: (concept: ConceptLandmark) => void;
   interactive?: boolean;
-}
-
-export function getWorldTier(mastery: number) {
-  if (mastery >= 80) {
-    return {
-      tier: 5,
-      name: 'The Celestial Utopia',
-      subtitle: 'Sovereign Domain of Mastery',
-      color: '#00F0FF',
-      accentColor: '#A855F7',
-      bgGradients: ['#0A061E', '#180B3A', '#2D0A4E'],
-      quote: 'Total mastery achieved. A sovereign domain of deep understanding.',
-      unlockDesc: 'Ascended cosmos sphere, celestial halos & transcendent star core.',
-    };
-  }
-  if (mastery >= 60) {
-    return {
-      tier: 4,
-      name: 'Nebula Sanctuary',
-      subtitle: 'Ascendant Megacity & Spires',
-      color: '#A855F7',
-      accentColor: '#00F0FF',
-      bgGradients: ['#080417', '#120A2F', '#1F1042'],
-      quote: 'High competence unlocked. A radiant beacon in the knowledge cosmos.',
-      unlockDesc: 'Planetary rings, floating energy temples & guardian drones.',
-    };
-  }
-  if (mastery >= 40) {
-    return {
-      tier: 3,
-      name: 'Syntropy Archipelago',
-      subtitle: 'Crystalline Sky Islands',
-      color: '#00FF87',
-      accentColor: '#00F0FF',
-      bgGradients: ['#040B14', '#061D24', '#0A2E33'],
-      quote: 'Your skills are crystallizing into solid monuments of capability.',
-      unlockDesc: 'Interconnected floating islands with glowing energy bridges.',
-    };
-  }
-  if (mastery >= 20) {
-    return {
-      tier: 2,
-      name: 'Verdant Biosphere',
-      subtitle: 'Sprouting Flora & Crystal Springs',
-      color: '#38BDF8',
-      accentColor: '#34D399',
-      bgGradients: ['#070B19', '#0B172E', '#0E2344'],
-      quote: 'Foundations rooted deep. The first ecosystem takes breath.',
-      unlockDesc: 'Bioluminescent flora, crystal springs & floating monoliths.',
-    };
-  }
-  return {
-    tier: 1,
-    name: 'The Awakening Core',
-    subtitle: 'Primordial Terraforming Seed',
-    color: '#F59E0B',
-    accentColor: '#EC4899',
-    bgGradients: ['#0B0814', '#150E24', '#1F1333'],
-    quote: 'Every master was once a beginner. The core has sparked to life.',
-    unlockDesc: 'Floating obsidian core with neon energy fissures and glowing saplings.',
-  };
 }
 
 export default function WorldBiomeCanvas({
@@ -85,15 +26,16 @@ export default function WorldBiomeCanvas({
   goalText,
   learnerName,
   concepts,
+  themeId = 'cosmos',
   onSelectConcept,
   interactive = true,
 }: WorldBiomeCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const [selectedLandmark, setSelectedLandmark] = useState<ConceptLandmark | null>(null);
   const [soundEnabled, setSoundEnabled] = useState<boolean>(false);
   const audioCtxRef = useRef<AudioContext | null>(null);
 
-  const tierInfo = getWorldTier(masteryPercentage);
+  const tierInfo = getThemeTierInfo(themeId, masteryPercentage);
+  const theme = getThemeConfig(themeId);
 
   const playChime = () => {
     if (!soundEnabled) return;
@@ -108,8 +50,8 @@ export default function WorldBiomeCanvas({
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.type = 'sine';
-      osc.frequency.setValueAtTime(523.25, ctx.currentTime); // C5
-      osc.frequency.exponentialRampToValueAtTime(1046.5, ctx.currentTime + 0.3); // C6
+      osc.frequency.setValueAtTime(523.25, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(1046.5, ctx.currentTime + 0.3);
       gain.gain.setValueAtTime(0.15, ctx.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
       osc.connect(gain);
@@ -128,30 +70,29 @@ export default function WorldBiomeCanvas({
     let animationFrameId: number;
     let time = 0;
 
-    // Generate static stars
-    const starCount = 75;
-    const stars: Array<{ x: number; y: number; size: number; alpha: number; speed: number }> = [];
-    for (let i = 0; i < starCount; i++) {
-      stars.push({
+    // Theme particles
+    const particleCount = 50;
+    const particles: Array<{
+      x: number;
+      y: number;
+      vx: number;
+      vy: number;
+      size: number;
+      alpha: number;
+      speed: number;
+    }> = [];
+
+    for (let i = 0; i < particleCount; i++) {
+      particles.push({
         x: Math.random(),
         y: Math.random(),
-        size: Math.random() * 1.8 + 0.4,
+        vx: (Math.random() - 0.5) * (theme.particleType === 'circuits' ? 0.003 : 0.0015),
+        vy: theme.particleType === 'bubbles' || theme.particleType === 'embers' || theme.particleType === 'spores'
+          ? -Math.random() * 0.002 - 0.0005
+          : (Math.random() - 0.5) * 0.001,
+        size: Math.random() * 2.5 + 0.8,
         alpha: Math.random() * 0.7 + 0.3,
         speed: Math.random() * 0.02 + 0.005,
-      });
-    }
-
-    // Particle motes
-    const motesCount = 30;
-    const motes: Array<{ x: number; y: number; vx: number; vy: number; size: number; alpha: number }> = [];
-    for (let i = 0; i < motesCount; i++) {
-      motes.push({
-        x: Math.random(),
-        y: Math.random(),
-        vx: (Math.random() - 0.5) * 0.0015,
-        vy: -Math.random() * 0.002 - 0.0005,
-        size: Math.random() * 2 + 1,
-        alpha: Math.random() * 0.6 + 0.2,
       });
     }
 
@@ -161,7 +102,7 @@ export default function WorldBiomeCanvas({
       const height = canvas.height;
       if (!width || !height) return;
 
-      // 1. Background Cosmic Nebula Gradient
+      // 1. Background Radial Gradient
       const grad = ctx.createRadialGradient(
         width * 0.5,
         height * 0.5,
@@ -176,17 +117,38 @@ export default function WorldBiomeCanvas({
       ctx.fillStyle = grad;
       ctx.fillRect(0, 0, width, height);
 
-      // 2. Stars with subtle twinkle
-      stars.forEach((star) => {
-        const twinkle = Math.sin(time * star.speed * 20 + star.x * 100) * 0.25;
-        const currentAlpha = Math.max(0.1, Math.min(1, star.alpha + twinkle));
-        ctx.fillStyle = `rgba(255, 255, 255, ${currentAlpha})`;
-        ctx.beginPath();
-        ctx.arc(star.x * width, star.y * height, star.size, 0, Math.PI * 2);
-        ctx.fill();
+      // 2. Ambient Particles based on Theme
+      particles.forEach((p) => {
+        p.x += p.vx;
+        p.y += p.vy;
+        if (p.y < 0) p.y = 1;
+        if (p.y > 1) p.y = 0;
+        if (p.x < 0) p.x = 1;
+        if (p.x > 1) p.x = 0;
+
+        ctx.save();
+        if (theme.particleType === 'circuits') {
+          // Cyber Circuit Squares
+          ctx.fillStyle = `${tierInfo.particleColor}${Math.floor(p.alpha * 255).toString(16).padStart(2, '0')}`;
+          ctx.fillRect(p.x * width, p.y * height, p.size * 1.5, p.size * 1.5);
+        } else if (theme.particleType === 'bubbles') {
+          // Ocean Bubbles
+          ctx.strokeStyle = `${tierInfo.particleColor}${Math.floor(p.alpha * 255).toString(16).padStart(2, '0')}`;
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.arc(p.x * width, p.y * height, p.size * 1.4, 0, Math.PI * 2);
+          ctx.stroke();
+        } else {
+          // Stars / Spores / Embers Glowing Circles
+          ctx.fillStyle = `${tierInfo.particleColor}${Math.floor(p.alpha * 255).toString(16).padStart(2, '0')}`;
+          ctx.beginPath();
+          ctx.arc(p.x * width, p.y * height, p.size, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
       });
 
-      // 3. Ambient Aurora Wave
+      // 3. Ambient Wave / Aurora
       ctx.save();
       ctx.beginPath();
       const auroraGrad = ctx.createLinearGradient(0, height * 0.2, width, height * 0.8);
@@ -196,7 +158,7 @@ export default function WorldBiomeCanvas({
       ctx.fillStyle = auroraGrad;
       ctx.moveTo(0, height * 0.4);
       for (let x = 0; x <= width; x += 20) {
-        const wave = Math.sin((x / width) * 4 + time * 0.8) * 25 + Math.cos((x / width) * 2 - time * 0.5) * 15;
+        const wave = Math.sin((x / width) * 4 + time * 0.8) * 20 + Math.cos((x / width) * 2 - time * 0.5) * 12;
         ctx.lineTo(x, height * 0.4 + wave);
       }
       ctx.lineTo(width, height);
@@ -227,15 +189,15 @@ export default function WorldBiomeCanvas({
       ctx.arc(centerX, centerY, worldRadius * 1.55, 0, Math.PI * 2);
       ctx.fill();
 
-      // 5. Planetary Rings (For Tier 4 and 5)
-      if (tierInfo.tier >= 4) {
+      // 5. Planetary / Energy Rings (Tier >= 3)
+      if (tierInfo.tierNumber >= 3) {
         ctx.save();
         ctx.translate(centerX, centerY);
         ctx.rotate(-Math.PI / 8);
         ctx.beginPath();
         ctx.ellipse(0, 0, worldRadius * 1.7, worldRadius * 0.4, 0, 0, Math.PI * 2);
-        ctx.strokeStyle = `${tierInfo.accentColor}50`;
-        ctx.lineWidth = tierInfo.tier === 5 ? 6 : 3.5;
+        ctx.strokeStyle = `${tierInfo.accentColor}55`;
+        ctx.lineWidth = tierInfo.tierNumber === 4 ? 5 : 3;
         ctx.shadowColor = tierInfo.color;
         ctx.shadowBlur = 15;
         ctx.stroke();
@@ -255,22 +217,10 @@ export default function WorldBiomeCanvas({
         worldRadius
       );
 
-      if (tierInfo.tier >= 4) {
-        sphereGrad.addColorStop(0, '#261452');
-        sphereGrad.addColorStop(0.4, '#150A30');
-        sphereGrad.addColorStop(0.8, '#0B051D');
-        sphereGrad.addColorStop(1, '#05020E');
-      } else if (tierInfo.tier >= 2) {
-        sphereGrad.addColorStop(0, '#0D333E');
-        sphereGrad.addColorStop(0.4, '#081D26');
-        sphereGrad.addColorStop(0.8, '#051119');
-        sphereGrad.addColorStop(1, '#02070C');
-      } else {
-        sphereGrad.addColorStop(0, '#241328');
-        sphereGrad.addColorStop(0.4, '#160B1C');
-        sphereGrad.addColorStop(0.8, '#0F0614');
-        sphereGrad.addColorStop(1, '#06020A');
-      }
+      sphereGrad.addColorStop(0, tierInfo.sphereColors[0]);
+      sphereGrad.addColorStop(0.4, tierInfo.sphereColors[1]);
+      sphereGrad.addColorStop(0.8, tierInfo.sphereColors[2]);
+      sphereGrad.addColorStop(1, tierInfo.sphereColors[3]);
 
       ctx.fillStyle = sphereGrad;
       ctx.shadowColor = tierInfo.color;
@@ -281,7 +231,7 @@ export default function WorldBiomeCanvas({
       ctx.stroke();
       ctx.restore();
 
-      // 7. Internal Energy Core Pulse (Terraform Growth Level)
+      // 7. Internal Core Pulse (Mastery Level)
       const corePulse = (Math.sin(time * 2) * 0.1 + 0.9) * (masteryPercentage / 100);
       const coreRadius = worldRadius * (0.2 + corePulse * 0.35);
       const coreGrad = ctx.createRadialGradient(
@@ -304,8 +254,8 @@ export default function WorldBiomeCanvas({
       ctx.fill();
       ctx.restore();
 
-      // 8. Dynamic Floating Landmass / Archipelago Islands
-      const numIslands = Math.min(5, Math.max(1, tierInfo.tier));
+      // 8. Dynamic Floating Landmasses / Archipelago Islands
+      const numIslands = Math.min(5, Math.max(1, tierInfo.tierNumber + 1));
       for (let i = 0; i < numIslands; i++) {
         const angle = (i / numIslands) * Math.PI * 2 + time * 0.2;
         const dist = worldRadius * (0.68 + (i % 2) * 0.15);
@@ -347,8 +297,8 @@ export default function WorldBiomeCanvas({
         ctx.strokeStyle = isHighMastery
           ? '#00FF87'
           : isMidMastery
-          ? '#00F0FF'
-          : '#A855F7';
+          ? tierInfo.color
+          : tierInfo.accentColor;
         ctx.lineWidth = isHighMastery ? 3 : 2;
         ctx.shadowColor = ctx.strokeStyle;
         ctx.shadowBlur = 12;
@@ -364,25 +314,11 @@ export default function WorldBiomeCanvas({
         const beaconPulse = (Math.sin(time * 3 + idx) + 1) * 3;
         ctx.beginPath();
         ctx.arc(lx, ly - spireHeight, 5 + beaconPulse, 0, Math.PI * 2);
-        ctx.strokeStyle = isHighMastery ? '#00FF8780' : '#00F0FF80';
+        ctx.strokeStyle = isHighMastery ? '#00FF8780' : `${tierInfo.color}80`;
         ctx.lineWidth = 1;
         ctx.stroke();
 
         ctx.restore();
-      });
-
-      // 10. Floating Particle Motes
-      motes.forEach((m) => {
-        m.x += m.vx;
-        m.y += m.vy;
-        if (m.y < 0) m.y = 1;
-        if (m.x < 0) m.x = 1;
-        if (m.x > 1) m.x = 0;
-
-        ctx.fillStyle = `${tierInfo.color}${Math.floor(m.alpha * 255).toString(16).padStart(2, '0')}`;
-        ctx.beginPath();
-        ctx.arc(m.x * width, m.y * height, m.size, 0, Math.PI * 2);
-        ctx.fill();
       });
 
       animationFrameId = requestAnimationFrame(render);
@@ -393,19 +329,16 @@ export default function WorldBiomeCanvas({
     return () => {
       cancelAnimationFrame(animationFrameId);
     };
-  }, [masteryPercentage, concepts, tierInfo]);
+  }, [masteryPercentage, concepts, tierInfo, theme]);
 
   return (
     <div className="relative rounded-[24px] overflow-hidden border border-white/15 bg-[#0A0718] shadow-[0_20px_60px_rgba(0,0,0,0.8)] select-none">
       {/* Top Floating Badge Bar */}
       <div className="absolute top-3.5 left-3.5 right-3.5 flex items-center justify-between z-10 pointer-events-none">
         <div className="flex items-center gap-2 bg-black/60 backdrop-blur-md border border-white/15 px-3 py-1.5 rounded-full shadow-lg pointer-events-auto">
-          <div
-            className="w-2.5 h-2.5 rounded-full animate-ping"
-            style={{ backgroundColor: tierInfo.color }}
-          />
+          <span className="text-sm">{theme.icon}</span>
           <span className="font-mono text-[10px] sm:text-xs font-bold text-white uppercase tracking-wider">
-            Tier {tierInfo.tier} &middot; {tierInfo.name}
+            {theme.name}: {tierInfo.name}
           </span>
         </div>
 
@@ -422,7 +355,14 @@ export default function WorldBiomeCanvas({
             {soundEnabled ? <Volume2 className="w-4 h-4 text-[#00F0FF]" /> : <VolumeX className="w-4 h-4" />}
           </button>
 
-          <span className="font-mono text-[11px] sm:text-xs font-bold px-3 py-1.5 rounded-full bg-[#00F0FF]/15 text-[#00F0FF] border border-[#00F0FF]/30 backdrop-blur-md shadow-sm">
+          <span
+            className="font-mono text-[11px] sm:text-xs font-bold px-3 py-1.5 rounded-full backdrop-blur-md shadow-sm border"
+            style={{
+              backgroundColor: `${tierInfo.color}20`,
+              color: tierInfo.color,
+              borderColor: `${tierInfo.color}40`,
+            }}
+          >
             {masteryPercentage}% Terraformed
           </span>
         </div>
@@ -441,7 +381,7 @@ export default function WorldBiomeCanvas({
       <div className="absolute bottom-3.5 left-3.5 right-3.5 bg-black/75 backdrop-blur-xl border border-white/10 p-3 sm:p-4 rounded-2xl flex items-center justify-between gap-3 shadow-xl">
         <div className="space-y-0.5 min-w-0">
           <div className="flex items-center gap-1.5">
-            <Sparkles className="w-3.5 h-3.5 text-[#00F0FF]" />
+            <Sparkles className="w-3.5 h-3.5" style={{ color: tierInfo.color }} />
             <span className="font-mono text-[11px] text-white font-bold truncate">
               {goalText}
             </span>

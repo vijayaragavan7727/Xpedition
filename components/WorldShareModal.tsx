@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { X, Share2, Download, Copy, Check, Sparkles, Shield, CheckCircle2 } from 'lucide-react';
-import { getWorldTier } from './WorldBiomeCanvas';
+import { getThemeConfig, getThemeTierInfo, WorldThemeId } from '@/lib/themes';
 
 interface WorldShareModalProps {
   isOpen: boolean;
@@ -14,6 +14,7 @@ interface WorldShareModalProps {
   conceptsCount: number;
   soloVerifiedCount: number;
   accuracyMargin: number;
+  themeId?: string;
 }
 
 export default function WorldShareModal({
@@ -26,12 +27,14 @@ export default function WorldShareModal({
   conceptsCount,
   soloVerifiedCount,
   accuracyMargin,
+  themeId = 'cosmos',
 }: WorldShareModalProps) {
   const [copied, setCopied] = useState<boolean>(false);
   const [downloading, setDownloading] = useState<boolean>(false);
   const previewCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
-  const tierInfo = getWorldTier(masteryPercentage);
+  const tierInfo = getThemeTierInfo(themeId, masteryPercentage);
+  const theme = getThemeConfig(themeId);
   const shareUrl = typeof window !== 'undefined' ? `${window.location.origin}/passport/${passportId}` : `https://xpedition-new.vercel.app/passport/${passportId}`;
 
   useEffect(() => {
@@ -50,9 +53,9 @@ export default function WorldShareModal({
 
     // 1. Background
     const bgGrad = ctx.createLinearGradient(0, 0, w, h);
-    bgGrad.addColorStop(0, '#0D0824');
-    bgGrad.addColorStop(0.5, '#170E38');
-    bgGrad.addColorStop(1, '#080514');
+    bgGrad.addColorStop(0, tierInfo.bgGradients[0]);
+    bgGrad.addColorStop(0.5, tierInfo.bgGradients[1]);
+    bgGrad.addColorStop(1, tierInfo.bgGradients[2]);
     ctx.fillStyle = bgGrad;
     ctx.fillRect(0, 0, w, h);
 
@@ -75,9 +78,9 @@ export default function WorldShareModal({
     ctx.beginPath();
     ctx.arc(200, 250, 100, 0, Math.PI * 2);
     const sphereGrad = ctx.createRadialGradient(170, 220, 10, 200, 250, 100);
-    sphereGrad.addColorStop(0, '#3A1C71');
-    sphereGrad.addColorStop(0.5, '#1A0B3B');
-    sphereGrad.addColorStop(1, '#080318');
+    sphereGrad.addColorStop(0, tierInfo.sphereColors[0]);
+    sphereGrad.addColorStop(0.5, tierInfo.sphereColors[1]);
+    sphereGrad.addColorStop(1, tierInfo.sphereColors[3]);
     ctx.fillStyle = sphereGrad;
     ctx.shadowColor = tierInfo.color;
     ctx.shadowBlur = 30;
@@ -94,8 +97,8 @@ export default function WorldShareModal({
     ctx.fill();
     ctx.restore();
 
-    // Planetary Rings if Tier >= 4
-    if (tierInfo.tier >= 4) {
+    // Planetary Rings if Tier >= 3
+    if (tierInfo.tierNumber >= 3) {
       ctx.save();
       ctx.translate(200, 250);
       ctx.rotate(-Math.PI / 8);
@@ -108,23 +111,23 @@ export default function WorldShareModal({
     }
 
     // 5. Header Branding
-    ctx.fillStyle = '#00F0FF';
+    ctx.fillStyle = tierInfo.color;
     ctx.font = 'bold 13px monospace';
-    ctx.fillText('XPEDITION SKILL PASSPORT &middot; VERIFIED DOMAIN', 350, 65);
+    ctx.fillText(`XPEDITION SKILL PASSPORT · ${theme.name.toUpperCase()} DOMAIN`, 350, 65);
 
     // 6. Learner Name & Goal
     ctx.fillStyle = '#FFFFFF';
-    ctx.font = 'bold 30px sans-serif';
+    ctx.font = 'bold 28px sans-serif';
     ctx.fillText(`${learnerName}'s World`, 350, 110);
 
     ctx.fillStyle = '#94A3B8';
-    ctx.font = '16px sans-serif';
+    ctx.font = '15px sans-serif';
     ctx.fillText(`Goal: ${goalText}`, 350, 140);
 
     // 7. World Tier Badge
     ctx.fillStyle = tierInfo.color;
     ctx.font = 'bold 18px monospace';
-    ctx.fillText(`TIER ${tierInfo.tier}: ${tierInfo.name.toUpperCase()}`, 350, 185);
+    ctx.fillText(`TIER ${tierInfo.tierNumber}: ${tierInfo.name.toUpperCase()}`, 350, 185);
 
     // 8. Mastery & Metacognitive Stats Bar
     ctx.fillStyle = '#1E163B';
@@ -169,7 +172,7 @@ export default function WorldShareModal({
     ctx.fillStyle = '#00FF87';
     ctx.font = 'bold 12px monospace';
     ctx.fillText('🛡️ VERIFIED CRYPTOGRAPHIC RECORD', 350, 462);
-  }, [isOpen, learnerName, goalText, masteryPercentage, passportId, tierInfo, accuracyMargin, soloVerifiedCount]);
+  }, [isOpen, learnerName, goalText, masteryPercentage, passportId, tierInfo, theme, accuracyMargin, soloVerifiedCount]);
 
   if (!isOpen) return null;
 
@@ -184,7 +187,7 @@ export default function WorldShareModal({
     if (!canvas) return;
     setDownloading(true);
     const link = document.createElement('a');
-    link.download = `${learnerName.toLowerCase().replace(/\s+/g, '-')}-skill-world.png`;
+    link.download = `${learnerName.toLowerCase().replace(/\s+/g, '-')}-${theme.id}-world.png`;
     link.href = canvas.toDataURL('image/png');
     link.click();
     setDownloading(false);
@@ -194,8 +197,8 @@ export default function WorldShareModal({
     if (navigator.share) {
       try {
         await navigator.share({
-          title: `${learnerName}'s Verified Skill World - ${goalText}`,
-          text: `Explore my personal living knowledge world on XPedition! Mastery: ${masteryPercentage}%, Tier ${tierInfo.tier}: ${tierInfo.name}.`,
+          title: `${learnerName}'s Verified ${theme.name} World - ${goalText}`,
+          text: `Explore my personal living knowledge world on XPedition! Mastery: ${masteryPercentage}%, ${theme.name}: ${tierInfo.name}.`,
           url: shareUrl,
         });
       } catch (e) {}
@@ -212,7 +215,7 @@ export default function WorldShareModal({
         <div className="flex items-center justify-between border-b border-white/10 pb-3.5">
           <div className="flex items-center gap-2 font-mono text-sm font-bold text-[#00F0FF]">
             <Share2 className="w-4 h-4" />
-            <span>Share Your Skill World</span>
+            <span>Share Your {theme.name} World</span>
           </div>
           <button
             type="button"
