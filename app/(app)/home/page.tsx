@@ -459,42 +459,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* 4. MINI WORLD PREVIEW (120px — DAILY REMINDER OF LIVING WORLD) */}
-      {worldState && (
-        <section className="pt-0.5">
-          <Link
-            href="/world"
-            className="block relative rounded-[20px] overflow-hidden border border-white/15 hover:border-[#00F0FF]/50 transition-all cursor-pointer group shadow-xl"
-          >
-            <WorldRenderer
-              theme={activeThemeId}
-              buildings={worldState.buildings}
-              height={120}
-              isMiniPreview
-            />
-
-            {/* Floating Info Overlay on Mini Preview */}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/30 p-3.5 flex items-end justify-between pointer-events-none">
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-[#00FF87] animate-ping" />
-                <span className="font-mono text-xs font-bold text-white uppercase tracking-wider">
-                  Your World &middot; Tier {worldState.tier}
-                </span>
-                <span className="font-mono text-[10px] text-slate-300 bg-black/50 px-2 py-0.5 rounded-full border border-white/10">
-                  {worldState.totalMasteryPercent}% Terraformed
-                </span>
-              </div>
-
-              <span className="font-mono text-xs text-[#00F0FF] group-hover:translate-x-1 transition-transform flex items-center gap-0.5 font-bold">
-                <span>View Full World</span>
-                <ChevronRight className="w-4 h-4" />
-              </span>
-            </div>
-          </Link>
-        </section>
-      )}
-
-      {/* 5. SKILL GRAPH CONCEPTS BREAKDOWN — 1-TAP DIRECT ROUTING */}
+      {/* 4. SKILL GRAPH CONCEPTS BREAKDOWN — 1-TAP DIRECT ROUTING */}
       <section className="bg-[#120E22]/90 border border-line/60 rounded-[16px] p-5 space-y-4">
         <div className="flex items-center justify-between border-b border-line/40 pb-3">
           <span className="font-mono text-[10px] tracking-eyebrow uppercase text-muted font-bold">

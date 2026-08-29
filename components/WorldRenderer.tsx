@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { WorldBuilding } from '@/lib/worldEngine';
 import { WorldThemeId } from '@/lib/themes';
 import { generateBuildingPrompt } from '@/lib/buildingImages';
-import { Sparkles, RefreshCw } from 'lucide-react';
+import { Sparkles } from 'lucide-react';
 
 interface WorldRendererProps {
   theme?: WorldThemeId | string;
@@ -123,33 +123,41 @@ export default function WorldRenderer({
   const palette = THEME_PALETTES[activeThemeKey];
 
   // Isometric Grid Layout: 3 columns x 2 rows
-  const tileW = 100;
-  const tileH = 50;
+  // Spacing calibrated to prevent building overlap
+  const tileW = 120;
+  const tileH = 60;
   const originX = 260;
-  const originY = 85;
+  const originY = 95;
 
   const paddedBuildings: (WorldBuilding | null)[] = [...buildings];
   while (paddedBuildings.length < 6) {
     paddedBuildings.push(null);
   }
 
-  const displaySlots = paddedBuildings.slice(0, 6).map((b, idx) => {
-    // FORCE TEST: Make slot 0 complete if it exists and is empty to demonstrate the AI building image
-    if (idx === 0 && b && b.state === 'empty') {
-      return {
-        ...b,
-        state: 'complete' as const,
-        masteryPercent: 100,
-      };
-    }
-    return b;
+  // Map each building slot to distinct isometric coordinates
+  // Sorted by isometric depth (row + col ascending) for proper painter's rendering
+  const slotsWithCoords = paddedBuildings.slice(0, 6).map((b, idx) => {
+    const row = Math.floor(idx / 3); // 0 or 1
+    const col = idx % 3;             // 0, 1, 2
+
+    // Distinct tile center coordinates
+    const x = originX + (col - row) * (tileW / 2);
+    const y = originY + (col + row) * (tileH / 2);
+    const depth = row * 3 + col;
+
+    return {
+      building: b,
+      slotIndex: idx,
+      row,
+      col,
+      x,
+      y,
+      depth,
+    };
   });
 
-  const isAnyGenerating = displaySlots.some((b) => {
-    if (!b) return false;
-    const key = `${b.buildingId}_${b.state}_${activeThemeKey}`;
-    return !loadedImages[key] && !failedImages[key];
-  });
+  // Sort back-to-front
+  slotsWithCoords.sort((a, b) => a.depth - b.depth);
 
   return (
     <div
@@ -234,9 +242,9 @@ export default function WorldRenderer({
               { cx: 480, cy: 120, delay: '1.9s', r: 2.0 },
               { cx: 120, cy: 220, delay: '3.1s', r: 1.6 },
               { cx: 390, cy: 240, delay: '2.7s', r: 2.3 },
-            ].map((p, idx) => (
+            ].map((p, pIdx) => (
               <circle
-                key={idx}
+                key={pIdx}
                 cx={p.cx}
                 cy={p.cy}
                 r={p.r}
@@ -248,23 +256,16 @@ export default function WorldRenderer({
           </g>
         )}
 
-        {/* LAYER 3: Isometric Grid & Buildings */}
+        {/* LAYER 3: Isometric Grid & Buildings (Rendered Back-to-Front) */}
         <g id="isometricWorldStage">
-          {displaySlots.map((bldg, idx) => {
-            const row = Math.floor(idx / 3);
-            const col = idx % 3;
-
-            // Isometric screen projection
-            const x = originX + (col - row) * (tileW / 2);
-            const y = originY + (col + row) * (tileH / 2);
-
+          {slotsWithCoords.map(({ building: bldg, slotIndex: idx, x, y }) => {
             const state = bldg?.state || 'empty';
-            const conceptName = bldg?.conceptName || `Slot ${idx + 1}`;
+            const conceptName = bldg?.conceptName || `Plot ${idx + 1}`;
             const imageKey = bldg ? `${bldg.buildingId}_${state}_${activeThemeKey}` : `empty_${idx}`;
-            const isLoaded = loadedImages[imageKey];
-            const isFailed = failedImages[imageKey];
+            const isImageLoaded = !!loadedImages[imageKey];
+            const isFailed = !!failedImages[imageKey];
 
-            // Build dynamic prompt and proxy image URL (or use persisted bldg.imageUrl)
+            // Build dynamic prompt and proxy image URL
             const buildingPrompt = bldg ? generateBuildingPrompt(conceptName, activeThemeKey, state) : '';
             const proxyImageUrl = bldg?.imageUrl || (bldg
               ? `/api/worldimage?prompt=${encodeURIComponent(buildingPrompt)}`
@@ -277,11 +278,17 @@ export default function WorldRenderer({
             const tileLeftPt = `${x - tileW / 2},${y}`;
             const tilePath = `M ${tileTopPt} L ${tileRightPt} L ${tileBottomPt} L ${tileLeftPt} Z`;
 
-            // Building Dimensions for SVG Fallback
-            const bldgW = 46;
-            const bldgH = state === 'complete' ? 56 : 32;
+            // SVG Building Dimensions
+            const bldgW = 44;
+            const bldgH = state === 'complete' ? 52 : 30;
             const bx = x;
             const by = y;
+
+            // AI Image Box (Centered on Tile, max 90px)
+            const imgBoxW = 90;
+            const imgBoxH = 90;
+            const imgX = x - imgBoxW / 2;
+            const imgY = y - imgBoxH + 18;
 
             return (
               <g
@@ -294,13 +301,13 @@ export default function WorldRenderer({
                   }
                 }}
               >
-                {/* 1. Isometric Ground Tile Base */}
+                {/* 1. Ground Tile Base (Sides) */}
                 <polygon
-                  points={`${x - tileW / 2},${y} ${x},${y + tileH / 2} ${x},${y + tileH / 2 + 12} ${x - tileW / 2},${y + 12}`}
+                  points={`${x - tileW / 2},${y} ${x},${y + tileH / 2} ${x},${y + tileH / 2 + 10} ${x - tileW / 2},${y + 10}`}
                   fill={palette.tileLeft}
                 />
                 <polygon
-                  points={`${x},${y + tileH / 2} ${x + tileW / 2},${y} ${x + tileW / 2},${y + 12} ${x},${y + tileH / 2 + 12}`}
+                  points={`${x},${y + tileH / 2} ${x + tileW / 2},${y} ${x + tileW / 2},${y + 10} ${x},${y + tileH / 2 + 10}`}
                   fill={palette.tileRight}
                 />
 
@@ -318,180 +325,164 @@ export default function WorldRenderer({
                   <ellipse
                     cx={bx}
                     cy={by + 4}
-                    rx={26}
-                    ry={10}
+                    rx={24}
+                    ry={9}
                     fill="rgba(0,0,0,0.55)"
                     filter="url(#shadowBlur)"
                   />
                 )}
 
-                {/* 2. Rich Detailed Isometric SVG Building Layer (Fallback & Base) */}
-                {state === 'empty' && (
-                  /* EMPTY STATE: Marker & Survey Flag */
-                  <g opacity="0.7">
-                    <polygon
-                      points={`${bx},${by - 12} ${bx + 20},${by} ${bx},${by + 12} ${bx - 20},${by}`}
-                      fill="none"
-                      stroke={palette.scaffoldColor}
-                      strokeWidth="1.2"
-                      strokeDasharray="3,3"
-                    />
-                    <line
-                      x1={bx}
-                      y1={by}
-                      x2={bx}
-                      y2={by - 26}
-                      stroke={palette.scaffoldColor}
-                      strokeWidth="1.5"
-                    />
-                    <polygon
-                      points={`${bx},${by - 26} ${bx + 14},${by - 22} ${bx},${by - 18}`}
-                      fill={palette.scaffoldColor}
-                    />
-                    <text
-                      x={bx + 4}
-                      y={by - 21}
-                      fill="#FFFFFF"
-                      fontSize="7"
-                      fontFamily="monospace"
-                      fontWeight="bold"
-                    >
-                      ?
-                    </text>
-                  </g>
-                )}
-
-                {state === 'partial' && (
-                  /* PARTIAL STATE: Solid foundation + scaffold lines */
-                  <g className="building-partial">
-                    <polygon
-                      points={`${bx - bldgW / 2},${by} ${bx},${by + bldgW / 4} ${bx},${by + bldgW / 4 - bldgH / 2} ${bx - bldgW / 2},${by - bldgH / 2}`}
-                      fill={palette.buildingFrontLeft}
-                      stroke={palette.tileBorder}
-                      strokeWidth="1"
-                    />
-                    <polygon
-                      points={`${bx},${by + bldgW / 4} ${bx + bldgW / 2},${by} ${bx + bldgW / 2},${by - bldgH / 2} ${bx},${by + bldgW / 4 - bldgH / 2}`}
-                      fill={palette.buildingFrontRight}
-                      stroke={palette.tileBorder}
-                      strokeWidth="1"
-                    />
-
-                    <rect
-                      x={bx - bldgW / 3}
-                      y={by - bldgH / 3}
-                      width="5"
-                      height="3"
-                      transform={`matrix(1, 0.5, 0, 1, 0, 0)`}
-                      fill={palette.windowGlow}
-                      opacity="0.8"
-                    />
-                    <rect
-                      x={bx + bldgW / 6}
-                      y={by - bldgH / 3 + 2}
-                      width="5"
-                      height="3"
-                      transform={`matrix(1, -0.5, 0, 1, 0, 0)`}
-                      fill={palette.windowGlow}
-                      opacity="0.8"
-                    />
-
-                    <g opacity="0.8" stroke={palette.scaffoldColor} strokeWidth="1.2">
-                      <line x1={bx - bldgW / 2} y1={by - bldgH / 2} x2={bx - bldgW / 2} y2={by - bldgH} strokeDasharray="3,2" />
-                      <line x1={bx + bldgW / 2} y1={by - bldgH / 2} x2={bx + bldgW / 2} y2={by - bldgH} strokeDasharray="3,2" />
-                      <line x1={bx} y1={by + bldgW / 4 - bldgH / 2} x2={bx} y2={by + bldgW / 4 - bldgH} strokeDasharray="3,2" />
-                      <polygon
-                        points={`${bx},${by - bldgH - bldgW / 4} ${bx + bldgW / 2},${by - bldgH} ${bx},${by + bldgW / 4 - bldgH} ${bx - bldgW / 2},${by - bldgH}`}
-                        fill={`${palette.scaffoldColor}20`}
-                        stroke={palette.scaffoldColor}
-                        strokeDasharray="2,2"
-                      />
-                    </g>
-                  </g>
-                )}
-
-                {state === 'complete' && (
-                  /* COMPLETE STATE: Solid 3D building + Windows + Antenna + Glow */
-                  <g className="building-complete" filter={`url(#themeEdgeGlow_${activeThemeKey})`}>
-                    <polygon
-                      points={`${bx - bldgW / 2},${by} ${bx},${by + bldgW / 4} ${bx},${by + bldgW / 4 - bldgH} ${bx - bldgW / 2},${by - bldgH}`}
-                      fill={palette.buildingFrontLeft}
-                      stroke={palette.glowColor}
-                      strokeWidth="1.2"
-                    />
-
-                    <polygon
-                      points={`${bx},${by + bldgW / 4} ${bx + bldgW / 2},${by} ${bx + bldgW / 2},${by - bldgH} ${bx},${by + bldgW / 4 - bldgH}`}
-                      fill={palette.buildingFrontRight}
-                      stroke={palette.glowColor}
-                      strokeWidth="1.2"
-                    />
-
-                    {[14, 28, 42].map((offsetY, wIdx) => (
-                      <g key={`l_win_${wIdx}`} className="window-glow">
-                        <polygon
-                          points={`${bx - 16},${by - offsetY + 2} ${bx - 7},${by - offsetY + 6} ${bx - 7},${by - offsetY + 11} ${bx - 16},${by - offsetY + 7}`}
-                          fill={palette.windowGlow}
-                          stroke="#FFFFFF"
-                          strokeWidth="0.5"
-                        />
-                      </g>
-                    ))}
-
-                    {[14, 28, 42].map((offsetY, wIdx) => (
-                      <g key={`r_win_${wIdx}`} className="window-glow">
-                        <polygon
-                          points={`${bx + 7},${by - offsetY + 6} ${bx + 16},${by - offsetY + 2} ${bx + 16},${by - offsetY + 7} ${bx + 7},${by - offsetY + 11}`}
-                          fill={palette.windowGlow}
-                          stroke="#FFFFFF"
-                          strokeWidth="0.5"
-                        />
-                      </g>
-                    ))}
-
-                    <polygon
-                      points={`${bx},${by - bldgH - bldgW / 4} ${bx + bldgW / 2},${by - bldgH} ${bx},${by + bldgW / 4 - bldgH} ${bx - bldgW / 2},${by - bldgH}`}
-                      fill={palette.buildingRoof}
-                      stroke="#FFFFFF"
-                      strokeWidth="1"
-                    />
-
-                    <line
-                      x1={bx}
-                      y1={by - bldgH - bldgW / 4}
-                      x2={bx}
-                      y2={by - bldgH - bldgW / 4 - 16}
-                      stroke={palette.buildingAccent}
-                      strokeWidth="2.5"
-                    />
-                    <circle
-                      cx={bx}
-                      cy={by - bldgH - bldgW / 4 - 16}
-                      r="3.5"
-                      className="antenna-tip"
-                      stroke={palette.buildingAccent}
-                      strokeWidth="1.5"
-                    />
-                  </g>
-                )}
-
-                {/* 3. Persistent AI Building Image Overlay with Eager Loading */}
-                {proxyImageUrl && !isFailed && (
+                {/* 2. RENDER ONLY ONE: IF IMAGE LOADED -> RENDER IMAGE ONLY; ELSE RENDER SVG */}
+                {isImageLoaded && proxyImageUrl ? (
+                  /* --- AI IMAGE ONLY (Clean, Non-Overlapping) --- */
                   <image
                     href={proxyImageUrl}
                     xlinkHref={proxyImageUrl}
-                    x={x - 60}
-                    y={y - 80}
-                    width={120}
-                    height={120}
-                    // @ts-ignore
-                    loading="eager"
+                    x={imgX}
+                    y={imgY}
+                    width={imgBoxW}
+                    height={imgBoxH}
                     preserveAspectRatio="xMidYMid meet"
                     style={{
                       imageRendering: 'auto',
                       filter: state === 'complete' ? `drop-shadow(0 8px 16px ${palette.glowColor}60)` : undefined,
                     }}
-                    className="pointer-events-none transition-opacity duration-500 opacity-100"
+                    className="pointer-events-none opacity-100"
+                  />
+                ) : (
+                  /* --- SVG GEOMETRIC FALLBACK ONLY --- */
+                  <g>
+                    {state === 'empty' && (
+                      /* EMPTY STATE: Marker & Survey Flag */
+                      <g opacity="0.7">
+                        <polygon
+                          points={`${bx},${by - 10} ${bx + 16},${by} ${bx},${by + 10} ${bx - 16},${by}`}
+                          fill="none"
+                          stroke={palette.scaffoldColor}
+                          strokeWidth="1.2"
+                          strokeDasharray="3,3"
+                        />
+                        <line
+                          x1={bx}
+                          y1={by}
+                          x2={bx}
+                          y2={by - 24}
+                          stroke={palette.scaffoldColor}
+                          strokeWidth="1.5"
+                        />
+                        <polygon
+                          points={`${bx},${by - 24} ${bx + 12},${by - 20} ${bx},${by - 16}`}
+                          fill={palette.scaffoldColor}
+                        />
+                        <text
+                          x={bx + 3}
+                          y={by - 19}
+                          fill="#FFFFFF"
+                          fontSize="7"
+                          fontFamily="monospace"
+                          fontWeight="bold"
+                        >
+                          ?
+                        </text>
+                      </g>
+                    )}
+
+                    {state === 'partial' && (
+                      /* PARTIAL STATE: Solid foundation + scaffold lines */
+                      <g className="building-partial">
+                        <polygon
+                          points={`${bx - bldgW / 2},${by} ${bx},${by + bldgW / 4} ${bx},${by + bldgW / 4 - bldgH / 2} ${bx - bldgW / 2},${by - bldgH / 2}`}
+                          fill={palette.buildingFrontLeft}
+                          stroke={palette.tileBorder}
+                          strokeWidth="1"
+                        />
+                        <polygon
+                          points={`${bx},${by + bldgW / 4} ${bx + bldgW / 2},${by} ${bx + bldgW / 2},${by - bldgH / 2} ${bx},${by + bldgW / 4 - bldgH / 2}`}
+                          fill={palette.buildingFrontRight}
+                          stroke={palette.tileBorder}
+                          strokeWidth="1"
+                        />
+                        <g opacity="0.8" stroke={palette.scaffoldColor} strokeWidth="1.2">
+                          <line x1={bx - bldgW / 2} y1={by - bldgH / 2} x2={bx - bldgW / 2} y2={by - bldgH} strokeDasharray="3,2" />
+                          <line x1={bx + bldgW / 2} y1={by - bldgH / 2} x2={bx + bldgW / 2} y2={by - bldgH} strokeDasharray="3,2" />
+                          <line x1={bx} y1={by + bldgW / 4 - bldgH / 2} x2={bx} y2={by + bldgW / 4 - bldgH} strokeDasharray="3,2" />
+                          <polygon
+                            points={`${bx},${by - bldgH - bldgW / 4} ${bx + bldgW / 2},${by - bldgH} ${bx},${by + bldgW / 4 - bldgH} ${bx - bldgW / 2},${by - bldgH}`}
+                            fill={`${palette.scaffoldColor}20`}
+                            stroke={palette.scaffoldColor}
+                            strokeDasharray="2,2"
+                          />
+                        </g>
+                      </g>
+                    )}
+
+                    {state === 'complete' && (
+                      /* COMPLETE STATE: Solid 3D building + Windows + Antenna + Glow */
+                      <g className="building-complete" filter={`url(#themeEdgeGlow_${activeThemeKey})`}>
+                        <polygon
+                          points={`${bx - bldgW / 2},${by} ${bx},${by + bldgW / 4} ${bx},${by + bldgW / 4 - bldgH} ${bx - bldgW / 2},${by - bldgH}`}
+                          fill={palette.buildingFrontLeft}
+                          stroke={palette.glowColor}
+                          strokeWidth="1.2"
+                        />
+                        <polygon
+                          points={`${bx},${by + bldgW / 4} ${bx + bldgW / 2},${by} ${bx + bldgW / 2},${by - bldgH} ${bx},${by + bldgW / 4 - bldgH}`}
+                          fill={palette.buildingFrontRight}
+                          stroke={palette.glowColor}
+                          strokeWidth="1.2"
+                        />
+
+                        {[14, 28, 42].map((offsetY, wIdx) => (
+                          <polygon
+                            key={`win_${wIdx}`}
+                            points={`${bx - 14},${by - offsetY + 2} ${bx - 6},${by - offsetY + 6} ${bx - 6},${by - offsetY + 11} ${bx - 14},${by - offsetY + 7}`}
+                            fill={palette.windowGlow}
+                            stroke="#FFFFFF"
+                            strokeWidth="0.5"
+                            className="window-glow"
+                          />
+                        ))}
+
+                        <polygon
+                          points={`${bx},${by - bldgH - bldgW / 4} ${bx + bldgW / 2},${by - bldgH} ${bx},${by + bldgW / 4 - bldgH} ${bx - bldgW / 2},${by - bldgH}`}
+                          fill={palette.buildingRoof}
+                          stroke="#FFFFFF"
+                          strokeWidth="1"
+                        />
+
+                        <line
+                          x1={bx}
+                          y1={by - bldgH - bldgW / 4}
+                          x2={bx}
+                          y2={by - bldgH - bldgW / 4 - 14}
+                          stroke={palette.buildingAccent}
+                          strokeWidth="2"
+                        />
+                        <circle
+                          cx={bx}
+                          cy={by - bldgH - bldgW / 4 - 14}
+                          r="3"
+                          className="antenna-tip"
+                          stroke={palette.buildingAccent}
+                          strokeWidth="1.5"
+                        />
+                      </g>
+                    )}
+                  </g>
+                )}
+
+                {/* Hidden Background Image Loader (Triggers state when ready) */}
+                {proxyImageUrl && !isImageLoaded && !isFailed && (
+                  <image
+                    href={proxyImageUrl}
+                    xlinkHref={proxyImageUrl}
+                    x={imgX}
+                    y={imgY}
+                    width={1}
+                    height={1}
+                    // @ts-ignore
+                    loading="eager"
+                    opacity={0.01}
                     onLoad={() => setLoadedImages((prev) => ({ ...prev, [imageKey]: true }))}
                     onError={() => setFailedImages((prev) => ({ ...prev, [imageKey]: true }))}
                   />
