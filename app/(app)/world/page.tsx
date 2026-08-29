@@ -237,9 +237,7 @@ export default function WorldPage() {
         goalText={currentStore.goalText}
         masteryPercentage={currentWorld.totalMasteryPercent}
         passportId={passportId}
-        conceptsCount={currentWorld.buildings.length}
-        soloVerifiedCount={soloSessions}
-        accuracyMargin={6}
+        buildingsCount={completeBuildings}
         themeId={activeThemeId}
       />
 

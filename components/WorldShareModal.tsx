@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { X, Share2, Download, Copy, Check, Sparkles, Shield, CheckCircle2 } from 'lucide-react';
+import { X, Share2, Download, Copy, Check, Sparkles, Globe } from 'lucide-react';
 import { getThemeConfig, getThemeTierInfo, WorldThemeId } from '@/lib/themes';
 
 interface WorldShareModalProps {
@@ -11,9 +11,7 @@ interface WorldShareModalProps {
   goalText: string;
   masteryPercentage: number;
   passportId: string;
-  conceptsCount: number;
-  soloVerifiedCount: number;
-  accuracyMargin: number;
+  buildingsCount: number;
   themeId?: string;
 }
 
@@ -24,9 +22,7 @@ export default function WorldShareModal({
   goalText,
   masteryPercentage,
   passportId,
-  conceptsCount,
-  soloVerifiedCount,
-  accuracyMargin,
+  buildingsCount,
   themeId = 'cosmos',
 }: WorldShareModalProps) {
   const [copied, setCopied] = useState<boolean>(false);
@@ -35,7 +31,7 @@ export default function WorldShareModal({
 
   const tierInfo = getThemeTierInfo(themeId, masteryPercentage);
   const theme = getThemeConfig(themeId);
-  const shareUrl = typeof window !== 'undefined' ? `${window.location.origin}/passport/${passportId}` : `https://xpedition-new.vercel.app/passport/${passportId}`;
+  const shareUrl = typeof window !== 'undefined' ? `${window.location.origin}/world` : `https://xpedition-new.vercel.app/world`;
 
   useEffect(() => {
     if (!isOpen) return;
@@ -45,13 +41,13 @@ export default function WorldShareModal({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Draw high-resolution share card (800 x 500)
+    // Draw high-resolution World Share Card (800 x 500)
     const w = 800;
     const h = 500;
     canvas.width = w;
     canvas.height = h;
 
-    // 1. Background
+    // 1. Background Gradient from Theme
     const bgGrad = ctx.createLinearGradient(0, 0, w, h);
     bgGrad.addColorStop(0, tierInfo.bgGradients[0]);
     bgGrad.addColorStop(0.5, tierInfo.bgGradients[1]);
@@ -59,25 +55,29 @@ export default function WorldShareModal({
     ctx.fillStyle = bgGrad;
     ctx.fillRect(0, 0, w, h);
 
-    // 2. Outer Neon Glass Border
+    // 2. Outer Neon Frame Border
     ctx.strokeStyle = tierInfo.color;
-    ctx.lineWidth = 4;
+    ctx.lineWidth = 3;
     ctx.strokeRect(16, 16, w - 32, h - 32);
 
-    // 3. Ambient Glow Circles
-    const glow1 = ctx.createRadialGradient(200, 250, 20, 200, 250, 180);
-    glow1.addColorStop(0, `${tierInfo.color}40`);
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(24, 24, w - 48, h - 48);
+
+    // 3. Ambient Glow Halo
+    ctx.save();
+    const glow1 = ctx.createRadialGradient(200, 250, 10, 200, 250, 220);
+    glow1.addColorStop(0, `${tierInfo.color}35`);
     glow1.addColorStop(1, 'transparent');
     ctx.fillStyle = glow1;
     ctx.beginPath();
-    ctx.arc(200, 250, 180, 0, Math.PI * 2);
+    ctx.arc(200, 250, 220, 0, Math.PI * 2);
     ctx.fill();
 
     // 4. World Sphere
-    ctx.save();
     ctx.beginPath();
-    ctx.arc(200, 250, 100, 0, Math.PI * 2);
-    const sphereGrad = ctx.createRadialGradient(170, 220, 10, 200, 250, 100);
+    ctx.arc(200, 250, 95, 0, Math.PI * 2);
+    const sphereGrad = ctx.createRadialGradient(170, 220, 10, 200, 250, 95);
     sphereGrad.addColorStop(0, tierInfo.sphereColors[0]);
     sphereGrad.addColorStop(0.5, tierInfo.sphereColors[1]);
     sphereGrad.addColorStop(1, tierInfo.sphereColors[3]);
@@ -89,178 +89,163 @@ export default function WorldShareModal({
     ctx.lineWidth = 3;
     ctx.stroke();
 
-    // Core Pulse
+    // Inner Core Pulse
     ctx.beginPath();
-    ctx.arc(200, 250, 35, 0, Math.PI * 2);
+    ctx.arc(200, 250, 32, 0, Math.PI * 2);
     ctx.fillStyle = tierInfo.color;
     ctx.shadowBlur = 20;
     ctx.fill();
     ctx.restore();
 
-    // Planetary Rings if Tier >= 3
-    if (tierInfo.tierNumber >= 3) {
-      ctx.save();
-      ctx.translate(200, 250);
-      ctx.rotate(-Math.PI / 8);
-      ctx.beginPath();
-      ctx.ellipse(0, 0, 150, 35, 0, 0, Math.PI * 2);
-      ctx.strokeStyle = `${tierInfo.accentColor}70`;
-      ctx.lineWidth = 4;
-      ctx.stroke();
-      ctx.restore();
-    }
-
-    // 5. Header Branding
-    ctx.fillStyle = tierInfo.color;
-    ctx.font = 'bold 13px monospace';
-    ctx.fillText(`XPEDITION SKILL PASSPORT · ${theme.name.toUpperCase()} DOMAIN`, 350, 65);
-
-    // 6. Learner Name & Goal
-    ctx.fillStyle = '#FFFFFF';
-    ctx.font = 'bold 28px sans-serif';
-    ctx.fillText(`${learnerName}'s World`, 350, 110);
-
-    ctx.fillStyle = '#94A3B8';
-    ctx.font = '15px sans-serif';
-    ctx.fillText(`Goal: ${goalText}`, 350, 140);
-
-    // 7. World Tier Badge
-    ctx.fillStyle = tierInfo.color;
-    ctx.font = 'bold 18px monospace';
-    ctx.fillText(`TIER ${tierInfo.tierNumber}: ${tierInfo.name.toUpperCase()}`, 350, 185);
-
-    // 8. Mastery & Metacognitive Stats Bar
-    ctx.fillStyle = '#1E163B';
-    ctx.fillRect(350, 205, 400, 110);
-    ctx.strokeStyle = '#FFFFFF15';
-    ctx.strokeRect(350, 205, 400, 110);
-
-    // Stat 1: Mastery %
-    ctx.fillStyle = '#00FF87';
-    ctx.font = 'bold 24px monospace';
-    ctx.fillText(`${masteryPercentage}%`, 370, 245);
-    ctx.fillStyle = '#94A3B8';
-    ctx.font = '11px monospace';
-    ctx.fillText('TOTAL MASTERY', 370, 265);
-
-    // Stat 2: Metacognitive Margin
-    ctx.fillStyle = '#00F0FF';
-    ctx.font = 'bold 24px monospace';
-    ctx.fillText(`±${accuracyMargin}%`, 510, 245);
-    ctx.fillStyle = '#94A3B8';
-    ctx.font = '11px monospace';
-    ctx.fillText('CALIBRATION ACCURACY', 510, 265);
-
-    // Stat 3: Solo Backing
-    ctx.fillStyle = '#A855F7';
-    ctx.font = 'bold 24px monospace';
-    ctx.fillText(`${soloVerifiedCount}`, 660, 245);
-    ctx.fillStyle = '#94A3B8';
-    ctx.font = '11px monospace';
-    ctx.fillText('SOLO SESSIONS', 660, 265);
-
-    // 9. Emotional Quote
-    ctx.fillStyle = '#E2E8F0';
-    ctx.font = 'italic 13px sans-serif';
-    ctx.fillText(`"${tierInfo.quote}"`, 350, 350);
-
-    // 10. Verification Footer
-    ctx.fillStyle = '#64748B';
-    ctx.font = '11px monospace';
-    ctx.fillText(`Passport ID: ${passportId}  |  xpedition-new.vercel.app`, 350, 440);
-
-    ctx.fillStyle = '#00FF87';
+    // 5. Header Bar
     ctx.font = 'bold 12px monospace';
-    ctx.fillText('🛡️ VERIFIED CRYPTOGRAPHIC RECORD', 350, 462);
-  }, [isOpen, learnerName, goalText, masteryPercentage, passportId, tierInfo, theme, accuracyMargin, soloVerifiedCount]);
+    ctx.fillStyle = '#00F0FF';
+    ctx.fillText(`XPEDITION // ${theme.name.toUpperCase()} REALM`, 340, 60);
 
-  if (!isOpen) return null;
+    ctx.font = '10px monospace';
+    ctx.fillStyle = '#94A3B8';
+    ctx.fillText(`PASSPORT VERIFICATION ID: ${passportId}`, 340, 80);
 
-  const handleCopyLink = () => {
-    navigator.clipboard.writeText(shareUrl);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2500);
-  };
+    // 6. Learner Name & World Title
+    ctx.font = 'bold 30px sans-serif';
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillText(`${learnerName}'s Skill World`, 340, 130);
+
+    ctx.font = '14px sans-serif';
+    ctx.fillStyle = '#38BDF8';
+    ctx.fillText(`Goal: ${goalText}`, 340, 155);
+
+    // 7. World Tier & Stats Cards
+    ctx.fillStyle = 'rgba(18, 14, 34, 0.85)';
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.roundRect(340, 175, 410, 85, 12);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.font = 'bold 11px monospace';
+    ctx.fillStyle = tierInfo.color;
+    ctx.fillText(`TIER ${tierInfo.tierNumber} // ${tierInfo.name.toUpperCase()}`, 360, 202);
+
+    ctx.font = '12px sans-serif';
+    ctx.fillStyle = '#E2E8F0';
+    ctx.fillText(tierInfo.quote, 360, 224);
+
+    ctx.font = '11px sans-serif';
+    ctx.fillStyle = '#94A3B8';
+    ctx.fillText(tierInfo.desc, 360, 245);
+
+    // 8. Bottom Stats Row (Mastery % & Buildings Built)
+    // Card 1: Terraformed Mastery %
+    ctx.fillStyle = 'rgba(18, 14, 34, 0.85)';
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.roundRect(340, 275, 195, 80, 12);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.font = 'bold 10px monospace';
+    ctx.fillStyle = '#94A3B8';
+    ctx.fillText('TERRAFORM LEVEL', 355, 298);
+
+    ctx.font = 'bold 26px monospace';
+    ctx.fillStyle = '#00FF87';
+    ctx.fillText(`${masteryPercentage}%`, 355, 335);
+
+    // Card 2: Buildings Built
+    ctx.beginPath();
+    ctx.roundRect(555, 275, 195, 80, 12);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.font = 'bold 10px monospace';
+    ctx.fillStyle = '#94A3B8';
+    ctx.fillText('BUILDINGS CONSTRUCTED', 570, 298);
+
+    ctx.font = 'bold 26px monospace';
+    ctx.fillStyle = '#00F0FF';
+    ctx.fillText(`${buildingsCount} Buildings`, 570, 335);
+
+    // 9. Footer
+    ctx.font = '10px monospace';
+    ctx.fillStyle = '#64748B';
+    ctx.fillText('xpedition-new.vercel.app &middot; Learning-Driven World System', 340, 450);
+
+  }, [isOpen, learnerName, goalText, masteryPercentage, passportId, buildingsCount, themeId, tierInfo, theme]);
 
   const handleDownload = () => {
     const canvas = previewCanvasRef.current;
     if (!canvas) return;
     setDownloading(true);
-    const link = document.createElement('a');
-    link.download = `${learnerName.toLowerCase().replace(/\s+/g, '-')}-${theme.id}-world.png`;
-    link.href = canvas.toDataURL('image/png');
-    link.click();
-    setDownloading(false);
-  };
-
-  const handleNativeShare = async () => {
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title: `${learnerName}'s Verified ${theme.name} World - ${goalText}`,
-          text: `Explore my personal living knowledge world on XPedition! Mastery: ${masteryPercentage}%, ${theme.name}: ${tierInfo.name}.`,
-          url: shareUrl,
-        });
-      } catch (e) {}
-    } else {
-      handleCopyLink();
+    try {
+      const link = document.createElement('a');
+      link.download = `XPEDITION-WORLD-${learnerName.toUpperCase().replace(/\s+/g, '-')}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    } finally {
+      setDownloading(false);
     }
   };
 
+  const handleCopy = () => {
+    navigator.clipboard.writeText(shareUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  if (!isOpen) return null;
+
   return (
-    <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 select-none font-sans animate-fadeIn">
-      <div className="bg-[#0E0A1E] border border-[#00F0FF]/40 rounded-[28px] max-w-2xl w-full p-5 sm:p-7 space-y-5 shadow-2xl relative overflow-hidden animate-scaleUp">
+    <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 select-none font-sans">
+      <div className="bg-[#120E22] border border-[#00F0FF]/40 w-full max-w-xl rounded-3xl p-5 sm:p-6 space-y-4 shadow-2xl animate-scaleUp">
         
-        {/* Modal Header */}
-        <div className="flex items-center justify-between border-b border-white/10 pb-3.5">
-          <div className="flex items-center gap-2 font-mono text-sm font-bold text-[#00F0FF]">
-            <Share2 className="w-4 h-4" />
-            <span>Share Your {theme.name} World</span>
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-white/10 pb-3">
+          <div className="flex items-center gap-2">
+            <Globe className="w-5 h-5 text-[#00F0FF]" />
+            <h2 className="font-sans font-bold text-lg text-white">
+              Share Skill World
+            </h2>
           </div>
+
           <button
             type="button"
             onClick={onClose}
-            className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/15 text-slate-400 hover:text-white flex items-center justify-center transition-colors cursor-pointer"
+            className="w-8 h-8 rounded-full bg-white/10 text-slate-400 hover:text-white flex items-center justify-center transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Live Canvas Preview Card */}
-        <div className="rounded-2xl overflow-hidden border border-white/15 shadow-xl bg-black">
-          <canvas ref={previewCanvasRef} className="w-full h-auto block" />
+        {/* Canvas Visual Card Preview */}
+        <div className="rounded-2xl overflow-hidden border border-white/15 bg-black shadow-xl aspect-[800/500] w-full">
+          <canvas ref={previewCanvasRef} className="w-full h-full block" />
         </div>
 
         {/* Action Buttons */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
-          <button
-            type="button"
-            onClick={handleCopyLink}
-            className="h-11 rounded-xl bg-white/10 hover:bg-white/20 text-white font-mono font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer border border-white/15"
-          >
-            {copied ? <Check className="w-4 h-4 text-[#00FF87]" /> : <Copy className="w-4 h-4 text-[#00F0FF]" />}
-            <span>{copied ? 'Link Copied!' : 'Copy Link'}</span>
-          </button>
-
+        <div className="flex items-center gap-2.5 pt-1">
           <button
             type="button"
             onClick={handleDownload}
             disabled={downloading}
-            className="h-11 rounded-xl bg-[#A855F7]/20 hover:bg-[#A855F7]/35 border border-[#A855F7]/40 text-[#A855F7] font-mono font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer"
+            className="flex-1 h-11 rounded-xl bg-signature-gradient text-white font-mono font-bold text-xs flex items-center justify-center gap-2 hover:brightness-110 shadow-lg transition-all cursor-pointer"
           >
             <Download className="w-4 h-4" />
-            <span>Download PNG</span>
+            <span>{downloading ? 'Exporting PNG...' : 'Download World Card'}</span>
           </button>
 
           <button
             type="button"
-            onClick={handleNativeShare}
-            className="h-11 rounded-xl bg-signature-gradient text-white font-mono font-bold text-xs flex items-center justify-center gap-2 hover:brightness-110 transition-all cursor-pointer shadow-lg"
+            onClick={handleCopy}
+            className="h-11 px-4 rounded-xl bg-raised border border-line text-white font-mono font-bold text-xs flex items-center gap-2 hover:border-[#00F0FF] transition-all cursor-pointer"
           >
-            <Sparkles className="w-4 h-4 text-amber-300" />
-            <span>Share World</span>
+            {copied ? <Check className="w-4 h-4 text-[#00FF87]" /> : <Copy className="w-4 h-4" />}
+            <span>{copied ? 'Copied' : 'Copy Link'}</span>
           </button>
         </div>
+
       </div>
     </div>
   );

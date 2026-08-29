@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { getStoreData, UserStoreData } from '@/lib/store';
 import { calibrationScore, confidenceBreakdown } from '@/lib/engine/calibration';
 import { thetaToPercent } from '@/lib/engine/mastery';
-import WorldShareModal from '@/components/WorldShareModal';
+import PassportShareModal from '@/components/PassportShareModal';
 import { Compass, Share2, Shield, CheckCircle2, Award, Zap, AlertTriangle, Eye, User } from 'lucide-react';
 
 export default function SkillPassportPage() {
@@ -26,7 +26,6 @@ export default function SkillPassportPage() {
     );
   }
 
-  const activeThemeId = (storeData.learnerProfile?.worldTheme as any) || 'cosmos';
   const breakdown = confidenceBreakdown(storeData.attempts);
   const score = calibrationScore(storeData.attempts);
 
@@ -60,6 +59,9 @@ export default function SkillPassportPage() {
     : 0;
 
   const assistanceGap = Math.max(0, avgAssistedMastery - avgSoloMastery);
+
+  // Show dash for solo score if under 3 sessions
+  const hasEnoughSoloSessions = soloSessionsCount >= 3;
 
   return (
     <div className="space-y-6 select-none pt-2 max-w-2xl mx-auto pb-24 font-sans">
@@ -107,9 +109,11 @@ export default function SkillPassportPage() {
         <div className="bg-[#120E22]/90 border border-white/10 rounded-2xl p-4 text-center space-y-1 shadow-lg">
           <span className="block font-mono text-[9px] uppercase text-slate-400 font-bold">SOLO SCORE</span>
           <span className="block font-mono text-xl sm:text-2xl font-bold text-[#00FF87]">
-            {avgSoloMastery}%
+            {hasEnoughSoloSessions ? `${avgSoloMastery}%` : '—'}
           </span>
-          <span className="block font-sans text-[10px] text-slate-400 truncate">Zero Assistance</span>
+          <span className="block font-sans text-[10px] text-slate-400 truncate">
+            {hasEnoughSoloSessions ? 'Zero Assistance' : 'Need 3 Sessions'}
+          </span>
         </div>
 
         <div className="bg-[#120E22]/90 border border-white/10 rounded-2xl p-4 text-center space-y-1 shadow-lg">
@@ -117,13 +121,13 @@ export default function SkillPassportPage() {
           <span className="block font-mono text-xl sm:text-2xl font-bold text-[#00F0FF]">
             {avgAssistedMastery}%
           </span>
-          <span className="block font-sans text-[10px] text-slate-400 truncate">With AI Hints</span>
+          <span className="block font-sans text-[10px] text-slate-400 truncate">With AI Guidance</span>
         </div>
 
         <div className="bg-[#120E22]/90 border border-white/10 rounded-2xl p-4 text-center space-y-1 shadow-lg">
           <span className="block font-mono text-[9px] uppercase text-slate-400 font-bold">GAP METRIC</span>
           <span className="block font-mono text-xl sm:text-2xl font-bold text-[#A855F7]">
-            {assistanceGap}%
+            {assistanceGap} pts
           </span>
           <span className="block font-sans text-[10px] text-slate-400 truncate">Help Dependency</span>
         </div>
@@ -156,14 +160,14 @@ export default function SkillPassportPage() {
         <div className="p-4 rounded-xl bg-black/40 border border-white/10 space-y-2">
           <div className="flex items-center justify-between">
             <span className="font-mono text-[10px] uppercase text-[#A855F7] font-bold tracking-wider">
-              KNOWS WHAT THEY KNOW
+              CALIBRATION ACCURACY
             </span>
             <span className="font-mono text-[10px] text-white bg-white/10 px-2 py-0.5 rounded-full">
-              Accuracy &plusmn;{accuracyMargin}%
+              &plusmn;{accuracyMargin}% Margin
             </span>
           </div>
           <p className="font-sans text-xs text-slate-200 leading-relaxed">
-            The learner exhibits high metacognitive precision. Self-assessed confidence matches actual test outcomes without blind overconfidence.
+            The learner exhibits high calibration precision. Confidence predictions align with authenticated test responses without blind overconfidence.
           </p>
         </div>
 
@@ -197,7 +201,7 @@ export default function SkillPassportPage() {
         </div>
       </section>
 
-      {/* 4. DOMAIN CONCEPTS VERIFIED SCORES */}
+      {/* 4. DOMAIN CONCEPTS LIST WITH MASTERY % */}
       <section className="bg-[#120E22]/90 border border-white/10 rounded-[22px] p-5 sm:p-6 space-y-4 shadow-xl">
         <div className="flex items-center justify-between border-b border-white/10 pb-3">
           <span className="font-mono text-[11px] uppercase text-[#00F0FF] font-bold tracking-wider">
@@ -224,7 +228,7 @@ export default function SkillPassportPage() {
                   </span>
 
                   <div className="flex items-center gap-2.5 font-mono text-xs">
-                    <span className="text-[#00FF87] font-semibold">Solo: {soloPct}%</span>
+                    <span className="text-[#00FF87] font-semibold">Solo: {hasEnoughSoloSessions ? `${soloPct}%` : '—'}</span>
                     <span className="text-slate-500">|</span>
                     <span className="text-[#00F0FF] font-semibold">Assisted: {assistedPct}%</span>
                   </div>
@@ -233,7 +237,7 @@ export default function SkillPassportPage() {
                 <div className="h-1.5 w-full bg-raised rounded-full overflow-hidden">
                   <div
                     className="h-full bg-signature-gradient rounded-full transition-all duration-500"
-                    style={{ width: `${Math.max(4, soloPct)}%` }}
+                    style={{ width: `${Math.max(4, assistedPct)}%` }}
                   />
                 </div>
               </div>
@@ -242,18 +246,18 @@ export default function SkillPassportPage() {
         </div>
       </section>
 
-      {/* Share Modal Dialog */}
-      <WorldShareModal
+      {/* Share Passport Modal Dialog */}
+      <PassportShareModal
         isOpen={isShareOpen}
         onClose={() => setIsShareOpen(false)}
         learnerName={storeData.handle}
         goalText={storeData.goalText}
-        masteryPercentage={avgSoloMastery}
-        passportId={passportId}
-        conceptsCount={storeData.concepts.length}
-        soloVerifiedCount={soloSessionsCount}
+        assistedScore={avgAssistedMastery}
+        soloScore={hasEnoughSoloSessions ? avgSoloMastery : 0}
+        gapMetric={assistanceGap}
         accuracyMargin={accuracyMargin}
-        themeId={activeThemeId}
+        topConcepts={storeData.concepts}
+        passportId={passportId}
       />
 
     </div>
