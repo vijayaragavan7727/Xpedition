@@ -453,7 +453,7 @@ export default function HomePage() {
       {worldState && (
         <section className="pt-0.5">
           <Link
-            href="/passport"
+            href="/world"
             className="block relative rounded-[20px] overflow-hidden border border-white/15 hover:border-[#00F0FF]/50 transition-all cursor-pointer group shadow-xl"
           >
             <WorldRenderer
