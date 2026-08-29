@@ -39,7 +39,9 @@ export default function EliminationArenaPage() {
 
   useEffect(() => {
     async function loadArenaRound() {
-      const { activeRound: round, entries } = await getOrRefreshActiveRound(user.id, user.name);
+      const userId = user?.id || "guest-user";
+      const userName = user?.name || "Learner";
+      const { activeRound: round, entries } = await getOrRefreshActiveRound(userId, userName);
       setActiveRound(round);
 
       if (round?.endsAt) {
@@ -51,9 +53,9 @@ export default function EliminationArenaPage() {
         const mapped: StandingPlayer[] = entries.map((e) => ({
           rank: e.rank,
           name: e.userName,
-          avatarColor: e.userId === user.id ? "from-[#7C3AED] to-[#22D3EE]" : "from-[#FBBF24] to-[#F472B6]",
+          avatarColor: e.userId === userId ? "from-[#7C3AED] to-[#22D3EE]" : "from-[#FBBF24] to-[#F472B6]",
           status: e.status === "advancing" ? "ADVANCING" : e.status === "on_the_line" ? "ON THE LINE" : "ELIMINATED",
-          isUser: e.userId === user.id,
+          isUser: e.userId === userId,
         }));
         setStandings(mapped);
       }
@@ -65,7 +67,7 @@ export default function EliminationArenaPage() {
       setTimer((prev) => (prev > 0 ? prev - 1 : 0));
     }, 1000);
     return () => clearInterval(interval);
-  }, [user]);
+  }, [user?.id]);
 
   const formatTimer = (seconds: number) => {
     const mins = Math.floor(seconds / 60);

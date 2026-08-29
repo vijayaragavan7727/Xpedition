@@ -6,6 +6,26 @@ export interface SourceItem {
 
 export type LearningStyle = "story" | "theory" | "code" | "stepwise";
 
+export type MotivationState = "flow" | "frustrated" | "bored" | "drifting" | "unknown";
+
+export interface Quest {
+  id: string;
+  title: string;
+  difficulty: number;
+  [key: string]: any;
+}
+
+export interface Reward {
+  id: string;
+  rarity: "common" | "rare" | "epic";
+  label?: string;
+  at?: number;
+  name?: string;
+  type?: string;
+  xpValue?: number;
+  [key: string]: any;
+}
+
 export interface Skill {
   id: string;
   name: string;

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { cleanAndParseJSON, isProgrammingSubject, validateQuestion } from "@/lib/aiParser";
 
 export const dynamic = "force-dynamic";
 
@@ -31,6 +32,8 @@ export async function POST(req: NextRequest) {
     const groqKey = process.env.GROQ_API_KEY;
     const tavilyKey = process.env.TAVILY_API_KEY;
 
+    const isProg = isProgrammingSubject(skillName, goal);
+
     const levelLabels: Record<number, string> = {
       1: "Basics & Foundations",
       2: "Intermediate Concepts & Practical Application",
@@ -51,22 +54,29 @@ export async function POST(req: NextRequest) {
           .eq("learning_style", learningStyle)
           .single();
 
-        if (cachedModule && cachedModule.content) {
-          console.log(`[MODULE CACHE HIT] Skill: ${skillName} | Level: ${level} | Style: ${learningStyle}`);
-          return NextResponse.json({
-            title: cachedModule.title,
-            sections: cachedModule.content,
-            takeaways: cachedModule.takeaways,
-            sources: cachedModule.sources,
-            isCached: true,
-          });
+        if (cachedModule && cachedModule.content && Array.isArray(cachedModule.questions) && cachedModule.questions.length >= 8) {
+          // Validate cached questions - if any question is a placeholder, skip cache!
+          const allValid = cachedModule.questions.every((q: any) => validateQuestion(q, skillName, goal).isValid);
+          if (allValid) {
+            console.log(`[MODULE CACHE HIT - VALID] Skill: ${skillName} | Level: ${level} | Style: ${learningStyle}`);
+            return NextResponse.json({
+              title: cachedModule.title,
+              sections: cachedModule.content,
+              takeaways: cachedModule.takeaways,
+              sources: cachedModule.sources,
+              questions: cachedModule.questions,
+              isCached: true,
+            });
+          } else {
+            console.log(`[MODULE CACHE INVALID - STUBS DETECTED] Invalidating cache & re-generating fresh AI questions for: ${skillName}`);
+          }
         }
       }
     } catch (e) {
       console.warn("Notice checking module cache:", e);
     }
 
-    // 2. Fetch grounded Web Search results via Tavily (with NPTEL & SWAYAM domain preference for academic topics)
+    // 2. Fetch grounded Web Search results via Tavily
     let searchContent = "";
     let extractedSources: SourceCitation[] = [];
 
@@ -76,7 +86,7 @@ export async function POST(req: NextRequest) {
       "machine learning", "ai", "operating system", "network", "compiler", "software"
     ];
 
-    const isAcademicTopic = academicKeywords.some(kw => 
+    const isAcademicTopic = academicKeywords.some((kw) =>
       skillName.toLowerCase().includes(kw) || goal.toLowerCase().includes(kw)
     );
 
@@ -107,7 +117,7 @@ export async function POST(req: NextRequest) {
           }
         }
 
-        const queryStr = `learn ${skillName} ${levelDesc} tutorial guide code examples`;
+        const queryStr = `learn ${skillName} ${levelDesc} tutorial guide`;
         const tavilyRes = await fetch("https://api.tavily.com/search", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -145,23 +155,38 @@ export async function POST(req: NextRequest) {
 
     if (extractedSources.length === 0) {
       extractedSources = [
-        { title: `${skillName} Official Documentation`, url: "https://developer.mozilla.org" },
-        { title: `${skillName} ${levelDesc} Guide`, url: "https://docs.python.org" },
+        { title: `${skillName} Reference Material`, url: "https://nptel.ac.in" },
+        { title: `${skillName} ${levelDesc} Guide`, url: "https://swayam.gov.in" },
       ];
     }
 
-    // 3. Prompt Groq LLM to generate 600-900 word teaching module AND 12 derived questions
+    // 3. Subject-Aware Directives for Non-Programming vs Programming Subjects
+    const nonProgrammingDirective = `
+CRITICAL NON-PROGRAMMING DOMAIN RULES:
+- This course ("${skillName}") is a NON-PROGRAMMING subject (e.g. Spoken English, Communication, Business, History, etc.).
+- You MUST NEVER mention "syntax", "compiler", "code snippet", "runtime", "variable", "programming", or "bug" anywhere in the title, text, questions, or options!
+- Test concrete real-world principles, vocabulary, grammar rules, active listening, tone of voice, situation dialogues, and practical communication strategies.
+- Every question MUST name a specific, concrete concept or scenario. NEVER use vague phrases like "Section 1", "this concept", "Option A:", or "(Level 1 - Q1)".`;
+
+    const programmingDirective = `
+CRITICAL PROGRAMMING DOMAIN RULES:
+- All syntax, terminology, questions, and code snippets MUST strictly belong to "${skillName}".
+- Include code examples and syntax breakdowns where helpful.
+- Every question MUST test a concrete syntax rule, function behavior, logic pattern, or error case.`;
+
+    const domainRule = isProg ? programmingDirective : nonProgrammingDirective;
+
     const stylePromptDirectives: Record<string, string> = {
       story: "Explain concepts through vivid real-world analogies, metaphors, and story narratives.",
       theory: "Focus on formal definitions, underlying theoretical mechanics, and fundamental principles.",
-      code: "Lead with clear code blocks, inline comments, syntax breakdowns, and line-by-line explanations.",
+      code: "Lead with clear practical examples, inline explanations, and operational mechanics.",
       stepwise: "Structure section explanations into clear numbered 1-2-3 step-by-step breakdowns.",
     };
 
     const styleDirective = stylePromptDirectives[learningStyle] || stylePromptDirectives.story;
 
     const systemPrompt = `You are XPedition's Master Educator & Curriculum Designer.
-Generate a comprehensive, high-quality 600-900 WORD TEACHING MODULE and a 12-QUESTION TEST BANK derived directly from the module text.
+Generate a comprehensive 600-900 WORD TEACHING MODULE and a 12-QUESTION TEST BANK derived directly from the module text.
 
 TOPIC DETAILS:
 - Overall Goal: "${goal}"
@@ -169,52 +194,30 @@ TOPIC DETAILS:
 - Level: Level ${level} (${levelDesc})
 - Learning Style: "${learningStyle}" (${styleDirective})
 
+${domainRule}
+
 GROUNDED WEB CONTEXT:
 ${searchContent || "Use authoritative standard domain knowledge for this topic."}
 
 CRITICAL FORMAT REQUIREMENTS:
 1. "sections": Array of 4 to 6 short sections. Each section must have:
    - "sectionId": string (e.g., "section-0", "section-1", "section-2")
-   - "heading": Descriptive title (e.g., "Section 1: Syntax & Structure")
+   - "heading": Descriptive title (e.g., "Active Listening & Non-Verbal Cues")
    - "paragraphs": Array of 2-4 thorough educational paragraph strings.
    - "codeExample": Object { "code": string, "explanation": string } or null.
 2. "takeaways": Array of 3 to 5 key bullet strings.
-3. "questions": EXACTLY 12 questions derived DIRECTLY from the sections above.
-   - EVERY question must test something EXPLICITLY taught in the sections above.
+3. "questions": EXACTLY 12 real, specific questions derived DIRECTLY from the sections above.
    - Each question has: "prompt", "options" [4], "correctIndex", "explanations" [4], "sourceSection", "questionType", "difficulty".
-4. "challenges": If this topic is programming/coding related, generate 2 coding challenges matching this schema:
-   {
-     "id": "c1",
-     "title": "Title of Challenge",
-     "problemStatement": "Detailed description...",
-     "inputFormat": "Input format spec...",
-     "outputFormat": "Output format spec...",
-     "examples": [{ "input": "...", "expectedOutput": "...", "explanation": "..." }],
-     "testCases": [
-       { "input": "...", "expectedOutput": "...", "hidden": false },
-       { "input": "...", "expectedOutput": "...", "hidden": false },
-       { "input": "...", "expectedOutput": "...", "hidden": true },
-       { "input": "...", "expectedOutput": "...", "hidden": true },
-       { "input": "...", "expectedOutput": "...", "hidden": true }
-     ],
-     "starterCode": {
-       "python": "# Python starter code",
-       "java": "// Java starter code",
-       "cpp": "// C++ starter code"
-     },
-     "difficulty": 2,
-     "xpReward": 150,
-     "conceptTested": "Concept"
-   }
-   If non-coding topic, return empty array [].
+   - NO template placeholders. NO vague "Option A:" prefixes. NO references like "Based on Section N".
+4. "challenges": If programming, generate 2 coding challenges matching schema; else return [].
 
 Return STRICT JSON ONLY matching this structure:
 {
-  "title": "Comprehensive Level ${level} Module: ${skillName}",
+  "title": "Level ${level} Masterclass: ${skillName}",
   "sections": [
     {
       "sectionId": "section-0",
-      "heading": "Section 1: ...",
+      "heading": "Section Title",
       "paragraphs": ["Paragraph 1...", "Paragraph 2..."],
       "codeExample": null
     }
@@ -222,8 +225,8 @@ Return STRICT JSON ONLY matching this structure:
   "takeaways": ["Key Takeaway 1..."],
   "questions": [
     {
-      "prompt": "Question prompt testing exact concept...",
-      "options": ["Option A", "Option B", "Option C", "Option D"],
+      "prompt": "Specific question prompt naming a concrete concept...",
+      "options": ["Option A text", "Option B text", "Option C text", "Option D text"],
       "correctIndex": 0,
       "explanations": ["Why A is right...", "Why B is wrong...", "Why C is wrong...", "Why D is wrong..."],
       "sourceSection": 0,
@@ -231,197 +234,174 @@ Return STRICT JSON ONLY matching this structure:
       "difficulty": 1
     }
   ],
-  "challenges": [
-    {
-      "id": "c1",
-      "title": "Reverse String",
-      "problemStatement": "Problem statement...",
-      "inputFormat": "Input format...",
-      "outputFormat": "Output format...",
-      "examples": [{ "input": "hello", "expectedOutput": "olleh", "explanation": "..." }],
-      "testCases": [
-        { "input": "hello", "expectedOutput": "olleh", "hidden": false },
-        { "input": "world", "expectedOutput": "dlrow", "hidden": false },
-        { "input": "python", "expectedOutput": "nohtyp", "hidden": true }
-      ],
-      "starterCode": {
-        "python": "# Python code",
-        "java": "// Java code",
-        "cpp": "// C++ code"
-      },
-      "difficulty": 2,
-      "xpReward": 150,
-      "conceptTested": "Concept"
-    }
-  ]
+  "challenges": []
 }`;
 
     if (!groqKey || groqKey.trim() === "") {
-      console.warn("GROQ_API_KEY missing, using fallback module generator.");
-      return NextResponse.json(generateFallbackModule(skillName, level, learningStyle, extractedSources));
+      console.error("[GROQ ERROR] GROQ_API_KEY missing in environment.");
+      return NextResponse.json(
+        { error: "AI Service Configuration Error: GROQ_API_KEY is missing." },
+        { status: 500 }
+      );
     }
 
-    console.log(`[GENERATING MODULE & 12 QUESTIONS] Skill: "${skillName}" | Goal: "${goal}" | Level: ${level}`);
+    console.log(`[GENERATING MODULE & 12 QUESTIONS VIA GROQ] Model: openai/gpt-oss-120b | Skill: "${skillName}" | Goal: "${goal}" | Level: ${level}`);
 
-    const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${groqKey}`,
-      },
-      body: JSON.stringify({
-        model: "llama-3.3-70b-versatile",
-        messages: [{ role: "user", content: systemPrompt }],
-        temperature: 0.7,
-        response_format: { type: "json_object" },
-      }),
-    });
+    // Call Groq API with robust model fallback sequence
+    const modelsToTry = [
+      "llama3-70b-8192",
+      "mixtral-8x7b-32768",
+      "llama-3.1-8b-instant",
+      "openai/gpt-oss-120b",
+      "openai/gpt-oss-20b",
+      "groq/compound-mini"
+    ];
+    let contentStr: string | null = null;
+    let usedModel = "";
 
-    if (groqRes.ok) {
-      const groqData = await groqRes.json();
-      const contentStr = groqData.choices?.[0]?.message?.content;
-      if (contentStr) {
-        const parsed = JSON.parse(contentStr);
-        const questionsList = Array.isArray(parsed.questions) && parsed.questions.length >= 8
-          ? parsed.questions
-          : generateFallbackQuestions(skillName, level, parsed.sections || []);
-
-        console.log(`[MODULE GENERATED SUCCESSFULLY] Sections: ${parsed.sections?.length || 0} | Questions: ${questionsList.length}`);
-
-        // Cache in Supabase
-        try {
-          const { supabase, isSupabaseConfigured } = await import("@/lib/supabase");
-          if (isSupabaseConfigured()) {
-            await supabase.from("modules").upsert({
-              skill_id: skillId,
-              level,
-              learning_style: learningStyle,
-              title: parsed.title || `Level ${level}: ${skillName}`,
-              content: parsed.sections || [],
-              takeaways: parsed.takeaways || [],
-              sources: extractedSources,
-              questions: questionsList,
-            });
-          }
-        } catch (dbErr) {
-          console.warn("Notice saving module to cache:", dbErr);
-        }
-
-        return NextResponse.json({
-          title: parsed.title || `Level ${level}: ${skillName}`,
-          sections: parsed.sections || [],
-          takeaways: parsed.takeaways || [],
-          sources: extractedSources,
-          questions: questionsList,
-          isCached: false,
+    for (const model of modelsToTry) {
+      try {
+        console.log(`[CALLING GROQ API] Model: ${model}...`);
+        const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${groqKey}`,
+          },
+          body: JSON.stringify({
+            model,
+            messages: [{ role: "user", content: systemPrompt }],
+            temperature: 0.7,
+            max_tokens: 3500,
+            response_format: { type: "json_object" },
+          }),
         });
+
+        console.log(`[GROQ RESPONSE STATUS] Model: ${model} -> Status: ${groqRes.status}`);
+
+        if (groqRes.ok) {
+          const groqData = await groqRes.json();
+          const rawContent = groqData.choices?.[0]?.message?.content;
+          if (rawContent) {
+            contentStr = rawContent;
+            usedModel = model;
+            break;
+          }
+        } else {
+          const errText = await groqRes.text();
+          console.warn(`[GROQ API CALL FAILED] Model: ${model} | Status: ${groqRes.status} | Output: ${errText.slice(0, 300)}`);
+        }
+      } catch (callErr) {
+        console.warn(`[GROQ FETCH EXCEPTION] Model: ${model}:`, callErr);
       }
     }
 
-    return NextResponse.json(generateFallbackModule(skillName, level, learningStyle, extractedSources));
-  } catch (error) {
+    if (!contentStr) {
+      console.error("[AI GENERATION FAILED] All Groq model endpoints failed or returned empty content.");
+      return NextResponse.json(
+        { error: "AI Generation Failed", details: "Unable to reach Groq AI model. Please check network connection or retry." },
+        { status: 500 }
+      );
+    }
+
+    let parsed = cleanAndParseJSON(contentStr);
+
+    // If initial parse fails, retry once with a strict formatting prompt
+    if (!parsed) {
+      console.warn("[AI JSON PARSE FAILED] Retrying once with strict formatting directive...");
+      try {
+        const retryRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${groqKey}`,
+          },
+          body: JSON.stringify({
+            model: "openai/gpt-oss-120b",
+            messages: [
+              { role: "user", content: systemPrompt },
+              { role: "assistant", content: contentStr },
+              { role: "user", content: "Return ONLY valid JSON matching the exact schema above. No markdown fences or commentary." }
+            ],
+            temperature: 0.3,
+            response_format: { type: "json_object" },
+          }),
+        });
+        if (retryRes.ok) {
+          const retryData = await retryRes.json();
+          const retryStr = retryData.choices?.[0]?.message?.content;
+          if (retryStr) {
+            parsed = cleanAndParseJSON(retryStr);
+          }
+        }
+      } catch (retryErr) {
+        console.warn("[RETRY PARSE FAILED]:", retryErr);
+      }
+    }
+
+    if (!parsed || !Array.isArray(parsed.questions)) {
+      console.error("[AI GENERATION INVALID JSON] Response could not be parsed into module JSON schema.");
+      return NextResponse.json(
+        { error: "AI Generation Error", details: "AI returned an invalid JSON response structure. Please retry." },
+        { status: 500 }
+      );
+    }
+
+    // Validate generated questions
+    const rawQuestions: any[] = parsed.questions || [];
+    const validQuestions: any[] = [];
+
+    for (const q of rawQuestions) {
+      const vResult = validateQuestion(q, skillName, goal);
+      if (vResult.isValid) {
+        validQuestions.push(q);
+      } else {
+        console.warn(`[REJECTED INVALID QUESTION] Reason: ${vResult.reason} | Prompt: "${q.prompt}"`);
+      }
+    }
+
+    if (validQuestions.length < 6) {
+      console.error(`[AI GENERATION VALIDATION FAILURE] Only ${validQuestions.length} of 12 questions passed subject validation.`);
+      return NextResponse.json(
+        { error: "AI Question Validation Failed", details: `Only ${validQuestions.length} valid questions generated for ${skillName}. Please retry generation.` },
+        { status: 500 }
+      );
+    }
+
+    console.log(`[MODULE GENERATED SUCCESSFULLY] Model: ${usedModel} | Sections: ${parsed.sections?.length || 0} | Valid Questions: ${validQuestions.length}`);
+
+    // Cache in Supabase
+    try {
+      const { supabase, isSupabaseConfigured } = await import("@/lib/supabase");
+      if (isSupabaseConfigured()) {
+        await supabase.from("modules").upsert({
+          skill_id: skillId,
+          level,
+          learning_style: learningStyle,
+          title: parsed.title || `Level ${level}: ${skillName}`,
+          content: parsed.sections || [],
+          takeaways: parsed.takeaways || [],
+          sources: extractedSources,
+          questions: validQuestions,
+        });
+      }
+    } catch (dbErr) {
+      console.warn("Notice saving module to cache:", dbErr);
+    }
+
+    return NextResponse.json({
+      title: parsed.title || `Level ${level}: ${skillName}`,
+      sections: parsed.sections || [],
+      takeaways: parsed.takeaways || [],
+      sources: extractedSources,
+      questions: validQuestions,
+      isCached: false,
+    });
+  } catch (error: any) {
     console.error("Generate Module API error:", error);
     return NextResponse.json(
-      { error: "Failed to generate learning module." },
+      { error: "Failed to generate learning module.", details: error?.message || "Internal Error" },
       { status: 500 }
     );
   }
-}
-
-function generateFallbackModule(
-  skillName: string,
-  level: number,
-  learningStyle: string,
-  sources: SourceCitation[]
-) {
-  const isCoding =
-    skillName.toLowerCase().includes("python") ||
-    skillName.toLowerCase().includes("sql") ||
-    skillName.toLowerCase().includes("web") ||
-    skillName.toLowerCase().includes("code");
-
-  return {
-    title: `Level ${level} Masterclass: ${skillName}`,
-    sections: [
-      {
-        sectionId: "section-1",
-        heading: `Section 1: Foundations & Fundamentals of ${skillName}`,
-        paragraphs: [
-          `Welcome to Level ${level} of ${skillName}. In this module, we explore the core building blocks and principles that govern effective problem solving in this domain. Understanding foundational mechanics is essential before attempting higher-level architectural decisions.`,
-          `When working with ${skillName}, every component plays a specific role. By mastering how data flows and how syntax behaves under varying conditions, you ensure clean execution, high reliability, and optimal performance across projects.`
-        ],
-        codeExample: null
-      },
-      {
-        sectionId: "section-2",
-        heading: `Section 2: Worked Example & Practical Execution`,
-        paragraphs: [
-          `Let us examine a concrete, practical example demonstrating ${skillName} in action. Analyzing practical implementations helps connect theoretical concepts with real-world output.`
-        ],
-        codeExample: {
-          code: isCoding
-            ? `# Worked Example for ${skillName}\ndef process_data(inputs):\n    result = [item.strip() for item in inputs if item]\n    return sorted(result)\n\nprint(process_data(['sql ', ' python', '']))`
-            : `Problem: Evaluate system throughput for ${skillName}\nSolution: Calculate Total Requests / Response Latency\nResult: 99.9% Uptime SLA guaranteed.`,
-          explanation: `This worked example illustrates input sanitization, filtering out empty entries, and returning a predictable, ordered result set.`
-        }
-      },
-      {
-        sectionId: "section-3",
-        heading: `Section 3: Optimization & Key Trade-offs`,
-        paragraphs: [
-          `As complexity grows, efficiency becomes critical. In ${skillName}, optimization requires balancing execution speed, memory footprint, and maintainability. Avoid premature optimization, but adhere strictly to best practices.`
-        ],
-        codeExample: null
-      },
-      {
-        sectionId: "section-4",
-        heading: `Section 4: Summary & Practical Checklist`,
-        paragraphs: [
-          `To summarize Level ${level}: always verify syntax correctness, test edge cases, and ensure your solution scales predictably. You are now prepared to test your knowledge in the Level Test!`
-        ],
-        codeExample: null
-      }
-    ],
-    takeaways: [
-      `Understand core mechanics and syntax rules for ${skillName}`,
-      `Verify input data and handle edge cases gracefully`,
-      `Apply worked pattern templates to maximize execution accuracy`,
-      `Maintain clean code structure for long-term scalability`
-    ],
-    sources,
-    questions: generateFallbackQuestions(skillName, level, []),
-    isCached: false,
-  };
-}
-
-function generateFallbackQuestions(skillName: string, level: number, sections: Section[]) {
-  const qList = [];
-  const secCount = Math.max(1, sections.length || 4);
-
-  for (let i = 0; i < 12; i++) {
-    const secIdx = i % secCount;
-    const diff = Math.min(5, Math.floor(i / 2.5) + 1);
-
-    qList.push({
-      prompt: `(Level ${level} - Q${i + 1}) Based on Section ${secIdx + 1} of ${skillName}, what is the key rule or syntax requirement for this concept?`,
-      options: [
-        `Option A: Primary rule taught in Section ${secIdx + 1}`,
-        `Option B: Incorrect syntax variation`,
-        `Option C: Invalid runtime assumption`,
-        `Option D: Deprecated legacy pattern`
-      ],
-      correctIndex: 0,
-      explanations: [
-        `✓ Correct rule explicitly covered in Section ${secIdx + 1}.`,
-        `Incorrect syntax variation.`,
-        `Invalid runtime assumption.`,
-        `Deprecated legacy pattern.`
-      ],
-      sourceSection: secIdx,
-      questionType: i % 2 === 0 ? "concept" : "scenario",
-      difficulty: diff,
-    });
-  }
-
-  return qList;
 }

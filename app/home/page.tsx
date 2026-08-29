@@ -105,7 +105,7 @@ export default function HomePage() {
   };
 
   // Real Level Growth Curve Progress
-  const progress = xpProgress(user.xp);
+  const progress = xpProgress(user?.xp || 0);
 
   if (isAuthLoading) {
     return (
@@ -119,6 +119,11 @@ export default function HomePage() {
     );
   }
 
+  const userName = user?.name || "Adventurer";
+  const userEmail = user?.email || "adventurer@xpedition.com";
+  const userXp = user?.xp || 0;
+  const userStreak = user?.streak || 0;
+
   return (
     <main className="min-h-screen bg-[#000000] bg-grid-pattern text-white relative flex flex-col justify-between pb-24 p-4 sm:p-6 overflow-x-hidden">
       {/* Background Glows */}
@@ -130,16 +135,16 @@ export default function HomePage() {
         <header className="bg-[#0D0D1A] border border-white/10 rounded-2xl p-4 shadow-xl flex items-center justify-between gap-3">
           <Link href="/profile" className="flex items-center gap-3 truncate group cursor-pointer hover:opacity-90">
             <div className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-full bg-gradient-to-br from-[#00F0FF] to-[#A855F7] flex items-center justify-center text-black font-black text-base font-heading ring-2 ring-[#00F0FF]/40 group-hover:scale-105 transition-transform shrink-0">
-              {user.name.charAt(0).toUpperCase()}
+              {userName.charAt(0).toUpperCase()}
             </div>
             <div className="truncate">
               <div className="flex items-center gap-2 truncate">
-                <h1 className="text-sm font-bold text-white font-heading truncate group-hover:text-[#00F0FF] transition-colors">{user.name}</h1>
+                <h1 className="text-sm font-bold text-white font-heading truncate group-hover:text-[#00F0FF] transition-colors">{userName}</h1>
                 <span className="px-2 py-0.5 rounded-full bg-[#A855F7]/20 text-[#00F0FF] text-[10px] font-mono font-bold border border-[#A855F7]/40 shrink-0">
                   Lvl {progress.level}
                 </span>
               </div>
-              <p className="text-[11px] text-[#94A3B8] truncate">{user.email}</p>
+              <p className="text-[11px] text-[#94A3B8] truncate">{userEmail}</p>
             </div>
           </Link>
 
@@ -147,7 +152,7 @@ export default function HomePage() {
             <div className="flex flex-col items-end gap-1">
               <div className="flex items-center gap-1 text-xs text-[#FFB800] font-mono font-bold">
                 <Trophy className="w-3.5 h-3.5 text-[#FFB800]" />
-                <span>{user.xp} XP</span>
+                <span>{userXp} XP</span>
               </div>
               <div className="w-20 sm:w-28 h-2 bg-[#000000] rounded-full overflow-hidden border border-white/10">
                 <div
@@ -159,7 +164,7 @@ export default function HomePage() {
 
             <div className="flex items-center gap-1 px-2.5 py-1.5 min-h-[44px] rounded-xl bg-[#000000] border border-[#FFB800]/40 text-[#FFB800] font-mono text-xs font-bold shrink-0">
               <Flame className="w-4 h-4 text-[#FFB800] animate-pulse" />
-              <span>{user.streak}d</span>
+              <span>{userStreak}d</span>
             </div>
           </div>
         </header>

@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
             Authorization: `Bearer ${groqKey}`,
           },
           body: JSON.stringify({
-            model: "llama-3.3-70b-versatile",
+            model: "openai/gpt-oss-120b",
             messages: [
               {
                 role: "system",
@@ -269,7 +269,7 @@ Respond with STRICT JSON ONLY. Do not wrap in markdown backticks. The JSON struc
             Authorization: `Bearer ${groqKey}`,
           },
           body: JSON.stringify({
-            model: "llama-3.3-70b-versatile",
+            model: "openai/gpt-oss-120b",
             messages: [
               { role: "system", content: systemPrompt },
               { role: "user", content: `Generate learning quest for normalized goal: "${normalizedTopic}"` },
@@ -283,8 +283,9 @@ Respond with STRICT JSON ONLY. Do not wrap in markdown backticks. The JSON struc
           const groqData = await groqRes.json();
           const contentStr = groqData.choices?.[0]?.message?.content;
           if (contentStr) {
-            const parsed = JSON.parse(contentStr) as GoalEngineResponse;
-            if (parsed.title && Array.isArray(parsed.skills) && parsed.firstQuestion) {
+            const { cleanAndParseJSON } = await import("@/lib/aiParser");
+            const parsed = cleanAndParseJSON<GoalEngineResponse>(contentStr);
+            if (parsed && parsed.title && Array.isArray(parsed.skills) && parsed.firstQuestion) {
               parsed.normalizedTopic = normalizedTopic;
               parsed.isWebGrounded = isWebGrounded;
               parsed.sources = extractedSources;

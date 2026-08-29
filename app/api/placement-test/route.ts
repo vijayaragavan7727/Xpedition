@@ -50,7 +50,7 @@ Return STRICT JSON ONLY matching this format:
         Authorization: `Bearer ${groqKey}`,
       },
       body: JSON.stringify({
-        model: "llama-3.3-70b-versatile",
+        model: "openai/gpt-oss-120b",
         messages: [{ role: "user", content: systemPrompt }],
         temperature: 0.7,
         response_format: { type: "json_object" },
@@ -61,8 +61,9 @@ Return STRICT JSON ONLY matching this format:
       const groqData = await groqRes.json();
       const contentStr = groqData.choices?.[0]?.message?.content;
       if (contentStr) {
-        const parsed = JSON.parse(contentStr);
-        if (parsed.questions && Array.isArray(parsed.questions) && parsed.questions.length >= 8) {
+        const { cleanAndParseJSON } = await import("@/lib/aiParser");
+        const parsed = cleanAndParseJSON(contentStr);
+        if (parsed && parsed.questions && Array.isArray(parsed.questions) && parsed.questions.length >= 8) {
           return NextResponse.json({ questions: parsed.questions });
         }
       }

@@ -112,7 +112,7 @@ export default function ProfilePage() {
     }
 
     loadRealStats();
-  }, [user.id, isAuthLoading, course]);
+  }, [user?.id, isAuthLoading, course]);
 
   const handleSaveName = async () => {
     if (!displayName.trim()) return;

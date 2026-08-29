@@ -82,7 +82,7 @@ export default function GuildPage() {
       }
     }
     fetchUserGuild();
-  }, [user]);
+  }, [user?.id]);
 
   const [createName, setCreateName] = useState("");
   const [joinCode, setJoinCode] = useState("");
@@ -90,7 +90,7 @@ export default function GuildPage() {
   const [mode, setMode] = useState<"view" | "create" | "join">("view");
 
   const totalGuildXp = activeGuild
-    ? activeGuild.members.reduce((acc, m) => acc + m.xp, 0)
+    ? activeGuild.members.reduce((acc, m) => acc + (m?.xp || 0), 0)
     : 0;
   const targetGuildXp = 2500;
   const guildProgressPct = Math.min(100, Math.round((totalGuildXp / targetGuildXp) * 100));

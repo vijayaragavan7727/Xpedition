@@ -314,7 +314,39 @@ export function QuestProvider({ children }: { children: React.ReactNode }) {
                 }
               }
             }
-            return;
+
+            // Rehydrate local storage fallbacks if stored
+            if (typeof window !== "undefined") {
+              const localName = localStorage.getItem("xpedition_user");
+              const localEmail = localStorage.getItem("xpedition_email");
+              if (localName || localEmail) {
+                setUser((prev) => ({
+                  ...prev,
+                  name: localName || prev.name,
+                  email: localEmail || prev.email,
+                }));
+              }
+            }
+          } else if (typeof window !== "undefined") {
+            const localName = localStorage.getItem("xpedition_user");
+            const localEmail = localStorage.getItem("xpedition_email");
+            if (localName || localEmail) {
+              setUser((prev) => ({
+                ...prev,
+                name: localName || prev.name,
+                email: localEmail || prev.email,
+              }));
+            }
+          }
+        } else if (typeof window !== "undefined") {
+          const localName = localStorage.getItem("xpedition_user");
+          const localEmail = localStorage.getItem("xpedition_email");
+          if (localName || localEmail) {
+            setUser((prev) => ({
+              ...prev,
+              name: localName || prev.name,
+              email: localEmail || prev.email,
+            }));
           }
         }
       } catch (err) {
@@ -452,16 +484,6 @@ export function QuestProvider({ children }: { children: React.ReactNode }) {
     };
 
     saveUserProfile(updatedUser);
-
-    if (newPKnow >= BKT_PARAMS.masteryThreshold && course?.skills) {
-      if (activeSkillIndex < course.skills.length - 1) {
-        setTimeout(() => {
-          setActiveSkillIndex((prev) => prev + 1);
-          setPKnow(BKT_PARAMS.pKnowPrior);
-          setHalfLifeHours(0.1667);
-        }, 1200);
-      }
-    }
 
     if (isSupabaseConfigured() && user.id) {
       try {

@@ -100,7 +100,7 @@ Return STRICT JSON ONLY matching this structure:
             Authorization: `Bearer ${groqKey}`,
           },
           body: JSON.stringify({
-            model: "llama-3.3-70b-versatile",
+            model: "openai/gpt-oss-120b",
             messages: [
               { role: "system", content: systemPrompt },
               { role: "user", content: `Generate career guidance for goal: "${trimmedGoal}"` },
@@ -160,13 +160,31 @@ Return STRICT JSON ONLY matching this structure:
         }));
     }
 
+    // Compute matched skills and gap skills for Passport / legacy consumers
+    const matchedSkills = skillReadiness
+      .filter((s: any) => s.gapPct <= 15)
+      .map((s: any) => s.skillName);
+
+    // Default matched skills fallback if none meet strict gap cutoff
+    const effectiveMatchedSkills = matchedSkills.length > 0
+      ? matchedSkills
+      : userSkills.map((s: any) => s.name || "Core Skill").slice(0, 3);
+
+    const gapSkills = recommendedNextSteps.map((step: any) => ({
+      name: step.skillName || "Target Skill",
+      why: step.action || `Close target requirement gap for ${trimmedGoal}`,
+    }));
+
     return NextResponse.json({
       goalTitle: trimmedGoal,
       roleName,
       overallReadiness,
+      readinessPercent: overallReadiness,
       skillReadiness,
       recommendedNextSteps,
       suggestedCareerPaths,
+      matchedSkills: effectiveMatchedSkills,
+      gapSkills,
     });
   } catch (error) {
     console.error("Error in /api/career-map:", error);

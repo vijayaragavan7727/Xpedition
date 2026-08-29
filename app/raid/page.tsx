@@ -41,7 +41,7 @@ export default function RaidPage() {
 
   useEffect(() => {
     fetchDueSkills();
-  }, [user]);
+  }, [user?.id]);
 
   const fetchDueSkills = async () => {
     setLoadingQuestion(true);
@@ -109,8 +109,8 @@ export default function RaidPage() {
 
     setTimeout(async () => {
       if (isCorrect) {
-        // Decrease boss health proportionally
-        const healthDamage = Math.ceil(100 / dueSkills.length);
+        // Decrease boss health proportionally (guarded against 0 denominator)
+        const healthDamage = Math.ceil(100 / (dueSkills.length || 1));
         const newHealth = Math.max(0, bossHealth - healthDamage);
         setBossHealth(newHealth);
 

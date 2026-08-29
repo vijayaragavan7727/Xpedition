@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useQuest } from "@/lib/QuestContext";
 import BottomNav from "@/components/BottomNav";
 import TopBar from "@/components/TopBar";
@@ -20,6 +21,7 @@ import {
   X,
   ShieldCheck,
   TrendingUp,
+  ArrowRight,
 } from "lucide-react";
 import SquidAsset from "@/components/SquidAsset";
 import XpAsset from "@/components/XpAsset";
@@ -40,6 +42,7 @@ interface CareerMapData {
 }
 
 export default function PassportPage() {
+  const router = useRouter();
   const { user, isAuthLoading, course, goalText, addSkillToCourse, pKnow: currentPKnow, activeSkillIndex } = useQuest();
 
   const [skillsMastery, setSkillsMastery] = useState<SkillMasteryItem[]>([]);
@@ -52,7 +55,7 @@ export default function PassportPage() {
   const [showShareModal, setShowShareModal] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  const shareId = user.shareId || "demo-share-8842";
+  const shareId = user?.shareId || "demo-share-8842";
   const [origin, setOrigin] = useState("");
 
   useEffect(() => {
@@ -111,11 +114,13 @@ export default function PassportPage() {
       setLoadingSkills(false);
 
       // Fetch Career Outcome Mapping
-      fetchCareerMap(masteryItems);
+      if (masteryItems.length > 0) {
+        fetchCareerMap(masteryItems);
+      }
     }
 
     loadPassportData();
-  }, [course, user, currentPKnow, activeSkillIndex]);
+  }, [course, user?.id, currentPKnow, activeSkillIndex]);
 
   const fetchCareerMap = async (items: SkillMasteryItem[]) => {
     setLoadingCareerMap(true);
@@ -124,14 +129,19 @@ export default function PassportPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          goalText,
+          goalText: goalText || "Software Engineer",
           userSkills: items.map((i) => ({ name: i.name, pKnow: i.pKnow })),
         }),
       });
 
       if (res.ok) {
-        const data: CareerMapData = await res.json();
-        setCareerMap(data);
+        const data = await res.json();
+        setCareerMap({
+          roleName: data.roleName || "Software Engineer",
+          readinessPercent: data.readinessPercent ?? data.overallReadiness ?? 0,
+          matchedSkills: Array.isArray(data.matchedSkills) ? data.matchedSkills : [],
+          gapSkills: Array.isArray(data.gapSkills) ? data.gapSkills : [],
+        });
       }
     } catch (err) {
       console.warn("Career map fetch notice:", err);
@@ -153,7 +163,7 @@ export default function PassportPage() {
         body: JSON.stringify({
           userId: user?.id || "demo-user-1",
           userName: user?.name || "Adventurer",
-          goalTitle: course?.title || goalText,
+          goalTitle: course?.title || goalText || "Learning Quest",
           skills: skillsMastery,
           overallReadiness: avgPKnow,
         }),
@@ -163,12 +173,15 @@ export default function PassportPage() {
         const data = await res.json();
         setSnapshotShareUrl(data.publicUrl);
         setSnapshotId(data.snapshotId);
-        navigator.clipboard.writeText(data.publicUrl);
-        setCopied(true);
+        try {
+          await navigator.clipboard.writeText(data.publicUrl);
+          setCopied(true);
+          setTimeout(() => setCopied(false), 2500);
+        } catch (e) {
+          // Clipboard fallback
+        }
         setShowShareModal(true);
-        setTimeout(() => setCopied(false), 2500);
       } else {
-        // Fallback share URL
         setSnapshotShareUrl(shareUrl);
         setShowShareModal(true);
       }
@@ -181,11 +194,16 @@ export default function PassportPage() {
     }
   };
 
-  const handleCopyLink = () => {
+  const handleCopyLink = async () => {
     const targetUrl = snapshotShareUrl || shareUrl;
-    navigator.clipboard.writeText(targetUrl);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2500);
+    try {
+      await navigator.clipboard.writeText(targetUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    } catch (e) {
+      console.warn("Clipboard copy warning:", e);
+      setCopied(true);
+    }
   };
 
   const handleAddGapSkill = async (gapName: string) => {
@@ -193,11 +211,11 @@ export default function PassportPage() {
     setAddedGapSkills((prev) => ({ ...prev, [gapName]: true }));
   };
 
-  // Compute Overall Readiness
-  const avgPKnow =
-    skillsMastery.length > 0
-      ? skillsMastery.reduce((acc, s) => acc + s.pKnow, 0) / skillsMastery.length
-      : 0.5;
+  // Compute Overall Readiness safely (guard against zero denominator)
+  const hasSkills = skillsMastery.length > 0;
+  const avgPKnow = hasSkills
+    ? skillsMastery.reduce((acc, s) => acc + (s?.pKnow || 0), 0) / skillsMastery.length
+    : 0.0;
   const overallReadiness = Math.round(avgPKnow * 100);
 
   if (isAuthLoading) {
@@ -207,6 +225,9 @@ export default function PassportPage() {
       </div>
     );
   }
+
+  const userName = user?.name || "Adventurer";
+  const userInitial = userName.charAt(0).toUpperCase();
 
   return (
     <main className="min-h-screen bg-[#0A0A1A] bg-grid-pattern relative flex flex-col justify-between pb-24 p-4 sm:p-6">
@@ -233,196 +254,227 @@ export default function PassportPage() {
           </p>
         </header>
 
-        {/* Passport Credential Card */}
-        <div className="bg-gradient-to-br from-[#1B1B3A] via-[#12122C] to-[#0A0A1A] border border-[#34D399]/40 rounded-3xl p-6 sm:p-8 shadow-2xl relative overflow-hidden space-y-6 glow-box-green">
-          {/* User Info Header */}
-          <div className="flex items-center justify-between border-b border-white/10 pb-6">
-            <div className="flex items-center gap-4">
-              <div className="w-14 h-14 rounded-full bg-gradient-to-br from-[#7C3AED] via-[#22D3EE] to-[#34D399] flex items-center justify-center text-black font-black text-xl font-heading shadow-xl ring-2 ring-[#22D3EE]/40 shrink-0">
-                {user.name.charAt(0).toUpperCase()}
-              </div>
+        {/* Brand New User Empty State (No Mastery Data Yet) */}
+        {!loadingSkills && skillsMastery.length === 0 ? (
+          <div className="bg-[#1B1B3A] border border-[#22D3EE]/40 rounded-3xl p-8 shadow-2xl text-center space-y-4 glow-box-cyan">
+            <div className="w-16 h-16 rounded-full bg-[#22D3EE]/20 border border-[#22D3EE]/40 flex items-center justify-center text-[#22D3EE] mx-auto animate-bounce">
+              <Compass className="w-8 h-8" />
+            </div>
+            <div className="space-y-1">
+              <h2 className="text-xl font-bold text-white font-heading">
+                Complete your first quest to build your Skill Passport
+              </h2>
+              <p className="text-xs text-[#94A3B8] max-w-sm mx-auto">
+                Your Skill Passport verifies Bayesian Knowledge Tracing (BKT) mastery scores as you complete quest modules.
+              </p>
+            </div>
+            <button
+              onClick={() => router.push("/quest")}
+              className="px-6 py-3.5 rounded-2xl bg-gradient-to-r from-[#7C3AED] via-[#22D3EE] to-[#34D399] text-black font-black text-xs uppercase tracking-wider font-heading hover:opacity-95 transition-all shadow-lg cursor-pointer inline-flex items-center gap-2"
+            >
+              <span>Start Your First Quest</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
+          </div>
+        ) : (
+          <>
+            {/* Passport Credential Card */}
+            <div className="bg-gradient-to-br from-[#1B1B3A] via-[#12122C] to-[#0A0A1A] border border-[#34D399]/40 rounded-3xl p-6 sm:p-8 shadow-2xl relative overflow-hidden space-y-6 glow-box-green">
+              {/* User Info Header */}
+              <div className="flex items-center justify-between border-b border-white/10 pb-6">
+                <div className="flex items-center gap-4">
+                  <div className="w-14 h-14 rounded-full bg-gradient-to-br from-[#7C3AED] via-[#22D3EE] to-[#34D399] flex items-center justify-center text-black font-black text-xl font-heading shadow-xl ring-2 ring-[#22D3EE]/40 shrink-0">
+                    {userInitial}
+                  </div>
 
-              <div>
-                <div className="flex items-center gap-2">
-                  <h2 className="text-lg font-bold text-white font-heading">{user.name}</h2>
-                  <span className="px-2.5 py-0.5 rounded-full bg-[#34D399]/20 text-[#34D399] border border-[#34D399]/40 text-[10px] font-mono font-bold flex items-center gap-1">
-                    <CheckCircle2 className="w-3 h-3" />
-                    Verified
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-lg font-bold text-white font-heading">{userName}</h2>
+                      <span className="px-2.5 py-0.5 rounded-full bg-[#34D399]/20 text-[#34D399] border border-[#34D399]/40 text-[10px] font-mono font-bold flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3" />
+                        Verified
+                      </span>
+                    </div>
+                    <p className="text-xs text-[#94A3B8] mt-0.5 font-mono">
+                      Goal: {course?.title || goalText}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Readiness Score Chip */}
+                <div className="bg-[#0A0A1A] border border-[#22D3EE]/40 px-3 py-2 rounded-2xl text-center shrink-0 hidden sm:block">
+                  <span className="text-[9px] font-mono text-slate-400 block">Overall Mastery</span>
+                  <span className="text-lg font-black text-[#22D3EE] font-mono">
+                    {overallReadiness}%
                   </span>
                 </div>
-                <p className="text-xs text-[#94A3B8] mt-0.5 font-mono">
-                  Goal: {course?.title || goalText}
-                </p>
-              </div>
-            </div>
-
-            {/* Readiness Score Chip */}
-            <div className="bg-[#0A0A1A] border border-[#22D3EE]/40 px-3 py-2 rounded-2xl text-center shrink-0 hidden sm:block">
-              <span className="text-[9px] font-mono text-slate-400 block">Overall Mastery</span>
-              <span className="text-lg font-black text-[#22D3EE] font-mono">
-                {overallReadiness}%
-              </span>
-            </div>
-          </div>
-
-          {/* Real Skill Mastery Bars */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-xs font-bold text-[#94A3B8] font-mono uppercase tracking-wider">
-                BKT Mastery Modules ({skillsMastery.length})
-              </h3>
-              <span className="text-xs font-mono text-[#34D399] font-bold">
-                Avg: {overallReadiness}% P(know)
-              </span>
-            </div>
-
-            {loadingSkills ? (
-              <div className="flex items-center justify-center py-6 text-xs text-[#22D3EE] font-mono gap-2">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                <span>Loading Supabase mastery data...</span>
-              </div>
-            ) : (
-              skillsMastery.map((skill, idx) => {
-                const pct = Math.round(skill.pKnow * 100);
-                const mTheme = getModuleTheme(idx);
-                let colorClass = "from-[#7C3AED] to-[#22D3EE]";
-                if (pct >= 75) colorClass = "from-[#22D3EE] to-[#34D399]";
-                else if (pct <= 35) colorClass = "from-[#FBBF24] to-[#7C3AED]";
-
-                return (
-                  <div key={skill.id || idx} className="space-y-1.5 bg-[#0A0A1A]/60 p-3 rounded-2xl border border-white/5">
-                    <div className="flex items-center justify-between text-xs font-mono gap-2">
-                      <div className="flex items-center gap-2 truncate">
-                        <XpAsset name={mTheme.iconName} alt={mTheme.themeName} width={20} height={20} className="shrink-0 text-[#00F0FF]" />
-                        <span className="text-slate-200 font-semibold truncate">{skill.name}</span>
-                        <span className={`text-[9px] font-mono font-bold px-2 py-0.2 rounded-full border ${mTheme.badgeStyle} shrink-0 hidden sm:inline-block`}>
-                          {mTheme.intensityLabel}
-                        </span>
-                      </div>
-                      <span className="text-[#22D3EE] font-bold shrink-0">{pct}% P(know)</span>
-                    </div>
-                    <div className="w-full h-3.5 bg-[#0A0A1A] rounded-full overflow-hidden border border-white/10 p-0.5">
-                      <div
-                        className={`h-full bg-gradient-to-r ${colorClass} rounded-full transition-all duration-500 shadow-md`}
-                        style={{ width: `${pct}%` }}
-                      />
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
-
-          {/* Share Passport Button */}
-          <button
-            onClick={handleOpenShare}
-            className="w-full py-3.5 px-6 rounded-2xl bg-gradient-to-r from-[#7C3AED] via-[#22D3EE] to-[#34D399] hover:opacity-95 text-black font-black text-sm transition-all shadow-lg shadow-[#7C3AED]/30 flex items-center justify-center gap-2 cursor-pointer font-heading tracking-wide"
-          >
-            <Share2 className="w-4 h-4" />
-            <span>Share Passport & Get QR Code</span>
-          </button>
-        </div>
-
-        {/* Career-Outcome Map Card */}
-        <div className="bg-[#1B1B3A] border border-[#22D3EE]/40 rounded-3xl p-6 sm:p-8 shadow-2xl space-y-5 relative glow-box-cyan">
-          <div className="flex items-center justify-between border-b border-white/10 pb-4">
-            <div className="flex items-center gap-2">
-              <Briefcase className="w-5 h-5 text-[#22D3EE]" />
-              <h2 className="text-lg font-bold text-white font-heading">Career-Outcome Map</h2>
-            </div>
-            <span className="text-[10px] font-mono text-slate-400">Live Tavily + Groq Analysis</span>
-          </div>
-
-          {loadingCareerMap ? (
-            <div className="flex items-center justify-center py-8 text-xs font-mono text-[#22D3EE] gap-2">
-              <Loader2 className="w-5 h-5 animate-spin" />
-              <span>Analyzing live job market requirements...</span>
-            </div>
-          ) : careerMap ? (
-            <div className="space-y-5">
-              {/* Big Readiness Banner */}
-              <div className="bg-[#0A0A1A] border border-[#34D399]/40 rounded-2xl p-5 text-center space-y-1">
-                <span className="text-xs text-slate-400 font-mono">Target Role Analysis</span>
-                <p className="text-xl sm:text-2xl font-black text-white font-heading">
-                  You're <span className="text-[#34D399]">{careerMap.readinessPercent}%</span> ready for a{" "}
-                  <span className="text-[#22D3EE]">{careerMap.roleName}</span> role!
-                </p>
-                <p className="text-xs text-[#94A3B8]">
-                  Based on live market requirements search for "{goalText}"
-                </p>
               </div>
 
-              {/* Matched Skills (Green Chips) */}
-              <div className="space-y-2">
-                <span className="text-xs font-mono font-bold text-[#34D399] uppercase tracking-wider block">
-                  ✓ Matched Industry Skills ({careerMap.matchedSkills.length})
-                </span>
-                <div className="flex flex-wrap gap-2">
-                  {careerMap.matchedSkills.map((mSkill, i) => (
-                    <span
-                      key={i}
-                      className="px-3 py-1.5 rounded-xl bg-[#34D399]/15 border border-[#34D399]/40 text-[#34D399] text-xs font-mono font-bold flex items-center gap-1.5"
-                    >
-                      <CheckCircle2 className="w-3.5 h-3.5" />
-                      {mSkill}
-                    </span>
-                  ))}
+              {/* Real Skill Mastery Bars */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-bold text-[#94A3B8] font-mono uppercase tracking-wider">
+                    BKT Mastery Modules ({skillsMastery.length})
+                  </h3>
+                  <span className="text-xs font-mono text-[#34D399] font-bold">
+                    Avg: {overallReadiness}% P(know)
+                  </span>
                 </div>
-              </div>
 
-              {/* Gap Skills (Amber Chips + Add to Path) */}
-              <div className="space-y-3">
-                <span className="text-xs font-mono font-bold text-[#FBBF24] uppercase tracking-wider block">
-                  ⚠ Recommended Gap Skills to Add ({careerMap.gapSkills.length})
-                </span>
-
-                <div className="space-y-2.5">
-                  {careerMap.gapSkills.map((gap, i) => {
-                    const isAdded = addedGapSkills[gap.name];
+                {loadingSkills ? (
+                  <div className="flex items-center justify-center py-6 text-xs text-[#22D3EE] font-mono gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Loading Supabase mastery data...</span>
+                  </div>
+                ) : (
+                  skillsMastery.map((skill, idx) => {
+                    const pct = Math.round((skill.pKnow || 0) * 100);
+                    const mTheme = getModuleTheme(idx);
+                    let colorClass = "from-[#7C3AED] to-[#22D3EE]";
+                    if (pct >= 75) colorClass = "from-[#22D3EE] to-[#34D399]";
+                    else if (pct <= 35) colorClass = "from-[#FBBF24] to-[#7C3AED]";
 
                     return (
-                      <div
-                        key={i}
-                        className="bg-[#0A0A1A] border border-[#FBBF24]/30 rounded-2xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
-                      >
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2">
-                            <span className="px-2.5 py-0.5 rounded-lg bg-[#FBBF24]/20 border border-[#FBBF24]/40 text-[#FBBF24] font-mono text-xs font-bold">
-                              {gap.name}
+                      <div key={skill.id || idx} className="space-y-1.5 bg-[#0A0A1A]/60 p-3 rounded-2xl border border-white/5">
+                        <div className="flex items-center justify-between text-xs font-mono gap-2">
+                          <div className="flex items-center gap-2 truncate">
+                            <XpAsset name={mTheme.iconName} alt={mTheme.themeName} width={20} height={20} className="shrink-0 text-[#00F0FF]" />
+                            <span className="text-slate-200 font-semibold truncate">{skill.name}</span>
+                            <span className={`text-[9px] font-mono font-bold px-2 py-0.2 rounded-full border ${mTheme.badgeStyle} shrink-0 hidden sm:inline-block`}>
+                              {mTheme.intensityLabel}
                             </span>
                           </div>
-                          <p className="text-xs text-slate-300">{gap.why}</p>
+                          <span className="text-[#22D3EE] font-bold shrink-0">{pct}% P(know)</span>
                         </div>
-
-                        <button
-                          onClick={() => handleAddGapSkill(gap.name)}
-                          disabled={isAdded}
-                          className={`px-4 py-2 rounded-xl text-xs font-mono font-bold flex items-center justify-center gap-1.5 transition-all shrink-0 cursor-pointer ${
-                            isAdded
-                              ? "bg-[#34D399]/20 border border-[#34D399] text-[#34D399]"
-                              : "bg-[#FBBF24] hover:bg-[#F59E0B] text-black shadow-md shadow-[#FBBF24]/20"
-                          }`}
-                        >
-                          {isAdded ? (
-                            <>
-                              <Check className="w-3.5 h-3.5" />
-                              <span>Added to Path ✓</span>
-                            </>
-                          ) : (
-                            <>
-                              <PlusCircle className="w-3.5 h-3.5" />
-                              <span>Add to my path</span>
-                            </>
-                          )}
-                        </button>
+                        <div className="w-full h-3.5 bg-[#0A0A1A] rounded-full overflow-hidden border border-white/10 p-0.5">
+                          <div
+                            className={`h-full bg-gradient-to-r ${colorClass} rounded-full transition-all duration-500 shadow-md`}
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
                       </div>
                     );
-                  })}
-                </div>
+                  })
+                )}
               </div>
+
+              {/* Share Passport Button */}
+              <button
+                onClick={handleOpenShare}
+                disabled={sharing}
+                className="w-full py-3.5 px-6 rounded-2xl bg-gradient-to-r from-[#7C3AED] via-[#22D3EE] to-[#34D399] hover:opacity-95 text-black font-black text-sm transition-all shadow-lg shadow-[#7C3AED]/30 flex items-center justify-center gap-2 cursor-pointer font-heading tracking-wide disabled:opacity-50"
+              >
+                {sharing ? <Loader2 className="w-4 h-4 animate-spin text-black" /> : <Share2 className="w-4 h-4" />}
+                <span>Share Passport & Get QR Code</span>
+              </button>
             </div>
-          ) : null}
-        </div>
+
+            {/* Career-Outcome Map Card */}
+            <div className="bg-[#1B1B3A] border border-[#22D3EE]/40 rounded-3xl p-6 sm:p-8 shadow-2xl space-y-5 relative glow-box-cyan">
+              <div className="flex items-center justify-between border-b border-white/10 pb-4">
+                <div className="flex items-center gap-2">
+                  <Briefcase className="w-5 h-5 text-[#22D3EE]" />
+                  <h2 className="text-lg font-bold text-white font-heading">Career-Outcome Map</h2>
+                </div>
+                <span className="text-[10px] font-mono text-slate-400">Live Tavily + Groq Analysis</span>
+              </div>
+
+              {loadingCareerMap ? (
+                <div className="flex items-center justify-center py-8 text-xs font-mono text-[#22D3EE] gap-2">
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <span>Analyzing live job market requirements...</span>
+                </div>
+              ) : careerMap ? (
+                <div className="space-y-5">
+                  {/* Big Readiness Banner */}
+                  <div className="bg-[#0A0A1A] border border-[#34D399]/40 rounded-2xl p-5 text-center space-y-1">
+                    <span className="text-xs text-slate-400 font-mono">Target Role Analysis</span>
+                    <p className="text-xl sm:text-2xl font-black text-white font-heading">
+                      You're <span className="text-[#34D399]">{careerMap.readinessPercent}%</span> ready for a{" "}
+                      <span className="text-[#22D3EE]">{careerMap.roleName}</span> role!
+                    </p>
+                    <p className="text-xs text-[#94A3B8]">
+                      Based on live market requirements search for "{goalText}"
+                    </p>
+                  </div>
+
+                  {/* Matched Skills (Green Chips) */}
+                  {(careerMap.matchedSkills || []).length > 0 && (
+                    <div className="space-y-2">
+                      <span className="text-xs font-mono font-bold text-[#34D399] uppercase tracking-wider block">
+                        ✓ Matched Industry Skills ({(careerMap.matchedSkills || []).length})
+                      </span>
+                      <div className="flex flex-wrap gap-2">
+                        {(careerMap.matchedSkills || []).map((mSkill, i) => (
+                          <span
+                            key={i}
+                            className="px-3 py-1.5 rounded-xl bg-[#34D399]/15 border border-[#34D399]/40 text-[#34D399] text-xs font-mono font-bold flex items-center gap-1.5"
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            {mSkill}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Gap Skills (Amber Chips + Add to Path) */}
+                  {(careerMap.gapSkills || []).length > 0 && (
+                    <div className="space-y-3">
+                      <span className="text-xs font-mono font-bold text-[#FBBF24] uppercase tracking-wider block">
+                        ⚠ Recommended Gap Skills to Add ({(careerMap.gapSkills || []).length})
+                      </span>
+
+                      <div className="space-y-2.5">
+                        {(careerMap.gapSkills || []).map((gap, i) => {
+                          const isAdded = addedGapSkills[gap.name];
+
+                          return (
+                            <div
+                              key={i}
+                              className="bg-[#0A0A1A] border border-[#FBBF24]/30 rounded-2xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                            >
+                              <div className="space-y-1">
+                                <div className="flex items-center gap-2">
+                                  <span className="px-2.5 py-0.5 rounded-lg bg-[#FBBF24]/20 border border-[#FBBF24]/40 text-[#FBBF24] font-mono text-xs font-bold">
+                                    {gap.name}
+                                  </span>
+                                </div>
+                                <p className="text-xs text-slate-300">{gap.why}</p>
+                              </div>
+
+                              <button
+                                onClick={() => handleAddGapSkill(gap.name)}
+                                disabled={isAdded}
+                                className={`px-4 py-2 rounded-xl text-xs font-mono font-bold flex items-center justify-center gap-1.5 transition-all shrink-0 cursor-pointer ${
+                                  isAdded
+                                    ? "bg-[#34D399]/20 border border-[#34D399] text-[#34D399]"
+                                    : "bg-[#FBBF24] hover:bg-[#F59E0B] text-black shadow-md shadow-[#FBBF24]/20"
+                                }`}
+                              >
+                                {isAdded ? (
+                                  <>
+                                    <Check className="w-3.5 h-3.5" />
+                                    <span>Added to Path ✓</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <PlusCircle className="w-3.5 h-3.5" />
+                                    <span>Add to my path</span>
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : null}
+            </div>
+          </>
+        )}
       </div>
 
       {/* Share Passport & QR Modal */}
@@ -449,13 +501,13 @@ export default function PassportPage() {
 
             {/* QR Code Container */}
             <div className="bg-white p-4 rounded-2xl w-44 h-44 mx-auto flex items-center justify-center shadow-xl border border-slate-300">
-              <QRCodeSVG value={shareUrl} size={150} fgColor="#0A0A1A" bgColor="#FFFFFF" />
+              <QRCodeSVG value={snapshotShareUrl || shareUrl} size={150} fgColor="#0A0A1A" bgColor="#FFFFFF" />
             </div>
 
             {/* URL Box + Copy Button */}
             <div className="space-y-2">
               <div className="bg-[#0A0A1A] border border-white/10 rounded-2xl p-3 flex items-center justify-between text-xs font-mono">
-                <span className="text-slate-300 truncate max-w-[200px]">{shareUrl}</span>
+                <span className="text-slate-300 truncate max-w-[200px]">{snapshotShareUrl || shareUrl}</span>
                 <button
                   onClick={handleCopyLink}
                   className="text-[#22D3EE] hover:underline font-bold flex items-center gap-1 cursor-pointer shrink-0"

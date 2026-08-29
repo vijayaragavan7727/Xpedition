@@ -14,6 +14,7 @@ import {
   BookOpen,
   Award,
   AlertTriangle,
+  DoorOpen,
 } from "lucide-react";
 import XpAsset from "./XpAsset";
 
@@ -64,37 +65,64 @@ export default function QuestResultsView({
   const masteryDelta = masteryAfterPct - masteryBeforePct;
 
   return (
-    <div className="w-full max-w-2xl mx-auto space-y-5 animate-fadeIn">
-      {/* 1. Header Banner: Pass vs Need Practice */}
+    <div className="w-full max-w-2xl mx-auto space-y-5 animate-fadeIn relative">
+      {/* 1. Header Banner: Escaped vs Caught */}
       <div
-        className={`p-6 rounded-3xl border shadow-2xl text-center space-y-3 relative overflow-hidden ${
+        className={`p-6 sm:p-8 rounded-3xl border shadow-2xl text-center space-y-4 relative overflow-hidden transition-all ${
           isPassed
-            ? "bg-[#0D0D1A] border-[#00FF87]/50 shadow-[0_0_30px_rgba(0,255,135,0.2)]"
-            : "bg-[#0D0D1A] border-[#FF0055]/50 shadow-[0_0_30px_rgba(255,0,85,0.2)]"
+            ? "bg-[#0D0D1A] border-[#00FF87]/50 shadow-[0_0_40px_rgba(0,255,135,0.25)]"
+            : "bg-[#06060D] border-[#FF0055]/60 shadow-[0_0_40px_rgba(255,0,85,0.3)]"
         }`}
       >
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#000000] border border-white/10 text-xs font-mono font-bold">
-          <XpAsset
-            name={isPassed ? "crown" : "target"}
-            alt="Status Icon"
-            width={20}
-            height={20}
-            className={isPassed ? "text-[#FFB800]" : "text-[#FF0055]"}
-          />
-          <span className="text-white">
-            Level {currentLevel} • {isPassed ? "PASSED" : "NEEDS PRACTICE"}
-          </span>
+        {/* ESCAPED: ANIMATED DOOR LIGHT BEAM SWEEP */}
+        {isPassed && (
+          <div className="absolute inset-0 pointer-events-none overflow-hidden">
+            <div className="absolute top-0 bottom-0 left-1/4 w-3/4 bg-gradient-to-r from-transparent via-[#00F0FF]/20 to-[#00FF87]/30 animate-door-sweep" />
+          </div>
+        )}
+
+        {/* CAUGHT: OVERTAKE OVERLAY */}
+        {!isPassed && (
+          <div className="absolute inset-0 bg-[#04040A]/85 backdrop-blur-sm pointer-events-none transition-opacity duration-700" />
+        )}
+
+        <div className="relative z-10 space-y-3">
+          {/* Visual Icon / Figure Animation */}
+          <div className="flex items-center justify-center gap-3">
+            {isPassed ? (
+              <div className="relative">
+                <div className="p-3 rounded-2xl bg-[#00FF87]/20 border border-[#00FF87]/50 text-[#00FF87] shadow-[0_0_25px_rgba(0,255,135,0.5)] flex items-center justify-center">
+                  <DoorOpen className="w-8 h-8" />
+                </div>
+                {/* Dissolving particles */}
+                <div className="absolute -top-2 -right-4 flex flex-col gap-1 pointer-events-none">
+                  <div className="w-2 h-2 rounded-full bg-[#FF0055] animate-dissolve-particle" />
+                  <div className="w-1.5 h-1.5 rounded-full bg-[#A855F7] animate-dissolve-particle" style={{ animationDelay: "200ms" }} />
+                </div>
+              </div>
+            ) : (
+              <div className="p-3 rounded-2xl bg-[#FF0055]/20 border border-[#FF0055]/50 text-[#FF0055] shadow-[0_0_25px_rgba(255,0,85,0.5)] flex items-center justify-center animate-pulse">
+                <AlertTriangle className="w-8 h-8" />
+              </div>
+            )}
+          </div>
+
+          <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-[#000000]/80 border border-white/10 text-xs font-mono font-bold">
+            <span className={isPassed ? "text-[#00FF87]" : "text-[#FF0055]"}>
+              SHADOW ESCAPE • LEVEL {currentLevel} • {isPassed ? "ESCAPED ✓" : "OVERTAKEN ⚠"}
+            </span>
+          </div>
+
+          <h1 className="text-3xl sm:text-4xl font-black text-white font-heading tracking-tight">
+            {isPassed ? "🎉 You Escaped the Shadow!" : "Shadow Reached You"}
+          </h1>
+
+          <p className="text-sm text-slate-300 max-w-md mx-auto leading-relaxed">
+            {isPassed
+              ? `Outstanding! You answered ${correctCount}/${totalQuestions} (${scorePercentage}%) correctly and reached the portal escape gate.`
+              : `The Shadow gained ground (${correctCount}/${totalQuestions} correct, ${scorePercentage}%). Review your missed concepts below and re-engage to escape!`}
+          </p>
         </div>
-
-        <h1 className="text-3xl sm:text-4xl font-black text-white font-heading">
-          {isPassed ? "🎉 Quest Complete!" : "⚠️ Level Not Passed"}
-        </h1>
-
-        <p className="text-sm text-slate-300 max-w-md mx-auto">
-          {isPassed
-            ? `Fantastic work! You scored ${correctCount}/${totalQuestions} (${scorePercentage}%) and unlocked the next challenge.`
-            : `You scored ${correctCount}/${totalQuestions} (${scorePercentage}%). The pass threshold is 7/10. Review your missed concepts below and retry!`}
-        </p>
 
         {/* Score, Mastery & XP Badges */}
         <div className="grid grid-cols-3 gap-2 pt-2 max-w-md mx-auto">

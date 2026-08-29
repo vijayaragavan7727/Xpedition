@@ -91,6 +91,53 @@ body {
   animation: floatAnim 3s ease-in-out infinite;
 }
 
+/* XYRA Robot Character State-Based Glow & Movement (CSS only) */
+@keyframes xyraFloatSlow {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-7px); }
+}
+
+@keyframes xyraFloatFast {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-11px); }
+}
+
+@keyframes xyraBounceOnce {
+  0%, 100% { transform: translateY(0px) scale(1); }
+  30% { transform: translateY(-18px) scale(1.04); }
+  60% { transform: translateY(0px) scale(0.98); }
+  80% { transform: translateY(-5px) scale(1.02); }
+}
+
+/* state: idle -> soft cyan glow, slow float */
+.xyra-state-idle, .state-idle {
+  filter: drop-shadow(0 0 16px rgba(0, 240, 255, 0.5));
+  animation: xyraFloatSlow 3.5s ease-in-out infinite;
+}
+
+/* state: talking -> brighter cyan, faster float */
+.xyra-state-talking, .state-talking {
+  filter: drop-shadow(0 0 28px rgba(0, 240, 255, 0.9));
+  animation: xyraFloatFast 1.8s ease-in-out infinite;
+}
+
+/* state: thinking -> violet glow, slight head tilt */
+.xyra-state-thinking, .state-thinking {
+  filter: drop-shadow(0 0 26px rgba(168, 85, 247, 0.85));
+  transform: rotate(-4deg);
+  transition: transform 0.4s ease-out, filter 0.4s ease-out;
+}
+
+/* state: happy -> warm white flare, bounce once */
+.xyra-state-happy, .state-happy {
+  filter: drop-shadow(0 0 32px rgba(255, 255, 255, 0.95)) drop-shadow(0 0 18px rgba(0, 255, 135, 0.8));
+  animation: xyraBounceOnce 0.85s ease-out 1;
+}
+
+.font-chalk {
+  font-family: var(--font-chalk), 'Caveat', 'Kalam', cursive, sans-serif;
+}
+
 /* Custom Scrollbars */
 ::-webkit-scrollbar {
   width: 8px;
@@ -125,9 +172,136 @@ body {
   transition: none !important;
 }
 
+/* ==========================================================================
+   SHADOW ESCAPE GAME ATMOSPHERE & HUD ANIMATIONS
+   ========================================================================== */
+
+/* 1. Shadow Breathing Scale Animation */
+@keyframes shadowBreathing {
+  0%, 100% {
+    transform: scale(1.08) translateY(0px);
+    filter: drop-shadow(0 0 6px #FF0055) drop-shadow(0 0 18px rgba(255, 0, 85, 0.5));
+  }
+  50% {
+    transform: scale(1.14) translateY(-3px);
+    filter: drop-shadow(0 0 10px #FF0055) drop-shadow(0 0 28px rgba(255, 0, 85, 0.7));
+  }
+}
+
+.animate-shadow-breathing {
+  animation: shadowBreathing 2.5s ease-in-out infinite;
+}
+
+/* 2. Screen Shake on Wrong Answer */
+@keyframes screenShake {
+  0% { transform: translate(0, 0); }
+  15% { transform: translate(-8px, 4px); }
+  30% { transform: translate(8px, -4px); }
+  45% { transform: translate(-6px, -2px); }
+  60% { transform: translate(6px, 2px); }
+  75% { transform: translate(-3px, 1px); }
+  100% { transform: translate(0, 0); }
+}
+
+.animate-screen-shake {
+  animation: screenShake 320ms cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+}
+
+/* 3. Cyan Pulse Ripple on Correct Answer */
+@keyframes cyanPulseRipple {
+  0% {
+    box-shadow: 0 0 0 0 rgba(0, 240, 255, 0.8), 0 0 20px rgba(0, 240, 255, 0.5);
+  }
+  100% {
+    box-shadow: 0 0 0 35px rgba(0, 240, 255, 0), 0 0 40px rgba(0, 240, 255, 0);
+  }
+}
+
+.animate-cyan-ripple {
+  animation: cyanPulseRipple 600ms cubic-bezier(0.25, 0.8, 0.25, 1) forwards;
+}
+
+/* 4. Door Light Beam Sweep on Escape Success */
+@keyframes doorLightSweep {
+  0% {
+    opacity: 0;
+    transform: scaleX(0) skewX(-20deg);
+  }
+  50% {
+    opacity: 0.95;
+    transform: scaleX(1.8) skewX(-20deg);
+  }
+  100% {
+    opacity: 0.7;
+    transform: scaleX(2.5) skewX(-20deg);
+  }
+}
+
+.animate-door-sweep {
+  animation: doorLightSweep 1.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* 5. Shadow Dissolve Particles */
+@keyframes shadowDissolveParticle {
+  0% {
+    opacity: 0.9;
+    transform: translateY(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-90px) scale(0.2);
+  }
+}
+
+.animate-dissolve-particle {
+  animation: shadowDissolveParticle 1.4s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+}
+
+/* 6. CSS Noise Grain Texture */
+.bg-noise-grain {
+  background-image: repeating-radial-gradient(
+    circle at 50% 50%,
+    rgba(255, 255, 255, 0.02) 0,
+    rgba(255, 255, 255, 0.02) 1px,
+    transparent 1px,
+    transparent 4px
+  );
+  background-size: 8px 8px;
+}
+
+/* 7. Game HUD Styles & Sharp Press Buttons */
+.hud-box-cyan {
+  background: rgba(13, 13, 26, 0.92);
+  border: 1px solid rgba(0, 240, 255, 0.35);
+  box-shadow: inset 0 0 15px rgba(0, 240, 255, 0.15), 0 8px 32px rgba(0, 0, 0, 0.6);
+}
+
+.hud-box-magenta {
+  background: rgba(13, 13, 26, 0.92);
+  border: 1px solid rgba(255, 0, 85, 0.35);
+  box-shadow: inset 0 0 15px rgba(255, 0, 85, 0.15), 0 8px 32px rgba(0, 0, 0, 0.6);
+}
+
+.hud-box-green {
+  background: rgba(13, 13, 26, 0.92);
+  border: 1px solid rgba(0, 255, 135, 0.35);
+  box-shadow: inset 0 0 15px rgba(0, 255, 135, 0.15), 0 8px 32px rgba(0, 0, 0, 0.6);
+}
+
+.btn-game-sharp {
+  border-radius: 12px;
+  transition: transform 100ms cubic-bezier(0.4, 0, 0.2, 1), box-shadow 150ms ease, opacity 150ms ease;
+}
+
+.btn-game-sharp:active {
+  transform: translateY(2px) scale(0.97);
+}
+
+/* Reduced Motion Safety Override */
 @media (prefers-reduced-motion: reduce) {
   *, ::before, ::after {
     animation: none !important;
     transition: none !important;
   }
 }
+

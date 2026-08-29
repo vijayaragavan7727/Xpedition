@@ -36,16 +36,18 @@ import {
   BookOpen,
   Trophy,
   Code,
+  AlertTriangle,
 } from "lucide-react";
 import TutorOverlay from "@/components/TutorOverlay";
 import XpAsset from "@/components/XpAsset";
 import { getModuleTheme } from "@/lib/moduleThemes";
 import QuestResultsView, { QuestionRecord } from "@/components/QuestResultsView";
 import LearningModuleReader, { LearningModuleData } from "@/components/LearningModuleReader";
-
 import LevelNavigationStrip, { LevelStatus } from "@/components/LevelNavigationStrip";
 import ShadowChaseTrack from "@/components/ShadowChaseTrack";
 import { getShadowMistakes, recordShadowMistake, resolveShadowMistake } from "@/lib/shadowMemory";
+import ShadowStage from "@/components/ShadowStage";
+import { motion, AnimatePresence } from "framer-motion";
 
 export default function QuestPage() {
   const {
@@ -53,6 +55,7 @@ export default function QuestPage() {
     isAuthLoading,
     course,
     activeSkillIndex,
+    setActiveSkillIndex,
     currentQuestion,
     flowDifficulty,
     pKnow,
@@ -61,12 +64,16 @@ export default function QuestPage() {
     answerQuestion,
     claimReward,
     setNextQuestion,
+    accessibilitySettings,
   } = useQuest();
+
+  const isReducedMotion = accessibilitySettings?.reducedMotion ?? false;
 
   // Learn-Then-Test Platform State
   const [viewMode, setViewMode] = useState<"module" | "test">("module");
   const [moduleData, setModuleData] = useState<LearningModuleData | null>(null);
   const [loadingModule, setLoadingModule] = useState<boolean>(false);
+  const [moduleError, setModuleError] = useState<string | null>(null);
 
   // Level & Quest Progression State
   const [currentLevel, setCurrentLevel] = useState<number>(1);
@@ -103,11 +110,19 @@ export default function QuestPage() {
 
   const storageKey = `xpedition_quest_${user?.id || "anon"}_${currentSkill.id}`;
 
+  // Quest Level unlock & progress tracking
+  const [maxUnlockedLevel, setMaxUnlockedLevel] = useState<number>(1);
+
   // 1. Restore Persisted Quest State on Mount / Skill Change
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
       const savedStr = localStorage.getItem(storageKey);
+      const savedUnlocked = localStorage.getItem(`xpedition_unlocked_lvl_${user?.id || "anon"}_${currentSkill.id}`);
+      if (savedUnlocked) {
+        const parsedLvl = parseInt(savedUnlocked, 10);
+        if (!isNaN(parsedLvl)) setMaxUnlockedLevel(parsedLvl);
+      }
       if (savedStr) {
         const saved = JSON.parse(savedStr);
         if (saved && typeof saved.questionNumber === "number" && !saved.isCompleted) {
@@ -153,7 +168,7 @@ export default function QuestPage() {
     setHintsUsedCount(0);
     setShowExplanation(false);
     fetchUserArms();
-  }, [currentQuestion, user]);
+  }, [currentQuestion?.prompt]);
 
   // Init Study Session
   useEffect(() => {
@@ -189,7 +204,7 @@ export default function QuestPage() {
         closeSession(sessId, "abandoned");
       }
     };
-  }, [user.id, activeSkillIndex, course]);
+  }, [user?.id, activeSkillIndex, course]);
 
   const fetchUserArms = async () => {
     if (isSupabaseConfigured() && user?.id) {
@@ -339,12 +354,19 @@ export default function QuestPage() {
     setShowExplanation(false);
 
     if (questionNumber >= 10) {
-      // Finished all 10 questions -> trigger Results Screen
+      // Finished all 10 questions -> calculate score and update level unlock state
+      const correctCount = sessionAnswers.filter((a) => a.isCorrect).length;
+      if (correctCount >= 7) {
+        const nextUnlocked = Math.max(maxUnlockedLevel, currentLevel + 1);
+        setMaxUnlockedLevel(nextUnlocked);
+        if (typeof window !== "undefined") {
+          localStorage.setItem(`xpedition_unlocked_lvl_${user?.id || "anon"}_${currentSkill.id}`, String(nextUnlocked));
+        }
+      }
       setIsQuestFinished(true);
       persistQuestState(10, sessionAnswers, currentLevel, true);
 
       if (currentSessionId) {
-        const correctCount = sessionAnswers.filter((a) => a.isCorrect).length;
         const status = correctCount >= 7 ? "completed" : "eliminated";
         closeSession(currentSessionId, status);
       }
@@ -366,6 +388,7 @@ export default function QuestPage() {
     async function fetchModule() {
       if (!currentSkill?.name) return;
       setLoadingModule(true);
+      setModuleError(null);
       try {
         const res = await fetch("/api/generate-module", {
           method: "POST",
@@ -382,13 +405,18 @@ export default function QuestPage() {
         if (res.ok) {
           const data = await res.json();
           setModuleData(data);
+          setModuleError(null);
           if (data.questions && Array.isArray(data.questions) && data.questions.length > 0) {
             const sorted = [...data.questions].sort((a, b) => (a.difficulty || 1) - (b.difficulty || 1));
             setActiveQuizBank(sorted.slice(0, 10));
           }
+        } else {
+          const errData = await res.json().catch(() => ({}));
+          setModuleError(errData.details || errData.error || "Failed to generate learning module and questions.");
         }
-      } catch (err) {
+      } catch (err: any) {
         console.warn("Failed fetching learning module:", err);
+        setModuleError(err?.message || "Network error fetching module.");
       } finally {
         setLoadingModule(false);
       }
@@ -438,15 +466,31 @@ export default function QuestPage() {
 
   const handleNextLevel = () => {
     localStorage.removeItem(storageKey);
-    const nextLvl = currentLevel < 3 ? currentLevel + 1 : 3;
-    setCurrentLevel(nextLvl);
-    setSessionAnswers([]);
-    setQuestionNumber(1);
-    setIsQuestFinished(false);
-    setViewMode("module");
-    setSelectedIndex(null);
-    setIsAnswered(false);
-    setShowExplanation(false);
+    if (currentLevel < 3) {
+      const nextLvl = currentLevel + 1;
+      setCurrentLevel(nextLvl);
+      setMaxUnlockedLevel((prev) => Math.max(prev, nextLvl));
+      setSessionAnswers([]);
+      setQuestionNumber(1);
+      setIsQuestFinished(false);
+      setViewMode("module");
+      setSelectedIndex(null);
+      setIsAnswered(false);
+      setShowExplanation(false);
+    } else {
+      if (course?.skills && activeSkillIndex + 1 < course.skills.length) {
+        setActiveSkillIndex(activeSkillIndex + 1);
+        setCurrentLevel(1);
+        setMaxUnlockedLevel(1);
+        setSessionAnswers([]);
+        setQuestionNumber(1);
+        setIsQuestFinished(false);
+        setViewMode("module");
+        setSelectedIndex(null);
+        setIsAnswered(false);
+        setShowExplanation(false);
+      }
+    }
   };
 
   if (isAuthLoading) {
@@ -464,41 +508,37 @@ export default function QuestPage() {
   const mTheme = getModuleTheme(activeSkillIndex + 1);
 
   return (
-    <main className="min-h-screen bg-[#000000] bg-grid-pattern text-white relative flex flex-col justify-between pb-24 p-4 sm:p-6 overflow-x-hidden">
-      {/* Background Orbs */}
-      <div className="absolute top-0 left-1/4 w-96 h-96 bg-[#A855F7]/15 rounded-full blur-[140px] pointer-events-none" />
-      <div className="absolute bottom-1/4 right-10 w-96 h-96 bg-[#00F0FF]/15 rounded-full blur-[140px] pointer-events-none" />
-
-      <div className="w-full max-w-2xl mx-auto space-y-4 z-10 my-auto">
+    <ShadowStage shadowProximity={gapDistance / 10} mode={isQuestFinished ? "results" : viewMode}>
+      <div className="w-full max-w-2xl mx-auto space-y-4 z-10 my-auto pb-24 p-4 sm:p-6">
         <TopBar
           title="Adaptive Skill Quest"
           subtitle={`Module ${activeSkillIndex + 1} of ${course?.skills.length || 5}: ${currentSkill.name}`}
         />
 
-        {/* Level Navigation Strip (Level 1 Basics / Level 2 Intermediate / Level 3 Advanced) */}
+        {/* Level Navigation Strip */}
         <LevelNavigationStrip
           currentLevel={currentLevel}
           levels={[
             {
               level: 1,
               title: "Basics",
-              status: currentLevel > 1 ? "PASSED" : viewMode === "test" ? "TEST_PENDING" : "MODULE_UNREAD",
-              score: currentLevel > 1 ? 8 : undefined,
+              status: currentLevel > 1 || maxUnlockedLevel > 1 ? "PASSED" : viewMode === "test" ? "TEST_PENDING" : "MODULE_UNREAD",
+              score: currentLevel > 1 || maxUnlockedLevel > 1 ? 8 : undefined,
             },
             {
               level: 2,
               title: "Intermediate",
-              status: currentLevel > 2 ? "PASSED" : currentLevel === 2 ? (viewMode === "test" ? "TEST_PENDING" : "MODULE_UNREAD") : "LOCKED",
-              score: currentLevel > 2 ? 8 : undefined,
+              status: currentLevel > 2 || maxUnlockedLevel > 2 ? "PASSED" : currentLevel === 2 ? (viewMode === "test" ? "TEST_PENDING" : "MODULE_UNREAD") : (maxUnlockedLevel >= 2 ? "MODULE_UNREAD" : "LOCKED"),
+              score: currentLevel > 2 || maxUnlockedLevel > 2 ? 8 : undefined,
             },
             {
               level: 3,
               title: "Advanced",
-              status: currentLevel === 3 ? (viewMode === "test" ? "TEST_PENDING" : "MODULE_UNREAD") : "LOCKED",
+              status: currentLevel === 3 ? (viewMode === "test" ? "TEST_PENDING" : "MODULE_UNREAD") : (maxUnlockedLevel >= 3 ? "MODULE_UNREAD" : "LOCKED"),
             },
           ]}
           onSelectLevel={(lvl) => {
-            if (lvl <= currentLevel) {
+            if (lvl <= maxUnlockedLevel) {
               setCurrentLevel(lvl);
               setViewMode("module");
             }
@@ -516,7 +556,7 @@ export default function QuestPage() {
             onRetryLevel={handleRetryLevel}
             onNextLevel={handleNextLevel}
             nextSkillName={course?.skills[activeSkillIndex + 1]?.name}
-            onReviewSection={(secIdx) => {
+            onReviewSection={(secIdx: number) => {
               setViewMode("module");
               setTimeout(() => {
                 const el = document.getElementById(`section-${secIdx}`) || document.getElementById(`section-${secIdx + 1}`);
@@ -528,7 +568,36 @@ export default function QuestPage() {
           />
         ) : viewMode === "module" ? (
           /* 2. RENDER TEACHING MODULE READER FIRST BEFORE TEST */
-          loadingModule || !moduleData ? (
+          moduleError ? (
+            <div className="p-8 text-center bg-[#0D0D1A] border border-[#FF0055]/50 rounded-3xl shadow-2xl space-y-4 glow-magenta">
+              <div className="w-12 h-12 rounded-full bg-[#FF0055]/20 border border-[#FF0055]/40 flex items-center justify-center text-[#FF0055] mx-auto animate-pulse">
+                <AlertTriangle className="w-6 h-6" />
+              </div>
+              <div className="space-y-1">
+                <p className="text-base font-bold text-white font-heading">
+                  AI Question Generation Failed
+                </p>
+                <p className="text-xs text-slate-300 max-w-md mx-auto leading-relaxed font-sans">
+                  {moduleError}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setModuleError(null);
+                  setLoadingModule(true);
+                  // Trigger reload by switching viewMode or resetting skill state
+                  const key = `xpedition_quest_${user?.id || "anon"}_${currentSkill.id}`;
+                  localStorage.removeItem(key);
+                  window.location.reload();
+                }}
+                className="px-6 py-3 rounded-2xl bg-gradient-to-r from-[#FF0055] to-[#7C3AED] hover:brightness-110 text-white font-bold text-xs font-heading uppercase tracking-wider transition-all cursor-pointer shadow-lg inline-flex items-center gap-2"
+              >
+                <RotateCcw className="w-4 h-4" />
+                <span>Retry AI Generation</span>
+              </button>
+            </div>
+          ) : loadingModule || !moduleData ? (
             <div className="p-12 text-center bg-[#0D0D1A] border border-white/10 rounded-3xl shadow-2xl space-y-4">
               <Loader2 className="w-8 h-8 text-[#00F0FF] animate-spin mx-auto" />
               <div className="space-y-1">
@@ -536,7 +605,7 @@ export default function QuestPage() {
                   Generating Grounded Learning Module...
                 </p>
                 <p className="text-xs text-slate-400 font-mono">
-                  Fetching Tavily Web Sources for Level {currentLevel}: {currentSkill.name}
+                  Fetching Tavily Web Sources & OpenAI/Groq AI for Level {currentLevel}: {currentSkill.name}
                 </p>
               </div>
             </div>
@@ -552,18 +621,37 @@ export default function QuestPage() {
         ) : (
           /* 3. RENDER 10-QUESTION LEVEL TEST VIEW (1 of 10) */
           <>
+            {/* 10-QUESTION PROGRESS BAR & COUNTER */}
+            <div className="bg-[#0D0D1A] border border-[#00F0FF]/30 rounded-3xl p-4 shadow-2xl space-y-2.5 glow-cyan font-mono text-xs">
+              <div className="flex items-center justify-between font-bold">
+                <span className="text-[#00F0FF] flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-[#FFB800]" />
+                  <span>Question {questionNumber} of 10</span>
+                </span>
+                <span className="text-slate-300">
+                  {Math.round((questionNumber / 10) * 100)}% Complete
+                </span>
+              </div>
+              <div className="w-full h-2.5 bg-[#000000] rounded-full overflow-hidden border border-white/10 p-0.5">
+                <div
+                  className="h-full bg-gradient-to-r from-[#00F0FF] via-[#A855F7] to-[#00FF87] rounded-full transition-all duration-300"
+                  style={{ width: `${(questionNumber / 10) * 100}%` }}
+                />
+              </div>
+            </div>
+
             {/* BLACK + NEON QUEST HEADER */}
             <div className="bg-[#0D0D1A] border border-[#00F0FF]/30 rounded-3xl p-4 sm:p-5 shadow-2xl space-y-3 glow-cyan">
               <div className="flex items-center justify-between flex-wrap gap-2 text-xs font-mono">
                 <div className="flex items-center gap-2">
-                  <span className="px-2.5 py-1 rounded-full bg-[#00F0FF]/10 border border-[#00F0FF]/40 text-[#00F0FF] font-bold">
+                  <span className="px-2.5 py-1 rounded-full bg-[#00F0FF]/10 border border-[#00F0FF]/40 text-[#00F0FF] font-bold font-mono">
                     Level {currentLevel} of 3
                   </span>
                   <span className="text-white font-bold">{currentSkill.name}</span>
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <span className="text-[#FFB800] font-bold flex items-center gap-1">
+                  <span className="text-[#FFB800] font-bold font-mono flex items-center gap-1">
                     <Sparkles className="w-3.5 h-3.5" /> +120 XP
                   </span>
                   <button
@@ -577,140 +665,150 @@ export default function QuestPage() {
                 </div>
               </div>
 
-              {/* Shadow Chase Track (Replaces plain progress bar) */}
+              {/* Shadow Chase Track */}
               <ShadowChaseTrack
                 currentLevel={currentLevel}
                 gapDistance={gapDistance}
                 rememberedConcepts={getShadowMistakes(user?.id || "anon").map((m) => m.conceptName).slice(0, 2)}
                 timeLeftSeconds={currentLevel >= 2 ? 25 : undefined}
+                lastOutcome={isAnswered ? (selectedIndex === currentQuestion?.correctIndex ? "correct" : "wrong") : null}
               />
             </div>
 
-            {/* SINGLE QUESTION CARD */}
+            {/* SINGLE QUESTION CARD WITH FRAMER MOTION STAGGER SLIDE */}
             {currentQuestion && (
-              <div className="bg-[#0D0D1A] border border-white/10 rounded-3xl p-5 sm:p-6 shadow-2xl space-y-5">
-                {/* Scenario Setup or Question Type Badge */}
-                <div className="flex items-center justify-between text-xs font-mono">
-                  <span className="px-2.5 py-0.5 rounded-full bg-[#A855F7]/10 border border-[#A855F7]/40 text-[#A855F7] font-bold uppercase">
-                    {currentQuestion.questionType || "Concept Challenge"}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setShowTutorOverlay(true)}
-                    className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#00F0FF]/10 border border-[#00F0FF]/40 text-[#00F0FF] font-bold text-xs hover:bg-[#00F0FF]/20 transition-all cursor-pointer shadow-[0_0_10px_rgba(0,240,255,0.2)]"
-                  >
-                    <Mic className="w-3.5 h-3.5 animate-pulse" />
-                    <span>Voice AI Tutor</span>
-                  </button>
-                </div>
-
-                {/* CODING LAB PROMPT BANNER FOR CODING SKILLS */}
-                {(currentSkill.name.toLowerCase().includes("python") ||
-                  currentSkill.name.toLowerCase().includes("sql") ||
-                  currentSkill.name.toLowerCase().includes("code") ||
-                  currentSkill.name.toLowerCase().includes("java") ||
-                  currentSkill.name.toLowerCase().includes("c++") ||
-                  currentSkill.name.toLowerCase().includes("algorithm")) && (
-                  <div className="p-3.5 rounded-2xl bg-[#000000] border border-[#00F0FF]/40 flex items-center justify-between gap-3 text-xs font-mono glow-cyan">
-                    <div className="flex items-center gap-2 truncate">
-                      <Code className="w-4 h-4 text-[#00FF87] shrink-0" />
-                      <span className="text-white font-bold truncate">
-                        Hands-on Coding Challenge Available
-                      </span>
-                    </div>
-                    <Link
-                      href={`/lab/c1`}
-                      className="px-3 py-1.5 rounded-xl bg-[#00F0FF] text-black font-bold font-mono text-[11px] shrink-0 hover:brightness-110 flex items-center gap-1 transition-all"
-                    >
-                      <span>Open Code Lab</span>
-                      <ArrowRight className="w-3 h-3" />
-                    </Link>
-                  </div>
-                )}
-
-                {currentQuestion.scenarioSetup && (
-                  <div className="p-3.5 rounded-2xl bg-[#000000]/60 border border-white/10 text-xs text-slate-300 leading-relaxed font-sans">
-                    <span className="font-bold text-[#00F0FF] block mb-1 font-mono uppercase text-[10px]">
-                      Scenario Context:
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={questionNumber}
+                  initial={isReducedMotion ? { opacity: 1 } : { opacity: 0, x: 40 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={isReducedMotion ? { opacity: 0 } : { opacity: 0, x: -40 }}
+                  transition={{ duration: isReducedMotion ? 0 : 0.14, ease: "easeInOut" }}
+                  className="bg-[#0D0D1A] border border-white/10 rounded-3xl p-5 sm:p-6 shadow-2xl space-y-5"
+                >
+                  {/* Scenario Setup or Question Type Badge */}
+                  <div className="flex items-center justify-between text-xs font-mono">
+                    <span className="px-2.5 py-0.5 rounded-full bg-[#A855F7]/10 border border-[#A855F7]/40 text-[#A855F7] font-bold uppercase tracking-wider font-mono">
+                      {currentQuestion.questionType || "Concept Challenge"}
                     </span>
-                    {currentQuestion.scenarioSetup}
+                    <button
+                      type="button"
+                      onClick={() => setShowTutorOverlay(true)}
+                      className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#00F0FF]/10 border border-[#00F0FF]/40 text-[#00F0FF] font-bold text-xs hover:bg-[#00F0FF]/20 transition-all cursor-pointer shadow-[0_0_10px_rgba(0,240,255,0.2)]"
+                    >
+                      <Mic className="w-3.5 h-3.5 animate-pulse" />
+                      <span>Voice AI Tutor</span>
+                    </button>
                   </div>
-                )}
 
-                {/* Prompt Title */}
-                <h2 className="text-lg sm:text-xl font-bold text-white font-heading leading-snug">
-                  {currentQuestion.prompt}
-                </h2>
-
-                {/* Code Snippet Block (If Applicable) */}
-                {currentQuestion.codeSnippet && (
-                  <pre className="p-4 rounded-2xl bg-[#000000] border border-[#00F0FF]/30 text-xs font-mono text-[#00F0FF] overflow-x-auto shadow-inner">
-                    <code>{currentQuestion.codeSnippet}</code>
-                  </pre>
-                )}
-
-                {/* LARGE CLICKABLE ANSWER CARDS (A, B, C, D) */}
-                <div className="space-y-3 pt-2">
-                  {currentQuestion.options?.map((optionText, idx) => {
-                    const isSelected = selectedIndex === idx;
-                    const letter = String.fromCharCode(65 + idx); // A, B, C, D
-
-                    let cardStyle = "bg-[#0D0D1A] border-white/10 text-slate-200 hover:border-[#00F0FF]/50";
-                    if (isSelected) {
-                      cardStyle = "bg-[#0D0D1A] border-[#00F0FF] text-white shadow-[0_0_20px_rgba(0,240,255,0.3)] glow-cyan";
-                    }
-
-                    if (isAnswered) {
-                      if (idx === currentQuestion.correctIndex) {
-                        cardStyle = "bg-[#0D0D1A] border-[#00FF87] text-white shadow-[0_0_20px_rgba(0,255,135,0.3)] glow-green";
-                      } else if (isSelected) {
-                        cardStyle = "bg-[#0D0D1A] border-[#FF0055] text-white shadow-[0_0_20px_rgba(255,0,85,0.3)] glow-magenta";
-                      }
-                    }
-
-                    return (
-                      <button
-                        key={idx}
-                        type="button"
-                        onClick={() => handleSelectOption(idx)}
-                        disabled={isAnswered || loadingNext}
-                        className={`w-full min-h-[56px] p-4 rounded-2xl border text-left flex items-center justify-between gap-3 transition-all cursor-pointer ${cardStyle}`}
+                  {/* CODING LAB PROMPT BANNER FOR CODING SKILLS */}
+                  {(currentSkill.name.toLowerCase().includes("python") ||
+                    currentSkill.name.toLowerCase().includes("sql") ||
+                    currentSkill.name.toLowerCase().includes("code") ||
+                    currentSkill.name.toLowerCase().includes("java") ||
+                    currentSkill.name.toLowerCase().includes("c++") ||
+                    currentSkill.name.toLowerCase().includes("algorithm")) && (
+                    <div className="p-3.5 rounded-2xl bg-[#000000] border border-[#00F0FF]/40 flex items-center justify-between gap-3 text-xs font-mono glow-cyan">
+                      <div className="flex items-center gap-2 truncate">
+                        <Code className="w-4 h-4 text-[#00FF87] shrink-0" />
+                        <span className="text-white font-bold truncate">
+                          Hands-on Coding Challenge Available
+                        </span>
+                      </div>
+                      <Link
+                        href={`/lab/c1`}
+                        className="px-3 py-1.5 rounded-xl bg-[#00F0FF] text-black font-bold font-mono text-[11px] shrink-0 hover:brightness-110 flex items-center gap-1 transition-all"
                       >
-                        <div className="flex items-center gap-3.5">
-                          <span
-                            className={`w-8 h-8 rounded-xl border flex items-center justify-center font-mono font-black text-xs shrink-0 ${
-                              isSelected
-                                ? "bg-[#00F0FF] text-black border-[#00F0FF]"
-                                : "bg-black/40 border-white/10 text-slate-400"
-                            }`}
-                          >
-                            {letter}
-                          </span>
-                          <span className="text-sm font-medium leading-normal">{optionText}</span>
-                        </div>
+                        <span>Open Code Lab</span>
+                        <ArrowRight className="w-3 h-3" />
+                      </Link>
+                    </div>
+                  )}
 
-                        {isAnswered && idx === currentQuestion.correctIndex && (
-                          <CheckCircle2 className="w-5 h-5 text-[#00FF87] shrink-0" />
-                        )}
-                        {isAnswered && isSelected && idx !== currentQuestion.correctIndex && (
-                          <XCircle className="w-5 h-5 text-[#FF0055] shrink-0" />
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
+                  {currentQuestion.scenarioSetup && (
+                    <div className="p-3.5 rounded-2xl bg-[#000000]/60 border border-white/10 text-xs text-slate-300 leading-relaxed font-sans">
+                      <span className="font-bold text-[#00F0FF] block mb-1 font-mono uppercase text-[10px]">
+                        Scenario Context:
+                      </span>
+                      {currentQuestion.scenarioSetup}
+                    </div>
+                  )}
 
-                {/* PROMINENT SUBMIT ANSWER BUTTON */}
-                {selectedIndex !== null && !isAnswered && (
-                  <button
-                    type="button"
-                    onClick={handleSubmitAnswer}
-                    className="w-full py-4 rounded-2xl bg-gradient-to-r from-[#00F0FF] via-[#A855F7] to-[#00FF87] text-black font-black font-heading text-sm uppercase tracking-wider shadow-lg hover:brightness-110 transition-all cursor-pointer mt-3 glow-cyan"
-                  >
-                    Submit Answer →
-                  </button>
-                )}
-              </div>
+                  {/* Prompt Title */}
+                  <h2 className="text-lg sm:text-xl font-black text-white font-heading tracking-tight leading-snug">
+                    {currentQuestion.prompt}
+                  </h2>
+
+                  {/* Code Snippet Block (If Applicable) */}
+                  {currentQuestion.codeSnippet && (
+                    <pre className="p-4 rounded-2xl bg-[#000000] border border-[#00F0FF]/30 text-xs font-mono text-[#00F0FF] overflow-x-auto shadow-inner">
+                      <code>{currentQuestion.codeSnippet}</code>
+                    </pre>
+                  )}
+
+                  {/* LARGE CLICKABLE ANSWER CARDS WITH SHARP RPG PRESS TRANSFORM */}
+                  <div className="space-y-3 pt-2">
+                    {currentQuestion.options?.map((optionText, idx) => {
+                      const isSelected = selectedIndex === idx;
+                      const letter = String.fromCharCode(65 + idx); // A, B, C, D
+
+                      let cardStyle = "bg-[#0D0D1A] border-white/10 text-slate-200 hover:border-[#00F0FF]/50";
+                      if (isSelected) {
+                        cardStyle = "bg-[#0D0D1A] border-[#00F0FF] text-white shadow-[0_0_20px_rgba(0,240,255,0.3)] glow-cyan";
+                      }
+
+                      if (isAnswered) {
+                        if (idx === currentQuestion.correctIndex) {
+                          cardStyle = "bg-[#0D0D1A] border-[#00FF87] text-white shadow-[0_0_20px_rgba(0,255,135,0.3)] glow-green";
+                        } else if (isSelected) {
+                          cardStyle = "bg-[#0D0D1A] border-[#FF0055] text-white shadow-[0_0_20px_rgba(255,0,85,0.3)] glow-magenta";
+                        }
+                      }
+
+                      return (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => handleSelectOption(idx)}
+                          disabled={isAnswered || loadingNext}
+                          className={`w-full min-h-[56px] p-4 btn-game-sharp border text-left flex items-center justify-between gap-3 cursor-pointer ${cardStyle}`}
+                        >
+                          <div className="flex items-center gap-3.5">
+                            <span
+                              className={`w-8 h-8 rounded-xl border flex items-center justify-center font-mono font-black text-xs shrink-0 ${
+                                isSelected
+                                  ? "bg-[#00F0FF] text-black border-[#00F0FF]"
+                                  : "bg-black/40 border-white/10 text-slate-400"
+                              }`}
+                            >
+                              {letter}
+                            </span>
+                            <span className="text-sm font-semibold leading-normal">{optionText}</span>
+                          </div>
+
+                          {isAnswered && idx === currentQuestion.correctIndex && (
+                            <CheckCircle2 className="w-5 h-5 text-[#00FF87] shrink-0" />
+                          )}
+                          {isAnswered && isSelected && idx !== currentQuestion.correctIndex && (
+                            <XCircle className="w-5 h-5 text-[#FF0055] shrink-0" />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* PROMINENT SUBMIT ANSWER BUTTON */}
+                  {selectedIndex !== null && !isAnswered && (
+                    <button
+                      type="button"
+                      onClick={handleSubmitAnswer}
+                      className="w-full py-4 btn-game-sharp bg-gradient-to-r from-[#00F0FF] via-[#A855F7] to-[#00FF87] text-black font-black font-heading text-sm uppercase tracking-wider shadow-lg hover:brightness-110 cursor-pointer mt-3 glow-cyan"
+                    >
+                      Submit Answer →
+                    </button>
+                  )}
+                </motion.div>
+              </AnimatePresence>
             )}
 
             {/* FEEDBACK PANEL & EXPLICIT "NEXT QUESTION" ADVANCE BUTTON */}
@@ -729,7 +827,7 @@ export default function QuestPage() {
                     ) : (
                       <XCircle className="w-6 h-6 text-[#FF0055]" />
                     )}
-                    <span className="text-base font-bold font-heading text-white">
+                    <span className="text-base font-black font-heading text-white">
                       {selectedIndex === currentQuestion.correctIndex
                         ? "Correct Answer!"
                         : "Incorrect"}
@@ -767,12 +865,12 @@ export default function QuestPage() {
                   </p>
                 </div>
 
-                {/* EXPLICIT NEXT BUTTON — NO AUTO-ADVANCE */}
+                {/* EXPLICIT NEXT BUTTON */}
                 <button
                   type="button"
                   onClick={handleNextQuestionClick}
                   disabled={loadingNext}
-                  className="w-full py-4 rounded-2xl bg-[#00F0FF] text-black font-black font-heading text-sm uppercase tracking-wider shadow-lg hover:brightness-110 transition-all flex items-center justify-center gap-2 cursor-pointer glow-cyan"
+                  className="w-full py-4 btn-game-sharp bg-[#00F0FF] text-black font-black font-heading text-sm uppercase tracking-wider shadow-lg hover:brightness-110 flex items-center justify-center gap-2 cursor-pointer glow-cyan"
                 >
                   {loadingNext ? (
                     <>
@@ -781,7 +879,7 @@ export default function QuestPage() {
                     </>
                   ) : (
                     <>
-                      <span>{questionNumber >= 10 ? "Finish Quest & View Results →" : "Next Question →"}</span>
+                      <span>{questionNumber >= 10 ? "See Results →" : "Next Question →"}</span>
                       <ArrowRight className="w-5 h-5" />
                     </>
                   )}
@@ -791,8 +889,6 @@ export default function QuestPage() {
           </>
         )}
       </div>
-
-      <BottomNav />
 
       {/* Voice AI Tutor Overlay Modal */}
       <TutorOverlay
@@ -823,6 +919,6 @@ export default function QuestPage() {
           onClaim={(bonusXp) => claimReward({ ...activeRewardDrop, xpBonus: (activeRewardDrop.xpBonus || 30) + (bonusXp || 0) })}
         />
       )}
-    </main>
+    </ShadowStage>
   );
 }

@@ -223,9 +223,9 @@ export default function TutorOverlay({
 
         {/* Header Badge */}
         <div className="flex items-center gap-2">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#22D3EE]/20 border border-[#22D3EE]/40 text-[#22D3EE] text-xs font-mono font-bold">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#00F0FF]/20 border border-[#00F0FF]/40 text-[#00F0FF] text-xs font-mono font-bold">
             <Sparkles className="w-3.5 h-3.5 text-[#FBBF24]" />
-            VOICE AI TUTOR
+            XYRA &middot; YOUR AI TEACHER
           </div>
           <span className="text-xs font-mono text-slate-400 truncate max-w-[180px]">
             {skillName}
@@ -336,15 +336,17 @@ export default function TutorOverlay({
 
         {/* AI Hint Output Display */}
         {aiHint && !loading && (
-          <div className="bg-[#0A0A1A] border border-[#34D399]/40 rounded-2xl p-4 text-xs sm:text-sm text-slate-200 space-y-2 animate-fadeIn">
+          <div className="bg-[#0A0A1A] border border-[#00F0FF]/40 rounded-2xl p-4 text-xs sm:text-sm text-slate-200 space-y-2 animate-fadeIn">
             <div className="flex items-center justify-between">
-              <span className="text-[10px] font-mono text-[#34D399] flex items-center gap-1.5 font-bold">
-                <Volume2 className="w-3.5 h-3.5 animate-pulse text-[#34D399]" />
-                AI TUTOR GUIDED HINT
-              </span>
+              <div className="flex items-center gap-1.5 text-[10px] font-mono text-[#00F0FF] font-bold tracking-wide">
+                <div className="w-4 h-4 rounded-full border border-[#00F0FF] bg-[#00F0FF]/15 text-[#00F0FF] font-mono font-bold text-[9px] flex items-center justify-center shrink-0">
+                  X
+                </div>
+                <span>XYRA says:</span>
+              </div>
               <button
                 onClick={() => speakText(aiHint)}
-                className="text-[11px] font-mono text-[#22D3EE] hover:underline flex items-center gap-1 cursor-pointer"
+                className="text-[11px] font-mono text-[#00F0FF] hover:underline flex items-center gap-1 cursor-pointer"
               >
                 <Play className="w-3 h-3" />
                 <span>{isSpeaking ? "Speaking..." : "Read Aloud"}</span>

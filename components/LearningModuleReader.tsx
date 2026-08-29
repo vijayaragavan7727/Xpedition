@@ -157,18 +157,18 @@ export default function LearningModuleReader({
           </div>
 
           {/* THE CALM BEFORE SHADOW WATCHING BANNER */}
-          <div className="p-2.5 rounded-2xl bg-[#000000]/80 border border-white/10 flex items-center justify-between gap-3 text-xs font-mono">
+          <div className="p-3 rounded-2xl bg-[#0A0A14] border border-white/10 flex items-center justify-between gap-3 text-xs font-mono">
             <div className="flex items-center gap-2 truncate">
-              <CyberSilhouette rimColor="#00F0FF" width={20} height={20} />
-              <span className="text-slate-300 text-[11px] truncate">
-                Reading illuminates your path...
+              <CyberSilhouette role="player" rimColor="#00F0FF" width={22} height={22} />
+              <span className="text-slate-300 text-[11px] font-semibold truncate">
+                Illuminating path ({scrollProgress}% read)
               </span>
             </div>
-            <div className="flex items-center gap-2 shrink-0 opacity-70">
-              <span className="text-[10px] text-[#FF7185] italic font-semibold hidden sm:inline">
-                Your Shadow is watching. Learn well.
+            <div className="flex items-center gap-2 shrink-0 opacity-60">
+              <span className="text-[10px] text-[#FF7185] italic font-semibold tracking-wider">
+                Your Shadow waits.
               </span>
-              <CyberSilhouette rimColor="#FB7185" width={22} height={22} />
+              <CyberSilhouette role="shadow" rimColor="#FF0055" width={26} height={26} gapDistance={10} />
             </div>
           </div>
         </div>

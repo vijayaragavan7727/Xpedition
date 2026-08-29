@@ -245,25 +245,34 @@ Return STRICT JSON ONLY matching this format:
   }
 }`;
 
-          const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${groqKey}`,
-            },
-            body: JSON.stringify({
-              model: "llama-3.3-70b-versatile",
-              messages: [{ role: "user", content: promptText }],
-              temperature: 0.85,
-              response_format: { type: "json_object" },
-            }),
-          });
+          const modelsToTry = ["openai/gpt-oss-120b", "groq/compound-mini"];
+          for (const m of modelsToTry) {
+            try {
+              const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${groqKey}`,
+                },
+                body: JSON.stringify({
+                  model: m,
+                  messages: [{ role: "user", content: promptText }],
+                  temperature: 0.85,
+                  response_format: { type: "json_object" },
+                }),
+              });
 
-          if (groqRes.ok) {
-            const groqData = await groqRes.json();
-            const contentStr = groqData.choices?.[0]?.message?.content;
-            if (contentStr) {
-              return JSON.parse(contentStr) as Question;
+              if (groqRes.ok) {
+                const groqData = await groqRes.json();
+                const contentStr = groqData.choices?.[0]?.message?.content;
+                if (contentStr) {
+                  const { cleanAndParseJSON } = await import("@/lib/aiParser");
+                  const parsedQ = cleanAndParseJSON(contentStr);
+                  if (parsedQ) return parsedQ as Question;
+                }
+              }
+            } catch (e) {
+              console.warn(`Groq fetch warning for model ${m}:`, e);
             }
           }
           return null;

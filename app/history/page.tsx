@@ -66,7 +66,7 @@ export default function HistoryPage() {
     }
 
     loadHistory();
-  }, [user.id, isAuthLoading]);
+  }, [user?.id, isAuthLoading]);
 
   const handleResumeQuest = (skillId?: string) => {
     if (course?.skills && skillId) {
@@ -96,7 +96,8 @@ export default function HistoryPage() {
     );
   }
 
-  const maxQuestionsInWeek = Math.max(1, ...sevenDayBars.map((b) => b.questionsCount));
+  const maxQuestionsInWeek = Math.max(1, ...(sevenDayBars || []).map((b) => b.questionsCount));
+  const userStreak = user?.streak || 0;
 
   return (
     <main className="min-h-screen bg-[#0A0A1A] bg-grid-pattern relative flex flex-col justify-between pb-24 p-4 sm:p-6 overflow-x-hidden">
@@ -183,7 +184,7 @@ export default function HistoryPage() {
               7-Day Activity & Streaks
             </h2>
             <span className="text-[10px] font-mono text-[#22D3EE] font-bold">
-              {user.streak} Day Active Streak
+              {userStreak} Day Active Streak
             </span>
           </div>
 
