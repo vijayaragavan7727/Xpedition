@@ -21,16 +21,46 @@ export default function HomePage() {
     setStoreData(getStoreData());
   }, []);
 
-  if (!storeData) {
+  const streak = storeData ? calculateStreak(storeData.attempts) : 0;
+  const fadingConcepts = storeData ? storeData.concepts.filter((c) => c.retentionRisk > 0.35) : [];
+  const hasSkillGraph = storeData ? storeData.concepts.length > 0 : false;
+  const target = storeData ? selectNextTarget(storeData) : null;
+
+  // PRE-FETCH TOP TARGET LESSON IN BACKGROUND ON HOME MOUNT
+  useEffect(() => {
+    if (storeData && target?.conceptId) {
+      const cacheKey = `xyra_lesson_${target.conceptId}`;
+      if (typeof window !== 'undefined' && !sessionStorage.getItem(cacheKey)) {
+        console.time(`home-prefetch-${target.conceptId}`);
+        fetch('/api/lesson', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            conceptId: target.conceptId,
+            conceptName: target.conceptName,
+            conceptSummary: '',
+            language: storeData?.learnerProfile?.language || 'english',
+            startingLevel: storeData?.learnerProfile?.startingLevel || 'Complete beginner',
+            masteryPercentage: target.masteryPercentage || 0,
+            isQuickLearn: false,
+          }),
+        })
+          .then((res) => res.json())
+          .then((data) => {
+            console.timeEnd(`home-prefetch-${target.conceptId}`);
+            if (data?.chunks && typeof window !== 'undefined') {
+              sessionStorage.setItem(cacheKey, JSON.stringify(data));
+              console.log(`[Home Prefetch] Pre-cached lesson for "${target.conceptName}" in sessionStorage`);
+            }
+          })
+          .catch(() => {});
+      }
+    }
+  }, [storeData?.activeGraphId, target?.conceptId]);
+
+  if (!storeData || !target) {
     return <div className="py-12 text-center text-muted font-mono text-sm animate-pulse">Loading dashboard...</div>;
   }
-
-  const streak = calculateStreak(storeData.attempts);
-  const fadingConcepts = storeData.concepts.filter((c) => c.retentionRisk > 0.35);
-  const hasSkillGraph = storeData.concepts.length > 0;
-
-  // Single Source of Truth target computation
-  const target = selectNextTarget(storeData);
 
   const handleQuickLearnSubmit = (e: React.FormEvent) => {
     e.preventDefault();

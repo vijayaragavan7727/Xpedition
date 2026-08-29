@@ -39,8 +39,33 @@ function TutorContent() {
   const [storeData, setStoreData] = useState<UserStoreData | null>(null);
   const [conceptName, setConceptName] = useState<string>('Core Concept');
   const [conceptSummary, setConceptSummary] = useState<string>('');
-  const [lesson, setLesson] = useState<LessonData | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [lesson, setLesson] = useState<LessonData | null>(() => {
+    if (typeof window !== 'undefined' && conceptId) {
+      try {
+        const cached = sessionStorage.getItem(`xyra_lesson_${conceptId}`);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (parsed?.chunks?.length) {
+            console.log(`[Tutor Perf] Initialized lesson from sessionStorage on mount (0ms latency)`);
+            return parsed;
+          }
+        }
+      } catch (e) {}
+    }
+    return null;
+  });
+  const [loading, setLoading] = useState<boolean>(() => {
+    if (typeof window !== 'undefined' && conceptId) {
+      try {
+        const cached = sessionStorage.getItem(`xyra_lesson_${conceptId}`);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (parsed?.chunks?.length) return false;
+        }
+      } catch (e) {}
+    }
+    return true;
+  });
   const [error, setError] = useState<string | null>(null);
 
   // 2. PRE-CLASS 3-STEP INTRO STATE
@@ -140,8 +165,27 @@ function TutorContent() {
     setConceptSummary(cSummary);
 
     const fetchLesson = async () => {
+      // 1. Check local session storage cache first (INSTANT < 5ms)
+      const sessionCacheKey = `xyra_lesson_${conceptId}`;
+      if (typeof window !== 'undefined') {
+        const cachedRaw = sessionStorage.getItem(sessionCacheKey);
+        if (cachedRaw) {
+          try {
+            const cachedData: LessonData = JSON.parse(cachedRaw);
+            if (cachedData?.chunks?.length) {
+              console.log(`[Tutor Perf] Cache hit from sessionStorage for "${cName}" (0ms wait)`);
+              setLesson(cachedData);
+              setLoading(false);
+              return;
+            }
+          } catch (e) {}
+        }
+      }
+
+      // 2. Fetch from /api/lesson with timing diagnostic
       try {
-        setLoading(true);
+        console.time('lesson-fetch');
+        const startFetch = performance.now();
         const res = await fetch('/api/lesson', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -156,6 +200,10 @@ function TutorContent() {
           }),
         });
 
+        const elapsed = Math.round(performance.now() - startFetch);
+        console.timeEnd('lesson-fetch');
+        console.log(`[Tutor Perf] /api/lesson responded in ${elapsed}ms | HTTP ${res.status}`);
+
         if (!res.ok) {
           throw new Error(`HTTP ${res.status}`);
         }
@@ -164,6 +212,10 @@ function TutorContent() {
 
         if (!data || !Array.isArray(data.chunks) || data.chunks.length === 0) {
           throw new Error('Invalid lesson data payload');
+        }
+
+        if (typeof window !== 'undefined') {
+          sessionStorage.setItem(sessionCacheKey, JSON.stringify(data));
         }
 
         setLesson(data);
@@ -716,7 +768,7 @@ function TutorContent() {
 
               {/* Session / Concept Indicator Bottom-Right */}
               <div className="absolute bottom-5 right-3 z-20 font-chalk text-[10px] sm:text-[11px] text-[#EDEAE0]/45 select-none tracking-wide">
-                Session 1 &middot; Concept {currentChunkIndex + 1} of {lesson.chunks.length}
+                Session 1 &middot; Concept {currentChunkIndex + 1} of {lesson?.chunks?.length || 3}
               </div>
 
               {/* 3. XYRA SPEAKS — SPEECH BUBBLE REDESIGN */}
@@ -740,14 +792,23 @@ function TutorContent() {
                     <span>XYRA says:</span>
                   </div>
 
-                  <p className="font-sans font-medium text-[11px] sm:text-xs text-slate-100 leading-snug break-words">
-                    {revealedText || <span className="font-mono text-cyan-400/60 animate-pulse">Thinking...</span>}
-                    {!isChunkComplete && revealedText && <span className="inline-block w-1.5 h-3 ml-1 bg-[#00F0FF] animate-pulse" />}
-                  </p>
+                  <div className="font-sans font-medium text-[11px] sm:text-xs text-slate-100 leading-snug break-words">
+                    {loading ? (
+                      <span className="font-mono text-cyan-300 flex items-center gap-1.5 animate-pulse text-[11px]">
+                        <Sparkles className="w-3.5 h-3.5 text-amber-400 animate-spin" />
+                        Getting your lesson ready...
+                      </span>
+                    ) : (
+                      <p>
+                        {revealedText || <span className="font-mono text-cyan-400/60 animate-pulse">Thinking...</span>}
+                        {!isChunkComplete && revealedText && <span className="inline-block w-1.5 h-3 ml-1 bg-[#00F0FF] animate-pulse" />}
+                      </p>
+                    )}
+                  </div>
 
                   <div className="pt-0.5 flex items-center justify-between text-[9px] sm:text-[10px] font-mono text-slate-400">
-                    <span>{currentChunkIndex + 1}/{lesson.chunks.length}</span>
-                    {isChunkComplete && (
+                    <span>{currentChunkIndex + 1}/{lesson?.chunks?.length || 3}</span>
+                    {!loading && isChunkComplete && (
                       <button
                         type="button"
                         onClick={handleNextChunk}
@@ -768,15 +829,26 @@ function TutorContent() {
                   </h2>
                 </div>
 
+                {/* Loading Skeleton inside blackboard */}
+                {loading && (
+                  <div className="space-y-2.5 pt-2 animate-pulse font-chalk text-[#EDEAE0]">
+                    <p className="text-xs sm:text-sm text-cyan-200">
+                      Preparing chalkboard notes for {conceptName}...
+                    </p>
+                    <div className="h-3 w-3/4 bg-white/10 rounded" />
+                    <div className="h-3 w-1/2 bg-white/10 rounded" />
+                  </div>
+                )}
+
                 {/* Visual Spec if present */}
-                {currentChunk?.visual && (
+                {!loading && currentChunk?.visual && (
                   <div className="max-w-full overflow-hidden">
                     <BoardVisual visual={currentChunk.visual} />
                   </div>
                 )}
 
                 {/* Accumulated Notes */}
-                {accumulatedNotes.length > 0 && (
+                {!loading && accumulatedNotes.length > 0 && (
                   <div className="space-y-1.5 max-w-full">
                     {accumulatedNotes.map((pt, idx) => (
                       <div key={idx} className="flex items-start gap-1.5 text-[#EDEAE0]/85 max-w-full">
@@ -788,7 +860,7 @@ function TutorContent() {
                 )}
 
                 {/* Current writing chunk */}
-                {revealedText && (
+                {!loading && revealedText && (
                   <div className="flex items-start gap-1.5 text-white font-semibold animate-fadeIn max-w-full">
                     <span className="text-cyan-300 font-mono text-xs mt-0.5 select-none animate-pulse shrink-0">✏</span>
                     <p className="drop-shadow-[0_1px_3px_rgba(0,0,0,0.95)] font-chalk break-words">{revealedText}</p>
@@ -838,43 +910,52 @@ function TutorContent() {
                   <span className="text-[#00F0FF]">📋</span>
                   <span>XYRA&apos;s Lesson Plan</span>
                   <span className="text-[10px] text-cyan-400/80 font-normal">
-                    ({currentChunkIndex} of {lesson.chunks.length} complete)
+                    ({currentChunkIndex} of {lesson?.chunks?.length || 3} complete)
                   </span>
                 </div>
                 <span className="text-slate-400 text-[11px]">{isTopicsExpanded ? '▲ Hide' : '▼ Show'}</span>
               </button>
 
               <div className={`${isTopicsExpanded ? 'block' : 'hidden sm:block'} space-y-1.5 pt-1.5 border-t border-white/10 animate-fadeIn`}>
-                {lesson.chunks.map((chk, idx) => {
-                  const isDone = idx < currentChunkIndex;
-                  const isCurrent = idx === currentChunkIndex;
-
-                  return (
-                    <div
-                      key={idx}
-                      className={`flex items-center justify-between py-1.5 px-2.5 rounded-xl text-xs font-sans transition-all ${
-                        isCurrent
-                          ? 'text-[#00F0FF] font-bold bg-[#00F0FF]/10 border border-[#00F0FF]/30 shadow-[0_0_10px_rgba(0,240,255,0.2)]'
-                          : isDone
-                            ? 'text-slate-300'
-                            : 'text-slate-500'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2 truncate">
-                        <span className="font-mono text-xs">
-                          {isDone ? <span className="text-[#00FF87] font-bold">✓</span> : isCurrent ? <span className="text-[#00F0FF] font-bold">●</span> : <span className="text-slate-600">○</span>}
-                        </span>
-                        <span className="truncate text-[11px]">
-                          Topic {idx + 1}: {chk.say.substring(0, 34)}...
-                        </span>
-                      </div>
-
-                      {isCurrent && (
-                        <span className="text-[#00F0FF] font-mono font-bold text-xs shrink-0">&rarr;</span>
-                      )}
+                {loading ? (
+                  [1, 2, 3].map((i) => (
+                    <div key={i} className="flex items-center gap-2 py-1.5 px-2.5 rounded-xl bg-white/5 text-slate-500 text-xs animate-pulse">
+                      <span className="font-mono text-xs">○</span>
+                      <span className="truncate text-[11px]">Topic {i}: Preparing outline...</span>
                     </div>
-                  );
-                })}
+                  ))
+                ) : (
+                  lesson?.chunks?.map((chk, idx) => {
+                    const isDone = idx < currentChunkIndex;
+                    const isCurrent = idx === currentChunkIndex;
+
+                    return (
+                      <div
+                        key={idx}
+                        className={`flex items-center justify-between py-1.5 px-2.5 rounded-xl text-xs font-sans transition-all ${
+                          isCurrent
+                            ? 'text-[#00F0FF] font-bold bg-[#00F0FF]/10 border border-[#00F0FF]/30 shadow-[0_0_10px_rgba(0,240,255,0.2)]'
+                            : isDone
+                              ? 'text-slate-300'
+                              : 'text-slate-500'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 truncate">
+                          <span className="font-mono text-xs">
+                            {isDone ? <span className="text-[#00FF87] font-bold">✓</span> : isCurrent ? <span className="text-[#00F0FF] font-bold">●</span> : <span className="text-slate-600">○</span>}
+                          </span>
+                          <span className="truncate text-[11px]">
+                            Topic {idx + 1}: {chk.say.substring(0, 34)}...
+                          </span>
+                        </div>
+
+                        {isCurrent && (
+                          <span className="text-[#00F0FF] font-mono font-bold text-xs shrink-0">&rarr;</span>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
               </div>
             </div>
 
