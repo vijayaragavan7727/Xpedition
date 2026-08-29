@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { WorldBuilding } from '@/lib/worldEngine';
-import { WorldThemeId, getThemeConfig } from '@/lib/themes';
-import { Sparkles, Info } from 'lucide-react';
+import { WorldThemeId } from '@/lib/themes';
+import { getPollinationsImageUrl, cacheBuildingImageToSupabase } from '@/lib/buildingImages';
+import { Sparkles, RefreshCw } from 'lucide-react';
 
 interface WorldRendererProps {
   theme?: WorldThemeId | string;
@@ -109,12 +110,13 @@ export default function WorldRenderer({
   onSelectBuilding,
 }: WorldRendererProps) {
   const [activeTooltip, setActiveTooltip] = useState<WorldBuilding | null>(null);
+  const [loadedImages, setLoadedImages] = useState<Record<string, boolean>>({});
+  const [failedImages, setFailedImages] = useState<Record<string, boolean>>({});
 
   const activeThemeKey = theme in THEME_PALETTES ? theme : 'cosmos';
   const palette = THEME_PALETTES[activeThemeKey];
 
   // Isometric Grid Layout: 3 columns x 3 rows grid
-  const cols = 3;
   const tileW = 100;
   const tileH = 50;
   const originX = 260;
@@ -125,6 +127,22 @@ export default function WorldRenderer({
     paddedBuildings.push(null);
   }
   const displaySlots = paddedBuildings.slice(0, 6);
+
+  const handleImageLoad = (key: string, building: WorldBuilding, url: string) => {
+    setLoadedImages((prev) => ({ ...prev, [key]: true }));
+    // Asynchronously cache to Supabase storage
+    cacheBuildingImageToSupabase(building.conceptName, activeThemeKey, building.state, url);
+  };
+
+  const handleImageError = (key: string) => {
+    setFailedImages((prev) => ({ ...prev, [key]: true }));
+  };
+
+  const isAnyGenerating = displaySlots.some((b) => {
+    if (!b) return false;
+    const key = `${b.buildingId}_${b.state}_${activeThemeKey}`;
+    return !loadedImages[key] && !failedImages[key];
+  });
 
   return (
     <div
@@ -161,6 +179,10 @@ export default function WorldRenderer({
                 50% { opacity: 0.8; }
                 100% { transform: translateY(-28px); opacity: 0; }
               }
+              @keyframes tileShimmer {
+                0%, 100% { opacity: 0.7; }
+                50% { opacity: 1; }
+              }
               .building-complete {
                 transform-origin: center bottom;
                 animation: worldPulse 3.5s ease-in-out infinite;
@@ -168,8 +190,11 @@ export default function WorldRenderer({
               .particle-item {
                 animation: particleDrift 4s ease-in-out infinite;
               }
+              .ai-loading-tile {
+                animation: tileShimmer 2s ease-in-out infinite;
+              }
               @media (prefers-reduced-motion: reduce) {
-                .building-complete, .particle-item {
+                .building-complete, .particle-item, .ai-loading-tile {
                   animation: none !important;
                 }
               }
@@ -177,7 +202,7 @@ export default function WorldRenderer({
           </style>
         </defs>
 
-        {/* LAYER 1: Background */}
+        {/* LAYER 1: Background Sky */}
         <rect width="520" height="290" fill={`url(#skyGrad_${activeThemeKey})`} />
 
         {/* LAYER 2: Floating Particle Motes */}
@@ -205,7 +230,7 @@ export default function WorldRenderer({
           </g>
         )}
 
-        {/* LAYER 3: Isometric Grid & Buildings */}
+        {/* LAYER 3: Isometric Grid & AI-Generated Buildings */}
         <g id="isometricWorldStage">
           {displaySlots.map((bldg, idx) => {
             const row = Math.floor(idx / 3);
@@ -215,8 +240,15 @@ export default function WorldRenderer({
             const x = originX + (col - row) * (tileW / 2);
             const y = originY + (col + row) * (tileH / 2);
 
-            const isOccupied = !!bldg;
             const state = bldg?.state || 'empty';
+            const conceptName = bldg?.conceptName || `Slot ${idx + 1}`;
+            const imageKey = bldg ? `${bldg.buildingId}_${state}_${activeThemeKey}` : `empty_${idx}`;
+            const isLoaded = loadedImages[imageKey];
+            const isFailed = failedImages[imageKey];
+
+            const pollinationsUrl = bldg
+              ? getPollinationsImageUrl(conceptName, activeThemeKey, state)
+              : null;
 
             // Tile Path: Diamond (Top, Right, Bottom, Left)
             const tileTopPt = `${x},${y - tileH / 2}`;
@@ -225,7 +257,7 @@ export default function WorldRenderer({
             const tileLeftPt = `${x - tileW / 2},${y}`;
             const tilePath = `M ${tileTopPt} L ${tileRightPt} L ${tileBottomPt} L ${tileLeftPt} Z`;
 
-            // Building Dimensions
+            // Building Dimensions for SVG Fallback
             const bldgW = 44;
             const bldgH = state === 'complete' ? 52 : 30;
             const bx = x;
@@ -262,127 +294,145 @@ export default function WorldRenderer({
                   className="group-hover:stroke-white transition-colors"
                 />
 
-                {/* 2. Building Shapes based on State */}
-                {state === 'empty' && (
-                  /* EMPTY STATE: Dashed plot marker & Flag "?" */
-                  <g opacity="0.65">
-                    <polygon
-                      points={`${bx},${by - 12} ${bx + 20},${by} ${bx},${by + 12} ${bx - 20},${by}`}
-                      fill="none"
-                      stroke={palette.scaffoldColor}
-                      strokeWidth="1.2"
-                      strokeDasharray="3,3"
-                    />
-                    {/* Small Flagpole */}
-                    <line
-                      x1={bx}
-                      y1={by}
-                      x2={bx}
-                      y2={by - 24}
-                      stroke={palette.scaffoldColor}
-                      strokeWidth="1.5"
-                    />
-                    <polygon
-                      points={`${bx},${by - 24} ${bx + 12},${by - 20} ${bx},${by - 16}`}
-                      fill={palette.scaffoldColor}
-                    />
-                    <text
-                      x={bx + 3}
-                      y={by - 19}
-                      fill="#FFFFFF"
-                      fontSize="7"
-                      fontFamily="monospace"
-                      fontWeight="bold"
-                    >
-                      ?
-                    </text>
-                  </g>
-                )}
+                {/* 2. Geometric SVG Placeholder Fallback Layer */}
+                <g className={!isLoaded && bldg ? 'ai-loading-tile' : ''}>
+                  {state === 'empty' && (
+                    /* EMPTY STATE SVG */
+                    <g opacity="0.65">
+                      <polygon
+                        points={`${bx},${by - 12} ${bx + 20},${by} ${bx},${by + 12} ${bx - 20},${by}`}
+                        fill="none"
+                        stroke={palette.scaffoldColor}
+                        strokeWidth="1.2"
+                        strokeDasharray="3,3"
+                      />
+                      <line
+                        x1={bx}
+                        y1={by}
+                        x2={bx}
+                        y2={by - 24}
+                        stroke={palette.scaffoldColor}
+                        strokeWidth="1.5"
+                      />
+                      <polygon
+                        points={`${bx},${by - 24} ${bx + 12},${by - 20} ${bx},${by - 16}`}
+                        fill={palette.scaffoldColor}
+                      />
+                      <text
+                        x={bx + 3}
+                        y={by - 19}
+                        fill="#FFFFFF"
+                        fontSize="7"
+                        fontFamily="monospace"
+                        fontWeight="bold"
+                      >
+                        ?
+                      </text>
+                    </g>
+                  )}
 
-                {state === 'partial' && (
-                  /* PARTIAL STATE: Half-built base with scaffold lines */
-                  <g className="building-partial">
-                    {/* Base Solid Lower Half */}
-                    <polygon
-                      points={`${bx - bldgW / 2},${by} ${bx},${by + bldgW / 4} ${bx},${by + bldgW / 4 - bldgH / 2} ${bx - bldgW / 2},${by - bldgH / 2}`}
-                      fill={palette.buildingFrontLeft}
-                      stroke={palette.tileBorder}
-                      strokeWidth="1"
-                    />
-                    <polygon
-                      points={`${bx},${by + bldgW / 4} ${bx + bldgW / 2},${by} ${bx + bldgW / 2},${by - bldgH / 2} ${bx},${by + bldgW / 4 - bldgH / 2}`}
-                      fill={palette.buildingFrontRight}
-                      stroke={palette.tileBorder}
-                      strokeWidth="1"
-                    />
+                  {state === 'partial' && (
+                    /* PARTIAL STATE SVG */
+                    <g className="building-partial">
+                      <polygon
+                        points={`${bx - bldgW / 2},${by} ${bx},${by + bldgW / 4} ${bx},${by + bldgW / 4 - bldgH / 2} ${bx - bldgW / 2},${by - bldgH / 2}`}
+                        fill={palette.buildingFrontLeft}
+                        stroke={palette.tileBorder}
+                        strokeWidth="1"
+                      />
+                      <polygon
+                        points={`${bx},${by + bldgW / 4} ${bx + bldgW / 2},${by} ${bx + bldgW / 2},${by - bldgH / 2} ${bx},${by + bldgW / 4 - bldgH / 2}`}
+                        fill={palette.buildingFrontRight}
+                        stroke={palette.tileBorder}
+                        strokeWidth="1"
+                      />
+                      <g opacity="0.75" stroke={palette.scaffoldColor} strokeWidth="1.2">
+                        <line x1={bx - bldgW / 2} y1={by - bldgH / 2} x2={bx - bldgW / 2} y2={by - bldgH} />
+                        <line x1={bx + bldgW / 2} y1={by - bldgH / 2} x2={bx + bldgW / 2} y2={by - bldgH} />
+                        <line x1={bx} y1={by + bldgW / 4 - bldgH / 2} x2={bx} y2={by + bldgW / 4 - bldgH} />
+                        <polygon
+                          points={`${bx},${by - bldgH - bldgW / 4} ${bx + bldgW / 2},${by - bldgH} ${bx},${by + bldgW / 4 - bldgH} ${bx - bldgW / 2},${by - bldgH}`}
+                          fill={`${palette.scaffoldColor}25`}
+                          stroke={palette.scaffoldColor}
+                          strokeDasharray="2,2"
+                        />
+                      </g>
+                    </g>
+                  )}
 
-                    {/* Semi-transparent scaffold upper frame */}
-                    <g opacity="0.75" stroke={palette.scaffoldColor} strokeWidth="1.2">
-                      <line x1={bx - bldgW / 2} y1={by - bldgH / 2} x2={bx - bldgW / 2} y2={by - bldgH} />
-                      <line x1={bx + bldgW / 2} y1={by - bldgH / 2} x2={bx + bldgW / 2} y2={by - bldgH} />
-                      <line x1={bx} y1={by + bldgW / 4 - bldgH / 2} x2={bx} y2={by + bldgW / 4 - bldgH} />
-                      {/* Top scaffold diamond */}
+                  {state === 'complete' && (
+                    /* COMPLETE STATE SVG */
+                    <g className="building-complete">
+                      <polygon
+                        points={`${bx - bldgW / 2},${by} ${bx},${by + bldgW / 4} ${bx},${by + bldgW / 4 - bldgH} ${bx - bldgW / 2},${by - bldgH}`}
+                        fill={palette.buildingFrontLeft}
+                        stroke={palette.glowColor}
+                        strokeWidth="1.2"
+                      />
+                      <polygon
+                        points={`${bx},${by + bldgW / 4} ${bx + bldgW / 2},${by} ${bx + bldgW / 2},${by - bldgH} ${bx},${by + bldgW / 4 - bldgH}`}
+                        fill={palette.buildingFrontRight}
+                        stroke={palette.glowColor}
+                        strokeWidth="1.2"
+                      />
                       <polygon
                         points={`${bx},${by - bldgH - bldgW / 4} ${bx + bldgW / 2},${by - bldgH} ${bx},${by + bldgW / 4 - bldgH} ${bx - bldgW / 2},${by - bldgH}`}
-                        fill={`${palette.scaffoldColor}25`}
-                        stroke={palette.scaffoldColor}
-                        strokeDasharray="2,2"
+                        fill={palette.buildingRoof}
+                        stroke="#FFFFFF"
+                        strokeWidth="1"
+                      />
+                      <line
+                        x1={bx}
+                        y1={by - bldgH - bldgW / 4}
+                        x2={bx}
+                        y2={by - bldgH - bldgW / 4 - 14}
+                        stroke={palette.buildingAccent}
+                        strokeWidth="2.5"
+                      />
+                      <circle
+                        cx={bx}
+                        cy={by - bldgH - bldgW / 4 - 14}
+                        r="3.5"
+                        fill="#FFFFFF"
+                        stroke={palette.buildingAccent}
+                        strokeWidth="1.5"
                       />
                     </g>
-                  </g>
-                )}
+                  )}
+                </g>
 
-                {state === 'complete' && (
-                  /* COMPLETE STATE: Full 3D geometric isometric building */
-                  <g className="building-complete">
-                    {/* Left Front Facet */}
-                    <polygon
-                      points={`${bx - bldgW / 2},${by} ${bx},${by + bldgW / 4} ${bx},${by + bldgW / 4 - bldgH} ${bx - bldgW / 2},${by - bldgH}`}
-                      fill={palette.buildingFrontLeft}
-                      stroke={palette.glowColor}
-                      strokeWidth="1.2"
-                    />
-
-                    {/* Right Front Facet */}
-                    <polygon
-                      points={`${bx},${by + bldgW / 4} ${bx + bldgW / 2},${by} ${bx + bldgW / 2},${by - bldgH} ${bx},${by + bldgW / 4 - bldgH}`}
-                      fill={palette.buildingFrontRight}
-                      stroke={palette.glowColor}
-                      strokeWidth="1.2"
-                    />
-
-                    {/* Top Roof Diamond */}
-                    <polygon
-                      points={`${bx},${by - bldgH - bldgW / 4} ${bx + bldgW / 2},${by - bldgH} ${bx},${by + bldgW / 4 - bldgH} ${bx - bldgW / 2},${by - bldgH}`}
-                      fill={palette.buildingRoof}
-                      stroke="#FFFFFF"
-                      strokeWidth="1"
-                    />
-
-                    {/* Spire / Beacon Crown */}
-                    <line
-                      x1={bx}
-                      y1={by - bldgH - bldgW / 4}
-                      x2={bx}
-                      y2={by - bldgH - bldgW / 4 - 14}
-                      stroke={palette.buildingAccent}
-                      strokeWidth="2.5"
-                    />
-                    <circle
-                      cx={bx}
-                      cy={by - bldgH - bldgW / 4 - 14}
-                      r="3.5"
-                      fill="#FFFFFF"
-                      stroke={palette.buildingAccent}
-                      strokeWidth="1.5"
-                    />
-                  </g>
+                {/* 3. AI-Generated Building Image (Pollinations.ai / Supabase Cached) */}
+                {pollinationsUrl && !isFailed && (
+                  <image
+                    href={pollinationsUrl}
+                    x={x - 60}
+                    y={y - 80}
+                    width={120}
+                    height={120}
+                    style={{
+                      imageRendering: 'crisp-edges',
+                      filter: state === 'complete' ? 'drop-shadow(0 8px 16px rgba(0,240,255,0.3))' : undefined,
+                    }}
+                    className={`transition-opacity duration-500 pointer-events-none ${
+                      isLoaded ? 'opacity-100' : 'opacity-0'
+                    }`}
+                    onLoad={() => handleImageLoad(imageKey, bldg!, pollinationsUrl)}
+                    onError={() => handleImageError(imageKey)}
+                  />
                 )}
               </g>
             );
           })}
         </g>
       </svg>
+
+      {/* GENERATING STATUS NOTICE ON FIRST RUN */}
+      {isAnyGenerating && !isMiniPreview && (
+        <div className="absolute bottom-3.5 left-3.5 px-3 py-1.5 rounded-full bg-black/75 backdrop-blur-md border border-[#00F0FF]/30 font-mono text-[10px] text-[#00F0FF] flex items-center gap-1.5 shadow-lg">
+          <RefreshCw className="w-3 h-3 animate-spin text-[#00F0FF]" />
+          <span>Generating your world buildings...</span>
+        </div>
+      )}
 
       {/* TAPPED BUILDING TOOLTIP OVERLAY */}
       {activeTooltip && !isMiniPreview && (
