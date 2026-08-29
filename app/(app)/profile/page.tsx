@@ -398,6 +398,38 @@ export default function ProfilePage() {
 
       </form>
 
+      {/* SOLO MODE ASSESSMENT SECTION */}
+      <div className="bg-[#120E24] rounded-[24px] border border-[#A855F7]/40 p-5 sm:p-7 space-y-3.5 shadow-2xl">
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-[#A855F7]/20 border border-[#A855F7]/50 flex items-center justify-center text-lg">
+              🎯
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="font-sans font-bold text-sm sm:text-base text-white">
+                  Solo Mode Assessment
+                </h3>
+                <span className="font-mono text-[9px] px-2 py-0.5 rounded bg-[#A855F7]/20 text-[#A855F7] uppercase font-bold border border-[#A855F7]/40">
+                  Zero Assistance
+                </span>
+              </div>
+              <p className="font-sans text-xs text-slate-400 mt-0.5">
+                Take a weekly solo test — 6 items with no hints, mid-session feedback, or AI coaching.
+              </p>
+            </div>
+          </div>
+
+          <Link
+            href="/quest?mode=solo"
+            className="h-10 px-5 rounded-xl bg-[#A855F7] hover:bg-[#9333EA] text-white font-mono font-bold text-xs flex items-center gap-2 transition-all cursor-pointer shadow-[0_0_15px_rgba(168,85,247,0.4)] shrink-0"
+          >
+            <span>Start Now</span>
+            <span>&rarr;</span>
+          </Link>
+        </div>
+      </div>
+
       {/* SKILL GRAPHS LIST & GOAL SWITCHER */}
       <div className="bg-[#120E24] rounded-[24px] border border-white/10 p-5 sm:p-7 space-y-4 shadow-2xl">
         <div className="flex items-center justify-between">

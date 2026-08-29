@@ -196,13 +196,25 @@ export default function HomePage() {
               <p className="font-mono text-[11px] text-muted mt-1.5">{target.reason}</p>
             </div>
 
-            <div className="space-y-2 pt-1">
+            <div className="space-y-2.5 pt-1">
               <Link
                 href={continueHref}
                 className="w-full h-[46px] rounded-[10px] bg-signature-gradient text-white font-sans font-semibold text-[15px] flex items-center justify-center gap-2 hover:brightness-108 hover:shadow-[0_8px_30px_-6px_rgba(168,85,247,0.55)] active:translate-y-[1px] transition-all cursor-pointer"
               >
                 <span>{continueLabel}</span>
                 <span>&rarr;</span>
+              </Link>
+
+              {/* 🎯 SOLO CHALLENGE — EASY TO REACH BUTTON */}
+              <Link
+                href={`/quest?mode=solo&concept=${encodeURIComponent(target.conceptId)}`}
+                className="w-full h-10 px-4 rounded-[10px] bg-[#A855F7]/15 hover:bg-[#A855F7]/25 border border-[#A855F7]/40 text-[#A855F7] hover:text-white font-sans font-semibold text-xs flex items-center justify-between transition-all cursor-pointer group shadow-sm"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-sm">🎯</span>
+                  <span>Solo Challenge — test yourself without help</span>
+                </div>
+                <span className="font-mono text-xs text-[#A855F7] group-hover:translate-x-1 transition-transform">&rarr;</span>
               </Link>
             </div>
           </div>
