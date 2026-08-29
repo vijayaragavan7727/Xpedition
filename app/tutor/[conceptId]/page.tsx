@@ -333,7 +333,7 @@ function TutorContent() {
 
   if (loading) {
     return (
-      <div className="h-screen w-full bg-[#0A0A1A] text-slate-100 flex items-center justify-center p-4 font-mono text-sm text-[#00F0FF] animate-pulse">
+      <div className="h-[100dvh] w-full bg-[#0A0A1A] text-slate-100 flex items-center justify-center p-4 font-mono text-sm text-[#00F0FF] animate-pulse">
         Connecting to XYRA Classroom for &quot;{conceptName}&quot;...
       </div>
     );
@@ -341,7 +341,7 @@ function TutorContent() {
 
   if (error || !lesson) {
     return (
-      <div className="h-screen w-full bg-[#0A0A1A] text-slate-100 flex items-center justify-center p-6 text-center select-none">
+      <div className="h-[100dvh] w-full bg-[#0A0A1A] text-slate-100 flex items-center justify-center p-6 text-center select-none">
         <div className="max-w-md w-full bg-[#0D0D1A] border border-[#00F0FF]/30 rounded-[24px] p-8 space-y-6 shadow-2xl">
           <div className="space-y-2">
             <span className="font-mono text-[10px] uppercase text-[#00F0FF] font-bold tracking-widest">
@@ -377,7 +377,7 @@ function TutorContent() {
   }
 
   return (
-    <div className="h-screen w-full overflow-hidden bg-[#0A0A1A] text-slate-100 select-none flex flex-col justify-between relative font-sans">
+    <div className="h-[100dvh] w-full overflow-hidden bg-[#0A0A1A] text-slate-100 select-none flex flex-col justify-between relative font-sans">
       
       {/* 6. HEADER (Section 6) */}
       <header className="h-12 px-4 bg-[#0D0D1A] border-b border-white/10 flex items-center justify-between shrink-0 relative z-30 font-sans">
@@ -404,8 +404,8 @@ function TutorContent() {
         </div>
       </header>
 
-      {/* MAIN CLASSROOM CONTENT */}
-      <div className="flex-1 min-h-0 overflow-y-auto px-3 sm:px-4 py-2 flex flex-col justify-between space-y-2">
+      {/* MAIN CLASSROOM CONTENT — flex-1 flex-col without blank gaps */}
+      <main className="flex-1 min-h-0 overflow-y-auto px-2.5 sm:px-4 py-2 flex flex-col justify-start space-y-2">
         
         {/* Notice Banner */}
         {showRaiseHandNotice && (
@@ -416,11 +416,11 @@ function TutorContent() {
         )}
 
         {!showCheckpoint ? (
-          <div className="flex flex-col space-y-2 flex-1 min-h-0">
+          <div className="flex-1 min-h-0 flex flex-col space-y-2 justify-start">
             
-            {/* 2. CLASSROOM FEEL — THE BOARD (Section 2) */}
+            {/* 2. CLASSROOM FEEL — THE BOARD */}
             <div
-              className="relative w-full h-[52vh] border-4 border-[#3D2918] rounded-[20px] shadow-2xl overflow-hidden shrink-0 bg-[#1A2B24]"
+              className="relative w-full flex-1 min-h-[290px] max-h-[58vh] sm:max-h-[62vh] border-4 border-[#3D2918] rounded-[20px] shadow-2xl overflow-hidden shrink-0 bg-[#1A2B24]"
               style={{
                 backgroundImage: 'url(/blackboard.jpg)',
                 backgroundSize: 'cover',
@@ -437,12 +437,12 @@ function TutorContent() {
               </div>
 
               {/* Session / Concept Indicator Bottom-Right */}
-              <div className="absolute bottom-5 right-3 z-20 font-chalk text-[11px] sm:text-xs text-[#EDEAE0]/45 select-none tracking-wide">
+              <div className="absolute bottom-5 right-3 z-20 font-chalk text-[10px] sm:text-[11px] text-[#EDEAE0]/45 select-none tracking-wide">
                 Session 1 &middot; Concept {currentChunkIndex + 1} of {lesson.chunks.length}
               </div>
 
-              {/* 3. XYRA SPEAKS — SPEECH BUBBLE REDESIGN (Section 3) */}
-              <div className="speech-bubble absolute top-3 left-3 z-30 w-[44%] max-w-[44%] max-h-[38%] overflow-y-auto bg-[#0D1117]/95 border border-[#00F0FF]/40 text-[#E6E8EC] p-2.5 sm:p-3 rounded-[16px] shadow-xl text-[12px] sm:text-xs backdrop-blur-md animate-fadeIn">
+              {/* 3. XYRA SPEAKS — SPEECH BUBBLE REDESIGN */}
+              <div className="speech-bubble absolute top-2.5 left-2.5 z-30 w-[42%] max-w-[42%] max-h-[38%] overflow-y-auto overflow-x-hidden break-words bg-[#0D1117]/95 border border-[#00F0FF]/40 text-[#E6E8EC] p-2 sm:p-2.5 rounded-[16px] shadow-xl text-[11px] sm:text-xs backdrop-blur-md animate-fadeIn">
                 {/* Pointer tail pointing down to robot head */}
                 <div
                   className="absolute -bottom-2 left-6 w-0 h-0 border-t-[8px] border-t-[#0D1117] border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent pointer-events-none z-30"
@@ -453,27 +453,27 @@ function TutorContent() {
                   aria-hidden="true"
                 />
 
-                <div className="space-y-1.5">
+                <div className="space-y-1">
                   {/* Avatar Circle & XYRA says: Label */}
-                  <div className="flex items-center gap-1.5 text-[10px] font-mono text-[#00F0FF] font-bold tracking-wide border-b border-[#00F0FF]/20 pb-1">
-                    <div className="w-4 h-4 rounded-full border border-[#00F0FF] bg-[#00F0FF]/15 text-[#00F0FF] font-mono font-bold text-[9px] flex items-center justify-center shrink-0 shadow-[0_0_8px_rgba(0,240,255,0.4)]">
+                  <div className="flex items-center gap-1.5 text-[9px] sm:text-[10px] font-mono text-[#00F0FF] font-bold tracking-wide border-b border-[#00F0FF]/20 pb-0.5">
+                    <div className="w-3.5 h-3.5 rounded-full border border-[#00F0FF] bg-[#00F0FF]/15 text-[#00F0FF] font-mono font-bold text-[8px] flex items-center justify-center shrink-0 shadow-[0_0_8px_rgba(0,240,255,0.4)]">
                       X
                     </div>
                     <span>XYRA says:</span>
                   </div>
 
-                  <p className="font-sans font-medium text-xs sm:text-[13px] text-slate-100 leading-snug">
+                  <p className="font-sans font-medium text-[11px] sm:text-xs text-slate-100 leading-snug break-words">
                     {revealedText || <span className="font-mono text-cyan-400/60 animate-pulse">Thinking...</span>}
                     {!isChunkComplete && revealedText && <span className="inline-block w-1.5 h-3 ml-1 bg-[#00F0FF] animate-pulse" />}
                   </p>
 
-                  <div className="pt-1 flex items-center justify-between text-[10px] font-mono text-slate-400">
+                  <div className="pt-0.5 flex items-center justify-between text-[9px] sm:text-[10px] font-mono text-slate-400">
                     <span>{currentChunkIndex + 1}/{lesson.chunks.length}</span>
                     {isChunkComplete && (
                       <button
                         type="button"
                         onClick={handleNextChunk}
-                        className="ml-auto px-2.5 py-0.5 rounded-lg bg-[#00F0FF] hover:bg-[#00C2FF] text-black font-sans font-bold text-[10px] cursor-pointer shadow transition-all"
+                        className="ml-auto px-2 py-0.5 rounded-lg bg-[#00F0FF] hover:bg-[#00C2FF] text-black font-sans font-bold text-[9px] sm:text-[10px] cursor-pointer shadow transition-all"
                       >
                         Next &rarr;
                       </button>
@@ -482,26 +482,28 @@ function TutorContent() {
                 </div>
               </div>
 
-              {/* BOARD TEXT (chalk font Caveat) */}
-              <div className="board-text absolute top-8 right-3 left-[47%] bottom-6 overflow-y-auto font-chalk text-[#EDEAE0] text-sm sm:text-base leading-relaxed space-y-2 pr-1 z-10">
-                <div className="pb-1 mb-2 border-b-2 border-dashed border-[#EDEAE0]/30">
-                  <h2 className="text-lg sm:text-2xl font-bold text-white font-chalk tracking-wide drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">
+              {/* BOARD TEXT CONTAINER (Bounded with overflow-hidden & break-words to stay strictly within board) */}
+              <div className="board-text absolute top-7 right-3 sm:right-4 left-[46%] sm:left-[45%] bottom-6 overflow-y-auto overflow-x-hidden font-chalk text-[#EDEAE0] text-xs sm:text-sm md:text-base leading-relaxed space-y-2 pr-1.5 z-10 select-none break-words [overflow-wrap:anywhere]">
+                <div className="pb-1 mb-1.5 border-b-2 border-dashed border-[#EDEAE0]/30 max-w-full overflow-hidden">
+                  <h2 className="text-sm sm:text-lg md:text-xl font-bold text-white font-chalk tracking-wide drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)] break-words line-clamp-2">
                     {conceptName}
                   </h2>
                 </div>
 
                 {/* Visual Spec if present */}
                 {currentChunk?.visual && (
-                  <BoardVisual visual={currentChunk.visual} />
+                  <div className="max-w-full overflow-hidden">
+                    <BoardVisual visual={currentChunk.visual} />
+                  </div>
                 )}
 
                 {/* Accumulated Notes */}
                 {accumulatedNotes.length > 0 && (
-                  <div className="space-y-1.5">
+                  <div className="space-y-1.5 max-w-full">
                     {accumulatedNotes.map((pt, idx) => (
-                      <div key={idx} className="flex items-start gap-1.5 text-[#EDEAE0]/85">
-                        <span className="text-amber-300 font-mono text-xs mt-0.5 select-none">✎</span>
-                        <p className="drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] font-chalk">{pt}</p>
+                      <div key={idx} className="flex items-start gap-1.5 text-[#EDEAE0]/85 max-w-full">
+                        <span className="text-amber-300 font-mono text-xs mt-0.5 select-none shrink-0">✎</span>
+                        <p className="drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] font-chalk break-words">{pt}</p>
                       </div>
                     ))}
                   </div>
@@ -509,16 +511,16 @@ function TutorContent() {
 
                 {/* Current writing chunk */}
                 {revealedText && (
-                  <div className="flex items-start gap-1.5 text-white font-semibold animate-fadeIn">
-                    <span className="text-cyan-300 font-mono text-xs mt-0.5 select-none animate-pulse">✏</span>
-                    <p className="drop-shadow-[0_1px_3px_rgba(0,0,0,0.95)] font-chalk">{revealedText}</p>
+                  <div className="flex items-start gap-1.5 text-white font-semibold animate-fadeIn max-w-full">
+                    <span className="text-cyan-300 font-mono text-xs mt-0.5 select-none animate-pulse shrink-0">✏</span>
+                    <p className="drop-shadow-[0_1px_3px_rgba(0,0,0,0.95)] font-chalk break-words">{revealedText}</p>
                   </div>
                 )}
               </div>
 
               {/* WOODEN LEDGE AT BOTTOM — Chalk Stubs & Eraser */}
-              <div className="chalk-ledge absolute bottom-0 left-0 right-0 h-4.5 bg-[#8B6340] border-t border-[#5C3A21] flex items-center justify-end px-4 gap-2 z-10 shadow-inner font-sans">
-                <span className="w-6 h-2.5 bg-[#4A3728] border border-[#2D1F16] rounded-xs shadow" title="Board Eraser" />
+              <div className="chalk-ledge absolute bottom-0 left-0 right-0 h-4 bg-[#8B6340] border-t border-[#5C3A21] flex items-center justify-end px-3 gap-2 z-10 shadow-inner font-sans">
+                <span className="w-6 h-2 bg-[#4A3728] border border-[#2D1F16] rounded-xs shadow" title="Board Eraser" />
                 <span className="w-4 h-1.5 bg-[#EDEAE0] rounded-sm transform -rotate-6 opacity-90" title="White chalk stub" />
                 <span className="w-3.5 h-1.5 bg-[#FDD835] rounded-sm transform rotate-12 opacity-90" title="Yellow chalk stub" />
                 <span className="w-5 h-1.5 bg-[#00E5FF] rounded-sm transform -rotate-3 opacity-90" title="Cyan chalk stub" />
@@ -534,20 +536,20 @@ function TutorContent() {
                     }
                   }}
                   alt="XYRA — Your AI Teacher"
-                  className={`robot-image h-[38vh] sm:h-[44vh] max-h-[220px] object-contain object-bottom transition-all duration-300 state-${tutorState}`}
+                  className={`robot-image h-[34vh] sm:h-[40vh] max-h-[200px] object-contain object-bottom transition-all duration-300 state-${tutorState}`}
                 />
                 <div className="bg-[#0B0E14]/90 border border-[#00F0FF]/40 backdrop-blur-md px-2.5 py-0.5 rounded-lg shadow-lg flex flex-col items-center -mt-2 z-30 pointer-events-auto">
-                  <span className={`font-mono text-[11px] font-bold text-[#00F0FF] tracking-widest ${tutorState === 'talking' ? 'animate-pulse' : ''}`}>
+                  <span className={`font-mono text-[10px] sm:text-[11px] font-bold text-[#00F0FF] tracking-widest ${tutorState === 'talking' ? 'animate-pulse' : ''}`}>
                     XYRA
                   </span>
-                  <span className="font-sans text-[9px] text-slate-400 font-medium tracking-tight">
+                  <span className="font-sans text-[8px] sm:text-[9px] text-slate-400 font-medium tracking-tight">
                     Your AI Teacher
                   </span>
                 </div>
               </div>
             </div>
 
-            {/* 4. TODAY'S TOPICS -> XYRA'S LESSON PLAN (Section 4) */}
+            {/* 4. TODAY'S TOPICS -> XYRA'S LESSON PLAN (Directly below board, no gap) */}
             <div className="bg-[#0D0D1A] border border-white/10 rounded-[14px] p-2.5 sm:p-3 space-y-1.5 shrink-0 shadow-md">
               <button
                 type="button"
@@ -601,7 +603,7 @@ function TutorContent() {
           </div>
         ) : (
           /* CHECKPOINT SCREEN & CREDENTIALS */
-          <div className="bg-[#0D0D1A] border border-[#00F0FF]/30 rounded-[20px] p-5 space-y-4 shadow-2xl my-auto animate-fadeIn">
+          <div className="bg-[#0D0D1A] border border-[#00F0FF]/30 rounded-[20px] p-4 sm:p-5 space-y-4 shadow-2xl my-auto animate-fadeIn">
             <div className="flex items-center gap-3">
               <img
                 src={robotImgPath}
@@ -738,9 +740,9 @@ function TutorContent() {
           </div>
         )}
 
-      </div>
+      </main>
 
-      {/* 5. BOTTOM BAR — CLASSROOM CONTROLS (Section 5) */}
+      {/* 5. BOTTOM BAR — CLASSROOM CONTROLS */}
       <footer className="h-16 px-4 bg-[#0D0D1A] border-t border-white/10 flex items-center justify-around shrink-0 relative z-30 font-sans">
         
         {/* 1. Volume (Mute / Unmute) */}
@@ -901,7 +903,7 @@ export default function TutorPage() {
   return (
     <Suspense
       fallback={
-        <div className="h-screen w-full bg-[#0A0A1A] text-slate-100 flex items-center justify-center p-4 font-mono text-sm text-[#00F0FF] animate-pulse">
+        <div className="h-[100dvh] w-full bg-[#0A0A1A] text-slate-100 flex items-center justify-center p-4 font-mono text-sm text-[#00F0FF] animate-pulse">
           Connecting to XYRA Classroom...
         </div>
       }
