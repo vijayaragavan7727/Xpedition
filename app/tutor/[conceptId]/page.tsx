@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, Suspense } from 'react';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import { getStoreData, saveStoreData, recordAttempt, computeItemHash, UserStoreData } from '@/lib/store';
 import { BoardVisual, VisualSpec } from '@/components/BoardVisual';
@@ -27,10 +27,12 @@ interface LessonData {
 
 export type TutorState = 'idle' | 'talking' | 'thinking' | 'happy';
 
-export default function TutorPage() {
+function TutorContent() {
   const router = useRouter();
   const params = useParams();
+  const searchParams = useSearchParams();
   const conceptId = (params?.conceptId as string) || 'c_1';
+  const queryParam = searchParams?.get('q') || '';
 
   const [storeData, setStoreData] = useState<UserStoreData | null>(null);
   const [conceptName, setConceptName] = useState<string>('Core Concept');
@@ -69,6 +71,8 @@ export default function TutorPage() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const raiseHandCacheRef = useRef<Map<string, string>>(new Map());
 
+  const isQuickLearnMode = conceptId === 'quick' || Boolean(queryParam);
+
   const stopSpeech = () => {
     if (audioRef.current) {
       audioRef.current.pause();
@@ -80,10 +84,6 @@ export default function TutorPage() {
       window.speechSynthesis.cancel();
     }
   };
-
-  const searchParams = useSearchParams();
-  const queryParam = searchParams?.get('q') || '';
-  const isQuickLearnMode = conceptId === 'quick' || Boolean(queryParam);
 
   // Load saved notes locally per session
   useEffect(() => {
@@ -106,19 +106,19 @@ export default function TutorPage() {
     const store = getStoreData();
     setStoreData(store);
 
-    const activeGraph = store.graphs?.find((g) => g.id === store.activeGraphId) || store.graphs?.[0];
+    const activeGraph = store?.graphs?.find((g) => g.id === store.activeGraphId) || store?.graphs?.[0];
     const concept = activeGraph?.concepts?.find((c) => c.id === conceptId);
 
     if (activeGraph?.learnerProfile?.voiceMuted !== undefined) {
       setIsMuted(activeGraph.learnerProfile.voiceMuted);
-    } else if (store.learnerProfile?.voiceMuted !== undefined) {
+    } else if (store?.learnerProfile?.voiceMuted !== undefined) {
       setIsMuted(store.learnerProfile.voiceMuted);
     }
 
-    const cName = queryParam || concept?.name || store.goalText || 'Core Concept';
+    const cName = queryParam || concept?.name || store?.goalText || 'Core Concept';
     const cSummary = (concept as any)?.summary || '';
-    const lang = activeGraph?.learnerProfile?.language || store.learnerProfile?.language || 'english';
-    const level = activeGraph?.learnerProfile?.startingLevel || store.learnerProfile?.startingLevel || 'Complete beginner';
+    const lang = activeGraph?.learnerProfile?.language || store?.learnerProfile?.language || 'english';
+    const level = activeGraph?.learnerProfile?.startingLevel || store?.learnerProfile?.startingLevel || 'Complete beginner';
     const mastery = concept?.masteryPercentage || 0;
 
     setConceptName(cName);
@@ -169,8 +169,8 @@ export default function TutorPage() {
   }, [conceptId, queryParam, isQuickLearnMode]);
 
   // Speech & Word Reveal Engine
-  const currentChunk = lesson?.chunks[currentChunkIndex];
-  const words = currentChunk ? currentChunk.say.trim().split(/\s+/) : [];
+  const currentChunk = lesson?.chunks?.[currentChunkIndex];
+  const words = currentChunk?.say ? currentChunk.say.trim().split(/\s+/) : [];
 
   useEffect(() => {
     if (!lesson || !currentChunk || showCheckpoint) return;
@@ -212,7 +212,7 @@ export default function TutorPage() {
   const revealedText = words.slice(0, revealedWordCount).join(' ');
 
   useEffect(() => {
-    if (isChunkComplete && lesson && lesson.chunks[currentChunkIndex]) {
+    if (isChunkComplete && lesson?.chunks?.[currentChunkIndex]) {
       const chunkText = lesson.chunks[currentChunkIndex].say;
       setAccumulatedNotes((prev) => {
         if (!prev.includes(chunkText)) {
@@ -224,7 +224,7 @@ export default function TutorPage() {
   }, [isChunkComplete, currentChunkIndex, lesson]);
 
   const handleNextChunk = () => {
-    if (!lesson) return;
+    if (!lesson?.chunks) return;
     if (currentChunkIndex + 1 < lesson.chunks.length) {
       setCurrentChunkIndex((prev) => prev + 1);
     } else {
@@ -305,7 +305,7 @@ export default function TutorPage() {
   };
 
   const handleSubmitCheckpoint = () => {
-    if (selectedOption === null || !lesson || isSubmitted) return;
+    if (selectedOption === null || !lesson?.checkpoint || isSubmitted) return;
 
     const correct = selectedOption === lesson.checkpoint.answerIndex;
     setIsSubmitted(true);
@@ -342,7 +342,7 @@ export default function TutorPage() {
   if (error || !lesson) {
     return (
       <div className="h-screen w-full bg-[#0A0A1A] text-slate-100 flex items-center justify-center p-6 text-center select-none">
-        <div className="max-w-md w-full bg-[#0D0D1A] border border-[#00F0FF]/30 rounded-[24px] p-8 space-y-6 shadow-2xl glow-cyan">
+        <div className="max-w-md w-full bg-[#0D0D1A] border border-[#00F0FF]/30 rounded-[24px] p-8 space-y-6 shadow-2xl">
           <div className="space-y-2">
             <span className="font-mono text-[10px] uppercase text-[#00F0FF] font-bold tracking-widest">
               XYRA CLASSROOM NOTICE
@@ -601,7 +601,7 @@ export default function TutorPage() {
           </div>
         ) : (
           /* CHECKPOINT SCREEN & CREDENTIALS */
-          <div className="bg-[#0D0D1A] border border-[#00F0FF]/30 rounded-[20px] p-5 space-y-4 shadow-2xl my-auto animate-fadeIn glow-cyan">
+          <div className="bg-[#0D0D1A] border border-[#00F0FF]/30 rounded-[20px] p-5 space-y-4 shadow-2xl my-auto animate-fadeIn">
             <div className="flex items-center gap-3">
               <img
                 src={robotImgPath}
@@ -634,7 +634,7 @@ export default function TutorPage() {
                     optionStyle = 'bg-black/30 border-transparent text-slate-500';
                   }
                 } else if (isSelected) {
-                  optionStyle = 'bg-[#00F0FF]/20 border-[#00F0FF] text-white shadow-lg glow-cyan';
+                  optionStyle = 'bg-[#00F0FF]/20 border-[#00F0FF] text-white shadow-lg';
                 }
 
                 return (
@@ -727,7 +727,7 @@ export default function TutorPage() {
                   onClick={handleSubmitCheckpoint}
                   className={`h-[40px] px-5 rounded-2xl font-mono font-bold text-xs transition-all cursor-pointer ${
                     selectedOption !== null
-                      ? 'bg-[#00F0FF] hover:bg-[#00C2FF] text-black shadow-lg glow-cyan'
+                      ? 'bg-[#00F0FF] hover:bg-[#00C2FF] text-black shadow-lg'
                       : 'bg-black/40 text-slate-500 border border-white/10 cursor-not-allowed'
                   }`}
                 >
@@ -792,7 +792,7 @@ export default function TutorPage() {
       {/* MODAL: ASK XYRA OPTIONS */}
       {isAskXyraOpen && (
         <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-end sm:items-center justify-center p-4 animate-fadeIn">
-          <div className="bg-[#0D0D1A] border border-[#00F0FF]/40 rounded-3xl p-5 max-w-sm w-full space-y-4 shadow-2xl glow-cyan">
+          <div className="bg-[#0D0D1A] border border-[#00F0FF]/40 rounded-3xl p-5 max-w-sm w-full space-y-4 shadow-2xl">
             <div className="flex items-center justify-between border-b border-white/10 pb-3">
               <div className="flex items-center gap-2 font-mono text-xs font-bold text-[#00F0FF]">
                 <Sparkles className="w-4 h-4 text-amber-400" />
@@ -894,5 +894,19 @@ export default function TutorPage() {
       )}
 
     </div>
+  );
+}
+
+export default function TutorPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="h-screen w-full bg-[#0A0A1A] text-slate-100 flex items-center justify-center p-4 font-mono text-sm text-[#00F0FF] animate-pulse">
+          Connecting to XYRA Classroom...
+        </div>
+      }
+    >
+      <TutorContent />
+    </Suspense>
   );
 }
