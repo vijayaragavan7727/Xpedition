@@ -1,24 +1,52 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { getStoreData, calculateStreak, selectNextTarget, UserStoreData, Attempt } from '@/lib/store';
-import { FeedbackSheet } from '@/components/FeedbackSheet';
-import { calibrationScore, blindSpots } from '@/lib/engine/calibration';
-import { computeGap, thetaToPercent } from '@/lib/engine/mastery';
+import { blindSpots } from '@/lib/engine/calibration';
+import { thetaToPercent } from '@/lib/engine/mastery';
 import XyraGreetingWidget from '@/components/XyraGreetingWidget';
-import AskXYRASheet from '@/components/AskXYRASheet';
+import { Send, Volume2, VolumeX, Sparkles, RefreshCw } from 'lucide-react';
+
+interface ChatExchange {
+  id: string;
+  query: string;
+  reply: string;
+  timestamp: number;
+}
 
 export default function HomePage() {
   const router = useRouter();
   const [storeData, setStoreData] = useState<UserStoreData | null>(null);
   const [quickQuery, setQuickQuery] = useState<string>('');
-  const [isChatOpen, setIsChatOpen] = useState<boolean>(false);
   const [robotImgPath, setRobotImgPath] = useState<string>('/robot.png');
+
+  // Inline Ask XYRA State
+  const [inlineInput, setInlineInput] = useState<string>('');
+  const [chatExchanges, setChatExchanges] = useState<ChatExchange[]>([]);
+  const [isChatLoading, setIsChatLoading] = useState<boolean>(false);
+  const [homeChatCount, setHomeChatCount] = useState<number>(0);
+  const [speakingExchangeId, setSpeakingExchangeId] = useState<string | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
     setStoreData(getStoreData());
+
+    // Load daily home chat count from localStorage
+    if (typeof window !== 'undefined') {
+      const todayStr = new Date().toISOString().slice(0, 10);
+      const savedDate = localStorage.getItem('xyra_home_chat_date');
+      const savedCount = parseInt(localStorage.getItem('xyra_home_chat_count') || '0', 10);
+
+      if (savedDate === todayStr) {
+        setHomeChatCount(savedCount);
+      } else {
+        localStorage.setItem('xyra_home_chat_date', todayStr);
+        localStorage.setItem('xyra_home_chat_count', '0');
+        setHomeChatCount(0);
+      }
+    }
   }, []);
 
   const streak = storeData ? calculateStreak(storeData.attempts) : 0;
@@ -68,6 +96,127 @@ export default function HomePage() {
     router.push(`/tutor/quick?q=${encodeURIComponent(quickQuery.trim())}`);
   };
 
+  const stopAudio = () => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.src = '';
+      audioRef.current = null;
+    }
+    if (typeof window !== 'undefined' && window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+    }
+    setSpeakingExchangeId(null);
+  };
+
+  const handleSpeakInlineText = async (exchangeId: string, text: string) => {
+    if (speakingExchangeId === exchangeId) {
+      stopAudio();
+      return;
+    }
+
+    stopAudio();
+    setSpeakingExchangeId(exchangeId);
+
+    try {
+      const res = await fetch('/api/speak', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text,
+          language: storeData?.learnerProfile?.language || 'english',
+          speaker: 'ratan',
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.audioBase64) {
+          const audio = new Audio(`data:audio/wav;base64,${data.audioBase64}`);
+          audioRef.current = audio;
+          audio.onended = () => setSpeakingExchangeId(null);
+          audio.onerror = () => playBrowserFallback(text);
+          audio.play().catch(() => playBrowserFallback(text));
+          return;
+        }
+      }
+    } catch (e) {}
+
+    playBrowserFallback(text);
+  };
+
+  const playBrowserFallback = (text: string) => {
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.rate = 0.95;
+      utterance.pitch = 1.0;
+      utterance.onend = () => setSpeakingExchangeId(null);
+      utterance.onerror = () => setSpeakingExchangeId(null);
+      window.speechSynthesis.speak(utterance);
+    } else {
+      setSpeakingExchangeId(null);
+    }
+  };
+
+  const handleSendHomeChat = async (queryText: string) => {
+    const trimmed = queryText.trim();
+    if (!trimmed || isChatLoading || homeChatCount >= 5) return;
+
+    setIsChatLoading(true);
+    setInlineInput('');
+
+    try {
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: trimmed,
+          context: {
+            scope: 'home',
+            name: storeData.handle,
+            goal: storeData.goalText,
+            concepts: storeData.concepts,
+            fadingConcepts: fadingConcepts,
+            language: storeData.learnerProfile?.language || 'english',
+          },
+        }),
+      });
+
+      let reply = `Keep moving forward on ${storeData.goalText}! Would you like to practice your next topic?`;
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.reply) reply = data.reply;
+      }
+
+      const newExchange: ChatExchange = {
+        id: `exch_${Date.now()}`,
+        query: trimmed,
+        reply,
+        timestamp: Date.now(),
+      };
+
+      setChatExchanges((prev) => [...prev, newExchange]);
+
+      const nextCount = homeChatCount + 1;
+      setHomeChatCount(nextCount);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('xyra_home_chat_count', String(nextCount));
+      }
+
+      handleSpeakInlineText(newExchange.id, reply);
+    } catch (err) {
+      const fallbackExchange: ChatExchange = {
+        id: `exch_${Date.now()}`,
+        query: trimmed,
+        reply: `You are making steady progress toward ${storeData.goalText}. Let's continue with ${target.conceptName}!`,
+        timestamp: Date.now(),
+      };
+      setChatExchanges((prev) => [...prev, fallbackExchange]);
+    } finally {
+      setIsChatLoading(false);
+    }
+  };
+
   const formatRelativeTime = (timestamp: number) => {
     const diffMs = Date.now() - timestamp;
     const diffMins = Math.floor(diffMs / 60000);
@@ -82,30 +231,15 @@ export default function HomePage() {
   const recentAttempts: Attempt[] = storeData.attempts.slice(-3).reverse();
   const attemptConceptIds = new Set((storeData.attempts || []).map((a) => a.conceptId));
 
-  // Determine Continue Card Link & Label based on Learning Mode
+  // Determine Continue Card Link automatically:
+  // Never attempted -> /tutor (or /learn). Attempted or fading -> /quest
   const learningMode = storeData.learnerProfile?.learningMode || 'tutor';
-  const showLessonFirst = !target.hasAttempts && !target.inProgress && learningMode !== 'quest';
+  const showLessonFirst = !target.hasAttempts && !target.inProgress;
   const lessonPath = learningMode === 'read' ? '/learn' : '/tutor';
 
   const continueHref = showLessonFirst
     ? `${lessonPath}/${encodeURIComponent(target.conceptId)}`
     : `/quest?concept=${encodeURIComponent(target.conceptId)}`;
-  
-  const continueLabel = showLessonFirst
-    ? `Learn: ${target.conceptName}`
-    : target.inProgress
-      ? `Resume quest: ${target.conceptName} (${target.currentIndex} of ${target.totalLength} done)`
-      : `Continue quest: ${target.conceptName}`;
-
-  const calScore = calibrationScore(storeData.attempts);
-  const calLabel =
-    calScore === null
-      ? 'Calibrating...'
-      : calScore > 0.25
-        ? 'Overconfident'
-        : calScore < -0.25
-          ? 'Cautious'
-          : 'Accurate';
 
   const detectedBlindSpots = blindSpots(storeData.attempts, storeData.concepts);
   const blindSpotConceptIds = new Set(detectedBlindSpots.map((bs) => bs.conceptId));
@@ -113,18 +247,147 @@ export default function HomePage() {
   return (
     <div className="space-y-5 select-none relative pb-16">
       
-      {/* 1. XYRA GREETING WIDGET (Top of Home Page, max ~80px height) */}
+      {/* 1. XYRA GREETING WIDGET (Top of Home Page) */}
       <section className="pt-1">
         <XyraGreetingWidget
           storeData={storeData}
           continueHref={continueHref}
-          continueLabel={continueLabel}
+          continueLabel={`Continue: ${target.conceptName}`}
           fadingConcepts={fadingConcepts}
           streak={streak}
         />
       </section>
 
-      {/* STAT STRIP (CALIBRATION SLOTS REWARDS) */}
+      {/* 1. INLINE ASK XYRA CHAT BOX (Always visible, not a modal) */}
+      <section className="bg-[#0D0D1A] border border-[#00F0FF]/40 rounded-[20px] p-4 sm:p-5 space-y-3 shadow-xl relative overflow-hidden backdrop-blur-xl">
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-white/10 pb-2.5">
+          <div className="flex items-center gap-2.5">
+            <div className="w-7 h-7 rounded-full bg-[#00F0FF]/20 border border-[#00F0FF] flex items-center justify-center p-0.5 shadow-[0_0_8px_rgba(0,240,255,0.4)]">
+              <img
+                src={robotImgPath}
+                onError={() => {
+                  if (robotImgPath === '/robot.png') setRobotImgPath('/images/robot.png');
+                }}
+                alt="XYRA"
+                className="w-5 h-5 object-contain"
+              />
+            </div>
+            <div className="flex items-center gap-1.5 font-mono text-xs font-bold text-[#00F0FF]">
+              <span>XYRA</span>
+              <span className="w-2 h-2 rounded-full bg-[#00FF87] animate-pulse" />
+              <span className="font-mono text-[9px] px-1.5 py-0.2 rounded bg-[#00F0FF]/10 text-cyan-300 font-medium">active</span>
+            </div>
+          </div>
+          <span className="font-mono text-[10px] text-slate-400 bg-white/5 border border-white/10 px-2 py-0.5 rounded-full">
+            {homeChatCount} / 5 today
+          </span>
+        </div>
+
+        {/* Subtitle */}
+        <p className="font-sans text-xs text-slate-300 font-medium">
+          &ldquo;What would you like to know?&rdquo;
+        </p>
+
+        {/* Quick Suggestion Chips */}
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pt-0.5">
+          {[
+            { label: 'My weakest?', query: 'Which concept am I weakest at?' },
+            { label: 'What next?', query: 'What should I study next?' },
+            { label: 'How am I doing?', query: 'How is my overall learning progress?' },
+          ].map((item, idx) => (
+            <button
+              key={idx}
+              type="button"
+              disabled={homeChatCount >= 5 || isChatLoading}
+              onClick={() => handleSendHomeChat(item.query)}
+              className="px-2.5 py-1 rounded-full bg-[#00F0FF]/10 hover:bg-[#00F0FF]/20 border border-[#00F0FF]/30 text-[#00F0FF] text-[11px] font-sans font-medium whitespace-nowrap transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+            >
+              ✨ {item.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Chat exchanges (Max 2 displayed, older collapsed) */}
+        {chatExchanges.length > 0 && (
+          <div className="space-y-2.5 pt-1 border-t border-white/5">
+            {chatExchanges.slice(-2).map((item) => (
+              <div key={item.id} className="space-y-1.5 animate-fadeIn">
+                {/* User query bubble */}
+                <div className="flex justify-end">
+                  <div className="max-w-[85%] px-3 py-1.5 rounded-xl bg-[#00F0FF] text-black font-semibold text-xs leading-snug rounded-tr-none shadow">
+                    {item.query}
+                  </div>
+                </div>
+
+                {/* XYRA response bubble */}
+                <div className="flex justify-start items-start gap-2">
+                  <div className="w-5 h-5 rounded-full bg-[#00F0FF]/20 border border-[#00F0FF]/50 flex items-center justify-center text-[8px] font-bold text-[#00F0FF] shrink-0 mt-0.5">
+                    X
+                  </div>
+                  <div className="max-w-[85%] p-2.5 rounded-xl bg-[#151226] border border-[#00F0FF]/30 text-slate-100 text-xs leading-relaxed rounded-tl-none space-y-1.5 shadow-md">
+                    <p>{item.reply}</p>
+                    <div className="flex items-center justify-between text-[10px] font-mono text-slate-400 pt-1 border-t border-white/5">
+                      <button
+                        type="button"
+                        onClick={() => handleSpeakInlineText(item.id, item.reply)}
+                        className="text-[#00F0FF] hover:underline flex items-center gap-1 font-bold cursor-pointer"
+                      >
+                        {speakingExchangeId === item.id ? (
+                          <VolumeX className="w-3 h-3 text-[#FF0055]" />
+                        ) : (
+                          <Volume2 className="w-3 h-3" />
+                        )}
+                        <span>{speakingExchangeId === item.id ? 'Stop' : 'Read Aloud'}</span>
+                      </button>
+                      <span>XYRA</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {isChatLoading && (
+          <div className="flex items-center gap-2 text-cyan-300 text-xs font-mono py-1">
+            <RefreshCw className="w-3.5 h-3.5 animate-spin text-[#00F0FF]" />
+            <span>XYRA is thinking...</span>
+          </div>
+        )}
+
+        {/* Free text input form */}
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            handleSendHomeChat(inlineInput);
+          }}
+          className="flex items-center gap-2 pt-1"
+        >
+          <input
+            type="text"
+            disabled={homeChatCount >= 5 || isChatLoading}
+            value={inlineInput}
+            onChange={(e) => setInlineInput(e.target.value)}
+            placeholder={
+              homeChatCount >= 5
+                ? 'Daily limit reached (5/5 messages).'
+                : 'Type anything about your goal or concepts...'
+            }
+            className="flex-1 h-10 px-3.5 rounded-xl bg-black/40 border border-white/15 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-[#00F0FF] transition-all disabled:opacity-40"
+          />
+          <button
+            type="submit"
+            disabled={!inlineInput.trim() || homeChatCount >= 5 || isChatLoading}
+            className="h-10 px-4 rounded-xl bg-[#00F0FF] hover:bg-[#00C2FF] text-black font-mono font-bold text-xs flex items-center justify-center gap-1 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow-md shrink-0"
+          >
+            <span>Send</span>
+            <Send className="w-3 h-3" />
+          </button>
+        </form>
+      </section>
+
+      {/* 2. STAT STRIP */}
       <section className="grid grid-cols-3 gap-3">
         <div className="bg-[#120E22]/90 border border-line/60 rounded-[14px] p-3.5 text-center space-y-1">
           <span className="block font-mono text-[9px] uppercase text-muted font-bold">DAILY STREAK</span>
@@ -132,8 +395,8 @@ export default function HomePage() {
         </div>
 
         <div className="bg-[#120E22]/90 border border-line/60 rounded-[14px] p-3.5 text-center space-y-1">
-          <span className="block font-mono text-[9px] uppercase text-muted font-bold">CALIBRATION</span>
-          <span className="block font-mono text-xs sm:text-sm font-bold text-violet truncate">{calLabel}</span>
+          <span className="block font-mono text-[9px] uppercase text-muted font-bold">SKILL GRAPH</span>
+          <span className="block font-mono text-base sm:text-lg font-bold text-violet">{storeData.concepts.length} Topics</span>
         </div>
 
         <div className="bg-[#120E22]/90 border border-line/60 rounded-[14px] p-3.5 text-center space-y-1">
@@ -144,7 +407,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* QUICK LEARN ENTRY (1-TEXTBOX NO INTAKE PATH) */}
+      {/* QUICK LEARN ENTRY */}
       <section className="bg-[#120E22]/90 border border-line rounded-[16px] p-4 sm:p-5 backdrop-blur-xl">
         <form onSubmit={handleQuickLearnSubmit} className="space-y-3">
           <div className="flex items-center justify-between">
@@ -174,14 +437,14 @@ export default function HomePage() {
         </form>
       </section>
 
-      {/* STICKY CONTINUE CARD */}
+      {/* 2. STICKY CONTINUE CARD — SYSTEM DECIDES LEARN VS QUEST SILENTLY */}
       <section className="sticky top-0 z-20 pt-1 -mt-1 bg-ink/95 backdrop-blur-md rounded-[18px]">
         <div className="card-glass-neon p-5 sm:p-6 rounded-[16px]">
         {hasSkillGraph ? (
           <div className="space-y-4">
             <div className="flex items-center justify-between flex-wrap gap-2">
               <span className="font-mono text-[11px] tracking-eyebrow uppercase text-muted font-bold">
-                {target.inProgress ? 'RESUME QUEST SESSION' : showLessonFirst ? 'FIRST TIME LESSON' : 'NEXT RECOMMENDED TARGET'}
+                NEXT RECOMMENDED TARGET
               </span>
               <span className="font-mono text-[11px] text-cyan font-medium">
                 {target.inProgress
@@ -190,25 +453,12 @@ export default function HomePage() {
               </span>
             </div>
 
-            {/* Last completed banner if present */}
-            {!target.inProgress && target.lastCompletedConceptName && (
-              <div className="bg-success/15 border border-success/30 px-3 py-1.5 rounded-[8px] font-mono text-xs text-success flex items-center gap-2">
-                <span>✓</span>
-                <span>{target.lastCompletedConceptName} completed! Next topic below:</span>
-              </div>
-            )}
-
             <div>
               <h2 className="font-sans font-semibold text-[17px] text-text mb-2 flex items-center gap-2 flex-wrap">
                 <span>{target.conceptName}</span>
-                {target.inProgress && (
-                  <span className="font-mono text-[9px] uppercase px-2 py-0.5 rounded bg-cyan/15 text-cyan font-bold border border-cyan/30">
-                    {target.currentIndex} of {target.totalLength} done
-                  </span>
-                )}
                 {showLessonFirst && (
                   <span className="font-mono text-[9px] uppercase px-2 py-0.5 rounded bg-violet/20 text-violet font-bold border border-violet/30">
-                    Interactive Lesson Required
+                    New Concept
                   </span>
                 )}
               </h2>
@@ -226,25 +476,12 @@ export default function HomePage() {
               <p className="font-mono text-[11px] text-muted mt-1.5">{target.reason}</p>
             </div>
 
-            <div className="space-y-2.5 pt-1">
+            <div className="pt-1">
               <Link
                 href={continueHref}
                 className="w-full h-[46px] rounded-[10px] bg-signature-gradient text-white font-sans font-semibold text-[15px] flex items-center justify-center gap-2 hover:brightness-108 hover:shadow-[0_8px_30px_-6px_rgba(168,85,247,0.55)] active:translate-y-[1px] transition-all cursor-pointer"
               >
-                <span>{continueLabel}</span>
-                <span>&rarr;</span>
-              </Link>
-
-              {/* 🎯 SOLO CHALLENGE — EASY TO REACH BUTTON */}
-              <Link
-                href={`/quest?mode=solo&concept=${encodeURIComponent(target.conceptId)}`}
-                className="w-full h-10 px-4 rounded-[10px] bg-[#A855F7]/15 hover:bg-[#A855F7]/25 border border-[#A855F7]/40 text-[#A855F7] hover:text-white font-sans font-semibold text-xs flex items-center justify-between transition-all cursor-pointer group shadow-sm"
-              >
-                <div className="flex items-center gap-2">
-                  <span className="text-sm">🎯</span>
-                  <span>Solo Challenge — test yourself without help</span>
-                </div>
-                <span className="font-mono text-xs text-[#A855F7] group-hover:translate-x-1 transition-transform">&rarr;</span>
+                <span>Continue &rarr;</span>
               </Link>
             </div>
           </div>
@@ -263,7 +500,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* SKILL GRAPH CONCEPTS BREAKDOWN */}
+      {/* 2. SKILL GRAPH CONCEPTS BREAKDOWN — 1-TAP DIRECT ROUTING */}
       <section className="bg-[#120E22]/90 border border-line/60 rounded-[16px] p-5 space-y-4">
         <div className="flex items-center justify-between border-b border-line/40 pb-3">
           <span className="font-mono text-[10px] tracking-eyebrow uppercase text-muted font-bold">
@@ -280,37 +517,32 @@ export default function HomePage() {
             const isBlindSpot = blindSpotConceptIds.has(concept.id);
             const isFading = concept.retentionRisk > 0.35;
 
-            const hasSoloData = (concept.soloAttemptsCount || 0) >= 3 && concept.thetaSolo !== undefined;
-            const assistedPct = concept.thetaAssisted !== undefined ? thetaToPercent(concept.thetaAssisted) : concept.masteryPercentage;
-            const soloPct = hasSoloData ? thetaToPercent(concept.thetaSolo!) : null;
-            const gap = computeGap(concept.thetaAssisted ?? -0.4, concept.thetaSolo, concept.soloAttemptsCount || 0);
-            const isLeansOnAi = gap !== null && gap > 30;
+            // System decides automatically:
+            // Never attempted -> /tutor (or /learn). Attempted or fading -> /quest
+            const conceptHref = !hasAtt
+              ? `${lessonPath}/${encodeURIComponent(concept.id)}`
+              : `/quest?concept=${encodeURIComponent(concept.id)}`;
 
-            const conceptHref = hasAtt
-              ? `/quest?concept=${encodeURIComponent(concept.id)}`
-              : `${lessonPath}/${encodeURIComponent(concept.id)}`;
+            const assistedPct = concept.thetaAssisted !== undefined ? thetaToPercent(concept.thetaAssisted) : concept.masteryPercentage;
 
             return (
-              <div
+              <Link
                 key={concept.id}
-                className="p-3.5 rounded-[12px] bg-panel/70 border border-line/40 flex items-center justify-between gap-3 hover:border-cyan/50 transition-all"
+                href={conceptHref}
+                className="p-3.5 rounded-[12px] bg-panel/70 border border-line/40 flex items-center justify-between gap-3 hover:border-cyan hover:bg-panel/90 transition-all cursor-pointer group"
               >
                 <div className="space-y-1 min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
                     {isBlindSpot && <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse shrink-0" />}
-                    <Link href={conceptHref} className="font-sans text-sm text-text font-semibold hover:text-cyan truncate">
+                    <span className="font-sans text-sm text-text font-semibold group-hover:text-cyan transition-colors truncate">
                       {concept.name}
-                    </Link>
+                    </span>
                     {!hasAtt && (
                       <span className="font-mono text-[8px] uppercase px-1.5 py-0.5 rounded bg-violet/20 text-violet font-bold shrink-0">
                         New
                       </span>
                     )}
-                    {isLeansOnAi ? (
-                      <span className="font-mono text-[8px] uppercase px-1.5 py-0.5 rounded bg-violet-500/20 text-violet-300 border border-violet-500/40 font-bold shrink-0">
-                        leans on AI
-                      </span>
-                    ) : isBlindSpot ? (
+                    {isBlindSpot ? (
                       <span className="font-mono text-[8px] uppercase px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 font-bold shrink-0">
                         Blind Spot
                       </span>
@@ -320,32 +552,24 @@ export default function HomePage() {
                       </span>
                     ) : null}
                   </div>
+
                   <div className="flex items-center gap-3">
                     <div className="h-1.5 w-28 bg-raised rounded-full overflow-hidden">
                       <div className="h-full bg-cyan rounded-full" style={{ width: `${assistedPct}%` }} />
                     </div>
                     <span className="font-mono text-[10px] text-muted">
-                      Assisted <span className="text-muted/70">{assistedPct}%</span> · Solo <span className={hasSoloData ? 'text-violet-400 font-bold' : 'text-muted/50'}>{soloPct !== null ? `${soloPct}%` : '—'}</span>
+                      {assistedPct}% Mastery
                     </span>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 shrink-0 font-mono text-xs">
-                  <Link href={`/quest?mode=solo&concept=${encodeURIComponent(concept.id)}`} className="px-2.5 py-1.5 rounded-[8px] bg-violet-600/20 border border-violet-500/40 text-violet-300 hover:bg-violet-600/30 text-[11px] font-semibold flex items-center gap-1">
-                    <span>Solo</span>
-                    <span>🛡️</span>
-                  </Link>
-                  {hasAtt ? (
-                    <Link href={`/quest?concept=${encodeURIComponent(concept.id)}`} className="px-3 py-1.5 rounded-[8px] bg-raised border border-line text-text hover:border-cyan">
-                      Practice &rarr;
-                    </Link>
-                  ) : (
-                    <Link href={`${lessonPath}/${encodeURIComponent(concept.id)}`} className="px-3 py-1.5 rounded-[8px] bg-cyan/15 border border-cyan/40 text-cyan hover:bg-cyan/25 font-semibold">
-                      Learn &rarr;
-                    </Link>
-                  )}
+                <div className="flex items-center gap-1.5 shrink-0 font-mono text-xs text-muted group-hover:text-cyan transition-colors">
+                  <span className="text-[11px] font-semibold hidden sm:inline">
+                    {!hasAtt ? 'Learn' : isFading ? 'Drill' : 'Practice'}
+                  </span>
+                  <span className="group-hover:translate-x-1 transition-transform">&rarr;</span>
                 </div>
-              </div>
+              </Link>
             );
           })}
         </div>
@@ -380,42 +604,6 @@ export default function HomePage() {
           </div>
         </section>
       )}
-
-      {/* 1. FLOATING ASK XYRA BUTTON (Bottom-Right of Home Page) */}
-      <div className="fixed bottom-5 right-5 z-40 sm:bottom-6 sm:right-6">
-        <button
-          type="button"
-          onClick={() => setIsChatOpen(true)}
-          className="h-12 px-4 rounded-full bg-[#0D0D1A] border border-[#00F0FF]/60 hover:border-[#00F0FF] text-[#00F0FF] font-mono font-bold text-xs flex items-center gap-2.5 shadow-[0_0_25px_rgba(0,240,255,0.38)] hover:scale-105 transition-all cursor-pointer group backdrop-blur-xl select-none"
-        >
-          <div className="w-7 h-7 rounded-full bg-[#00F0FF]/20 border border-[#00F0FF] flex items-center justify-center overflow-hidden shadow-[0_0_10px_rgba(0,240,255,0.5)]">
-            <img
-              src={robotImgPath}
-              onError={() => {
-                if (robotImgPath === '/robot.png') setRobotImgPath('/images/robot.png');
-              }}
-              alt="XYRA"
-              className="w-5 h-5 object-contain"
-            />
-          </div>
-          <span>Ask XYRA</span>
-          <span className="w-2 h-2 rounded-full bg-[#00FF87] animate-pulse" />
-        </button>
-      </div>
-
-      {/* ASK XYRA BOTTOM SHEET (HOME SCOPE) */}
-      <AskXYRASheet
-        isOpen={isChatOpen}
-        onClose={() => setIsChatOpen(false)}
-        context={{
-          scope: 'home',
-          name: storeData.handle,
-          goal: storeData.goalText,
-          concepts: storeData.concepts,
-          fadingConcepts: fadingConcepts,
-          language: storeData.learnerProfile?.language,
-        }}
-      />
 
     </div>
   );

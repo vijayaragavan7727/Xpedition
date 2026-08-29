@@ -2,12 +2,15 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { getStoreData, clearStoreData, switchActiveGraph, saveLearnerProfile, saveStoreData, UserStoreData, SkillGraph } from '@/lib/store';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
-import { User, Globe, Clock, Sparkles, Check, CheckCircle2, Shield, AlertCircle, Save, LogOut, RefreshCw } from 'lucide-react';
+import { User, Globe, Clock, Sparkles, Check, CheckCircle2, Shield, AlertCircle, Save, LogOut, RefreshCw, HelpCircle, X } from 'lucide-react';
 
 export default function ProfilePage() {
+  const router = useRouter();
   const [storeData, setStoreData] = useState<UserStoreData | null>(null);
+  const [showRecalibrateConfirm, setShowRecalibrateConfirm] = useState<boolean>(false);
 
   // Editable Form Fields
   const [handle, setHandle] = useState<string>('Learner');
@@ -490,6 +493,52 @@ export default function ProfilePage() {
         </div>
       </div>
 
+      {/* ACCOUNT & PREFERENCES SETTINGS */}
+      <div className="bg-[#120E24] rounded-[24px] border border-white/10 p-5 sm:p-7 space-y-4 shadow-2xl">
+        <span className="font-mono text-[11px] uppercase text-[#00F0FF] font-bold tracking-wider block">
+          ACCOUNT & ASSESSMENT SETTINGS
+        </span>
+
+        <div className="space-y-3 font-sans text-xs">
+          {/* 1. Recalibrate Starting Level */}
+          <div className="p-4 rounded-2xl bg-black/30 border border-white/10 flex items-center justify-between flex-wrap gap-3">
+            <div className="space-y-0.5">
+              <span className="font-bold text-white text-xs block">
+                Recalibrate Starting Ability Baseline
+              </span>
+              <p className="text-[11px] text-slate-400">
+                Resets question difficulty starting point without deleting your mastery scores.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowRecalibrateConfirm(true)}
+              className="h-9 px-4 rounded-xl bg-[#00F0FF]/15 border border-[#00F0FF]/40 text-[#00F0FF] hover:bg-[#00F0FF]/25 font-mono font-bold text-xs transition-all cursor-pointer shadow-sm"
+            >
+              Recalibrate
+            </button>
+          </div>
+
+          {/* 2. Terms & Privacy Link */}
+          <Link
+            href="/terms"
+            className="p-4 rounded-2xl bg-black/30 border border-white/10 hover:border-[#00F0FF]/50 flex items-center justify-between transition-all group"
+          >
+            <div className="space-y-0.5">
+              <span className="font-bold text-white text-xs block group-hover:text-[#00F0FF] transition-colors">
+                Terms & Privacy Policy
+              </span>
+              <p className="text-[11px] text-slate-400">
+                View data handling, privacy guarantees, and usage policy.
+              </p>
+            </div>
+            <span className="font-mono text-xs text-[#00F0FF] group-hover:translate-x-1 transition-transform">
+              &rarr;
+            </span>
+          </Link>
+        </div>
+      </div>
+
       {/* Reset & Sign Out Controls */}
       <div className="space-y-2.5 pt-2">
         <button
@@ -509,6 +558,51 @@ export default function ProfilePage() {
           <span>Sign out</span>
         </button>
       </div>
+
+      {/* RECALIBRATE CONFIRMATION MODAL */}
+      {showRecalibrateConfirm && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-fadeIn select-none font-sans">
+          <div className="bg-[#0D0D1A] border border-[#00F0FF]/40 rounded-[28px] p-6 max-w-md w-full space-y-4 shadow-2xl animate-scaleUp">
+            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+              <div className="flex items-center gap-2 font-mono text-xs font-bold text-[#00F0FF]">
+                <Sparkles className="w-4 h-4 text-amber-400" />
+                <span>Recalibrate Starting Point</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowRecalibrateConfirm(false)}
+                className="text-slate-400 hover:text-white p-1"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-xs sm:text-sm text-slate-200 leading-relaxed">
+              This resets your starting point. Your mastery progress is kept. Continue?
+            </p>
+
+            <div className="grid grid-cols-2 gap-3 pt-2 font-mono text-xs">
+              <button
+                type="button"
+                onClick={() => setShowRecalibrateConfirm(false)}
+                className="h-10 rounded-xl bg-white/10 hover:bg-white/15 text-slate-300 font-semibold cursor-pointer transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowRecalibrateConfirm(false);
+                  router.push('/calibrate');
+                }}
+                className="h-10 rounded-xl bg-[#00F0FF] hover:bg-[#00C2FF] text-black font-bold cursor-pointer shadow transition-all"
+              >
+                Yes, Recalibrate &rarr;
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );
