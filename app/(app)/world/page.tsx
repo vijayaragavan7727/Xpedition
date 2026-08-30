@@ -1,50 +1,46 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
-import { getStoreData, calculateStreak, UserStoreData } from '@/lib/store';
-import { computeWorldState, syncWorldState, WorldState, WorldBuilding } from '@/lib/worldEngine';
+import { calculateStreak } from '@/lib/store';
+import { useWorldState } from '@/lib/hooks/world';
 import { getThemeConfig, getThemeTierInfo, WorldThemeId } from '@/lib/themes';
 import WorldRenderer from '@/components/WorldRenderer';
 import WorldShareModal from '@/components/WorldShareModal';
 import { Globe, Share2, Sparkles, Maximize2, X, ZoomIn, ZoomOut, RotateCcw, ChevronRight, Shield, Zap } from 'lucide-react';
 
 export default function WorldPage() {
-  const [storeData, setStoreData] = useState<UserStoreData | null>(null);
-  const [worldState, setWorldState] = useState<WorldState | null>(null);
+  const { storeData, worldState, isLoading } = useWorldState();
   const [isShareOpen, setIsShareOpen] = useState<boolean>(false);
   const [isFullScreen, setIsFullScreen] = useState<boolean>(false);
   const [zoomScale, setZoomScale] = useState<number>(1);
   const [characterImgPath, setCharacterImgPath] = useState<string>('/robot.png');
 
-  useEffect(() => {
-    const store = getStoreData();
-    setStoreData(store);
-    const world = computeWorldState(store);
-    setWorldState(world);
-    syncWorldState(store);
-  }, []);
+  if (!storeData || !worldState) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#080512] font-mono text-xs text-[#00F0FF]">
+        Loading living realm...
+      </div>
+    );
+  }
 
-  const currentStore = storeData || getStoreData();
-  const currentWorld = worldState || computeWorldState(currentStore);
-
-  const activeThemeId = (currentStore.learnerProfile?.worldTheme as WorldThemeId) || 'cosmos';
+  const activeThemeId = (storeData.learnerProfile?.worldTheme as WorldThemeId) || 'cosmos';
   const themeConfig = getThemeConfig(activeThemeId);
-  const tierInfo = getThemeTierInfo(activeThemeId, currentWorld.totalMasteryPercent);
-  const streak = calculateStreak(currentStore.attempts);
+  const tierInfo = getThemeTierInfo(activeThemeId, worldState.totalMasteryPercent);
+  const streak = calculateStreak(storeData.attempts);
 
-  const completeBuildings = currentWorld.buildings.filter((b) => b.state === 'complete').length;
-  const totalAttempts = currentStore.attempts?.length || 0;
-  const soloAttempts = currentStore.attempts?.filter((a) => a.isSolo && !a.isVoid).length || 0;
+  const completeBuildings = worldState.buildings.filter((b) => b.state === 'complete').length;
+  const totalAttempts = storeData.attempts?.length || 0;
+  const soloAttempts = storeData.attempts?.filter((a) => a.isSolo && !a.isVoid).length || 0;
   const soloSessions = Math.max(0, Math.floor(soloAttempts / 6));
 
   // Dynamic Resource Calculation based on Learning Milestones
-  const wood = Math.floor(currentWorld.totalMasteryPercent * 14 + totalAttempts * 3);
-  const stone = Math.floor(currentWorld.totalMasteryPercent * 9 + soloAttempts * 6);
-  const crystal = Math.floor(completeBuildings * 50 + currentWorld.tier * 30);
-  const gold = Math.floor(streak * 35 + currentWorld.totalMasteryPercent * 12 + soloSessions * 80);
+  const wood = Math.floor(worldState.totalMasteryPercent * 14 + totalAttempts * 3);
+  const stone = Math.floor(worldState.totalMasteryPercent * 9 + soloAttempts * 6);
+  const crystal = Math.floor(completeBuildings * 50 + worldState.tier * 30);
+  const gold = Math.floor(streak * 35 + worldState.totalMasteryPercent * 12 + soloSessions * 80);
 
-  const passportId = currentStore.activeGraphId ? currentStore.activeGraphId.substring(0, 10).toUpperCase() : 'XP-CORE-01';
+  const passportId = storeData.activeGraphId ? storeData.activeGraphId.substring(0, 10).toUpperCase() : 'XP-CORE-01';
 
   return (
     <div className="min-h-screen select-none font-sans text-white pb-24 -mx-4 -mt-4 sm:-mx-6 sm:-mt-6 bg-[#080512]">
@@ -102,10 +98,10 @@ export default function WorldPage() {
         {/* Learner Name + Title below Character */}
         <div className="w-full max-w-xl text-center space-y-0.5 z-10 pb-1">
           <h1 className="font-sans font-black text-xl sm:text-2xl text-white tracking-tight drop-shadow-md">
-            {currentStore.handle}
+            {storeData.handle}
           </h1>
           <p className="font-mono text-[11px] text-[#00F0FF] uppercase tracking-wider font-bold">
-            {currentWorld.tierName} Sovereign &middot; {currentStore.goalText}
+            {worldState.tierName} Sovereign &middot; {storeData.goalText}
           </p>
         </div>
       </section>
@@ -120,7 +116,7 @@ export default function WorldPage() {
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#120E22] border border-white/15 shadow-md font-mono text-xs font-bold text-white">
               <span className="w-2 h-2 rounded-full bg-[#00FF87] animate-pulse" />
-              <span>Tier {currentWorld.tier} &middot; {currentWorld.tierName}</span>
+              <span>Tier {worldState.tier} &middot; {worldState.tierName}</span>
             </div>
 
             <div
@@ -131,7 +127,7 @@ export default function WorldPage() {
                 borderColor: `${tierInfo.color}60`,
               }}
             >
-              {currentWorld.totalMasteryPercent}% Terraformed
+              {worldState.totalMasteryPercent}% Terraformed
             </div>
           </div>
 
@@ -150,7 +146,7 @@ export default function WorldPage() {
         <div className="relative rounded-[24px] overflow-hidden border border-white/15 shadow-[0_20px_50px_rgba(0,0,0,0.8)] h-[320px] sm:h-[350px]">
           <WorldRenderer
             theme={activeThemeId}
-            buildings={currentWorld.buildings}
+            buildings={worldState.buildings}
             height="100%"
           />
         </div>
@@ -190,7 +186,7 @@ export default function WorldPage() {
         <div className="bg-[#120E22]/90 border border-white/10 rounded-[22px] p-4 sm:p-5 space-y-2.5 shadow-xl">
           <div className="flex items-center justify-between border-b border-white/10 pb-2">
             <span className="font-mono text-[10px] uppercase text-[#00F0FF] font-bold tracking-wider">
-              REALM LANDMARKS ({currentWorld.buildings.length})
+              REALM LANDMARKS ({worldState.buildings.length})
             </span>
             <span className="font-mono text-xs text-slate-400">
               {completeBuildings} Completed
@@ -198,7 +194,7 @@ export default function WorldPage() {
           </div>
 
           <div className="space-y-2">
-            {currentWorld.buildings.map((bldg) => {
+            {worldState.buildings.map((bldg) => {
               const isComplete = bldg.state === 'complete';
               const isPartial = bldg.state === 'partial';
 
@@ -258,7 +254,7 @@ export default function WorldPage() {
                 <span>{themeConfig.name} Full Realm</span>
               </div>
               <span className="font-mono text-xs text-slate-400 hidden sm:inline">
-                Tier {currentWorld.tier} &middot; {currentWorld.totalMasteryPercent}% Terraformed
+                Tier {worldState.tier} &middot; {worldState.totalMasteryPercent}% Terraformed
               </span>
             </div>
 
@@ -309,7 +305,7 @@ export default function WorldPage() {
             >
               <WorldRenderer
                 theme={activeThemeId}
-                buildings={currentWorld.buildings}
+                buildings={worldState.buildings}
                 height="100%"
                 isFullScreen
               />
@@ -322,9 +318,9 @@ export default function WorldPage() {
       <WorldShareModal
         isOpen={isShareOpen}
         onClose={() => setIsShareOpen(false)}
-        learnerName={currentStore.handle}
-        goalText={currentStore.goalText}
-        masteryPercentage={currentWorld.totalMasteryPercent}
+        learnerName={storeData.handle}
+        goalText={storeData.goalText}
+        masteryPercentage={worldState.totalMasteryPercent}
         passportId={passportId}
         buildingsCount={completeBuildings}
         themeId={activeThemeId}

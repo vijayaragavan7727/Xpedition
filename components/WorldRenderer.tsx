@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { WorldBuilding } from '@/lib/worldEngine';
 import { WorldThemeId } from '@/lib/themes';
-import { generateBuildingPrompt } from '@/lib/buildingImages';
+import { generateBuildingPrompt, getBuildingSeed } from '@/lib/buildingImages';
 import { Sparkles } from 'lucide-react';
 
 interface WorldRendererProps {
@@ -186,9 +186,21 @@ export default function WorldRenderer({
 
           <style>
             {`
-              @keyframes worldPulse {
-                0%, 100% { transform: scale(1); }
-                50% { transform: scale(1.02); }
+              @keyframes buildingFloat {
+                0%, 100% { transform: translateY(0px); }
+                50% { transform: translateY(-4px); }
+              }
+              @keyframes buildingGlowPulse {
+                0%, 100% { filter: drop-shadow(0 4px 10px ${palette.glowColor}50); }
+                50% { filter: drop-shadow(0 8px 20px ${palette.glowColor}95); }
+              }
+              @keyframes partialPulse {
+                0%, 100% { opacity: 0.85; }
+                50% { opacity: 1; }
+              }
+              @keyframes flagFlutter {
+                0%, 100% { transform: rotate(0deg); }
+                50% { transform: rotate(5deg); }
               }
               @keyframes particleDrift {
                 0% { transform: translateY(0px); opacity: 0; }
@@ -203,9 +215,21 @@ export default function WorldRenderer({
                 0%, 100% { fill: #FFFFFF; r: 3; }
                 50% { fill: ${palette.glowColor}; r: 4; }
               }
-              .building-complete {
+
+              .anim-complete-image {
                 transform-origin: center bottom;
-                animation: worldPulse 3.5s ease-in-out infinite;
+                animation: buildingFloat 3s ease-in-out infinite, buildingGlowPulse 2.5s ease-in-out infinite;
+              }
+              .anim-partial-image {
+                animation: partialPulse 2.5s ease-in-out infinite;
+              }
+              .anim-flag {
+                transform-origin: left bottom;
+                animation: flagFlutter 4s ease-in-out infinite;
+              }
+              .building-complete-svg {
+                transform-origin: center bottom;
+                animation: buildingFloat 3s ease-in-out infinite;
               }
               .particle-item {
                 animation: particleDrift 4s ease-in-out infinite;
@@ -216,8 +240,9 @@ export default function WorldRenderer({
               .antenna-tip {
                 animation: antennaPulse 1.8s ease-in-out infinite;
               }
+
               @media (prefers-reduced-motion: reduce) {
-                .building-complete, .particle-item, .window-glow, .antenna-tip {
+                .anim-complete-image, .anim-partial-image, .anim-flag, .building-complete-svg, .particle-item, .window-glow, .antenna-tip {
                   animation: none !important;
                 }
               }
@@ -262,10 +287,11 @@ export default function WorldRenderer({
             const isImageLoaded = !!loadedImages[imageKey];
             const isFailed = !!failedImages[imageKey];
 
-            // Build dynamic prompt and proxy image URL
+            // Build dynamic prompt and proxy image URL with seed
             const buildingPrompt = bldg ? generateBuildingPrompt(conceptName, activeThemeKey, state) : '';
+            const seed = bldg ? getBuildingSeed(conceptName, activeThemeKey) : 42;
             const proxyImageUrl = bldg?.imageUrl || (bldg
-              ? `/api/worldimage?prompt=${encodeURIComponent(buildingPrompt)}`
+              ? `/api/worldimage?prompt=${encodeURIComponent(buildingPrompt)}&seed=${seed}`
               : null);
 
             // Tile Path: Diamond (Top, Right, Bottom, Left)
@@ -290,6 +316,9 @@ export default function WorldRenderer({
             // Label text length truncation
             const displayLabel = conceptName.length > 14 ? `${conceptName.slice(0, 13)}…` : conceptName;
             const labelWidth = Math.max(50, displayLabel.length * 6.5 + 14);
+
+            // Stagger animation delay
+            const staggerDelay = `${idx * 0.5}s`;
 
             return (
               <g
@@ -335,7 +364,7 @@ export default function WorldRenderer({
 
                 {/* 2. RENDER ONLY ONE: IF IMAGE LOADED -> RENDER LARGE IMAGE ONLY; ELSE SVG */}
                 {isImageLoaded && proxyImageUrl ? (
-                  /* --- LARGE AI IMAGE ONLY (120x120px, Screen Blend to remove dark box) --- */
+                  /* --- LARGE AI IMAGE ONLY (120x120px, Screen Blend & Float Animation) --- */
                   <image
                     href={proxyImageUrl}
                     xlinkHref={proxyImageUrl}
@@ -346,15 +375,17 @@ export default function WorldRenderer({
                     preserveAspectRatio="xMidYMid meet"
                     style={{
                       mixBlendMode: 'screen',
-                      filter: state === 'complete' ? `drop-shadow(0 8px 16px ${palette.glowColor}80)` : undefined,
+                      animationDelay: staggerDelay,
                     }}
-                    className="pointer-events-none"
+                    className={`pointer-events-none ${
+                      state === 'complete' ? 'anim-complete-image' : 'anim-partial-image'
+                    }`}
                   />
                 ) : (
                   /* --- SVG GEOMETRIC FALLBACK ONLY --- */
                   <g>
                     {state === 'empty' && (
-                      /* EMPTY STATE: Marker & Survey Flag */
+                      /* EMPTY STATE: Marker & Gentle Flag Flutter */
                       <g opacity="0.7">
                         <polygon
                           points={`${bx},${by - 10} ${bx + 16},${by} ${bx},${by + 10} ${bx - 16},${by}`}
@@ -374,6 +405,8 @@ export default function WorldRenderer({
                         <polygon
                           points={`${bx},${by - 24} ${bx + 12},${by - 20} ${bx},${by - 16}`}
                           fill={palette.scaffoldColor}
+                          className="anim-flag"
+                          style={{ animationDelay: staggerDelay }}
                         />
                         <text
                           x={bx + 3}
@@ -419,7 +452,11 @@ export default function WorldRenderer({
 
                     {state === 'complete' && (
                       /* COMPLETE STATE: Solid 3D building + Windows + Antenna + Glow */
-                      <g className="building-complete" filter={`url(#themeEdgeGlow_${activeThemeKey})`}>
+                      <g
+                        className="building-complete-svg"
+                        filter={`url(#themeEdgeGlow_${activeThemeKey})`}
+                        style={{ animationDelay: staggerDelay }}
+                      >
                         <polygon
                           points={`${bx - bldgW / 2},${by} ${bx},${by + bldgW / 4} ${bx},${by + bldgW / 4 - bldgH} ${bx - bldgW / 2},${by - bldgH}`}
                           fill={palette.buildingFrontLeft}

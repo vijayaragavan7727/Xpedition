@@ -5,10 +5,10 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { getStoreData, calculateStreak, selectNextTarget, UserStoreData } from '@/lib/store';
 import { thetaToPercent } from '@/lib/engine/mastery';
-import { computeWorldState, syncWorldState, WorldState, WorldBuilding, detectBuildingStateTransitions } from '@/lib/worldEngine';
+import { useWorldState } from '@/lib/hooks/world';
+import { WorldBuilding, detectBuildingStateTransitions } from '@/lib/worldEngine';
 import { WorldThemeId } from '@/lib/themes';
 import XyraGreetingWidget from '@/components/XyraGreetingWidget';
-import WorldRenderer from '@/components/WorldRenderer';
 import WorldUnlockCelebration from '@/components/WorldUnlockCelebration';
 import { Send, Volume2, VolumeX, Sparkles, RefreshCw, Globe, ChevronRight } from 'lucide-react';
 
@@ -21,8 +21,7 @@ interface ChatExchange {
 
 export default function HomePage() {
   const router = useRouter();
-  const [storeData, setStoreData] = useState<UserStoreData | null>(null);
-  const [worldState, setWorldState] = useState<WorldState | null>(null);
+  const { storeData, worldState } = useWorldState();
   const [unlockedBuilding, setUnlockedBuilding] = useState<WorldBuilding | null>(null);
   const [robotImgPath, setRobotImgPath] = useState<string>('/robot.png');
 
@@ -35,28 +34,22 @@ export default function HomePage() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
-    const store = getStoreData();
-    setStoreData(store);
-
-    // Compute & Sync World State
-    const currentWorld = computeWorldState(store);
-    setWorldState(currentWorld);
-    syncWorldState(store);
+    if (!worldState) return;
 
     // Check for new building unlock moments
     if (typeof window !== 'undefined') {
       try {
-        const savedBuildingsStr = localStorage.getItem(`xpedition_prev_buildings_${currentWorld.skillGraphId}`);
+        const savedBuildingsStr = localStorage.getItem(`xpedition_prev_buildings_${worldState.skillGraphId}`);
         if (savedBuildingsStr) {
           const prevBuildings: WorldBuilding[] = JSON.parse(savedBuildingsStr);
-          const newUnlocks = detectBuildingStateTransitions(prevBuildings, currentWorld.buildings);
+          const newUnlocks = detectBuildingStateTransitions(prevBuildings, worldState.buildings);
           if (newUnlocks.length > 0) {
             setUnlockedBuilding(newUnlocks[0]);
           }
         }
         localStorage.setItem(
-          `xpedition_prev_buildings_${currentWorld.skillGraphId}`,
-          JSON.stringify(currentWorld.buildings)
+          `xpedition_prev_buildings_${worldState.skillGraphId}`,
+          JSON.stringify(worldState.buildings)
         );
       } catch (e) {}
     }

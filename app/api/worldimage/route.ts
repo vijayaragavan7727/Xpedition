@@ -7,18 +7,18 @@ export async function GET(req: NextRequest) {
   const concept = searchParams.get('concept') || 'Core Foundations';
   const theme = searchParams.get('theme') || 'cosmos';
   const state = (searchParams.get('state') as any) || 'complete';
+  const rawSeed = searchParams.get('seed');
 
   try {
     let finalPrompt = rawPrompt;
-    let seed = 42;
+    let seed = rawSeed ? parseInt(rawSeed, 10) : getBuildingSeed(concept, theme);
 
     if (!finalPrompt) {
       finalPrompt = generateBuildingPrompt(concept, theme, state);
-      seed = getBuildingSeed(concept, theme);
     }
 
     const cleanPrompt = finalPrompt.replace(/\s+/g, ' ').trim();
-    const pollinationsUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(cleanPrompt)}?width=256&height=256&nologo=true&seed=${seed}`;
+    const pollinationsUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(cleanPrompt)}?width=512&height=512&nologo=true&seed=${seed}`;
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 15000);
