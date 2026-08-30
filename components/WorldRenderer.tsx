@@ -11,6 +11,7 @@ interface WorldRendererProps {
   buildings: WorldBuilding[];
   height?: number | string;
   isMiniPreview?: boolean;
+  isFullScreen?: boolean;
   onSelectBuilding?: (building: WorldBuilding) => void;
 }
 
@@ -36,7 +37,7 @@ const THEME_PALETTES: Record<string, ThemePalette> = {
     tileTop: '#1E1238',
     tileLeft: '#130B24',
     tileRight: '#180E2E',
-    tileBorder: '#00F0FF40',
+    tileBorder: '#00F0FF50',
     buildingFrontLeft: '#081D33',
     buildingFrontRight: '#0E3B64',
     buildingRoof: '#00F0FF',
@@ -51,7 +52,7 @@ const THEME_PALETTES: Record<string, ThemePalette> = {
     tileTop: '#0B2233',
     tileLeft: '#06141F',
     tileRight: '#081A29',
-    tileBorder: '#00FF8740',
+    tileBorder: '#00FF8750',
     buildingFrontLeft: '#180B2B',
     buildingFrontRight: '#2E114F',
     buildingRoof: '#00FF87',
@@ -66,7 +67,7 @@ const THEME_PALETTES: Record<string, ThemePalette> = {
     tileTop: '#143828',
     tileLeft: '#0C241A',
     tileRight: '#102E21',
-    tileBorder: '#34D39940',
+    tileBorder: '#34D39950',
     buildingFrontLeft: '#1F2933',
     buildingFrontRight: '#3E4C59',
     buildingRoof: '#34D399',
@@ -81,7 +82,7 @@ const THEME_PALETTES: Record<string, ThemePalette> = {
     tileTop: '#0C354A',
     tileLeft: '#072230',
     tileRight: '#092A3A',
-    tileBorder: '#38BDF840',
+    tileBorder: '#38BDF850',
     buildingFrontLeft: '#083344',
     buildingFrontRight: '#0E7490',
     buildingRoof: '#38BDF8',
@@ -96,7 +97,7 @@ const THEME_PALETTES: Record<string, ThemePalette> = {
     tileTop: '#3D2010',
     tileLeft: '#24130A',
     tileRight: '#301A0D',
-    tileBorder: '#F59E0B40',
+    tileBorder: '#F59E0B50',
     buildingFrontLeft: '#451A03',
     buildingFrontRight: '#78350F',
     buildingRoof: '#F59E0B',
@@ -108,11 +109,22 @@ const THEME_PALETTES: Record<string, ThemePalette> = {
   },
 };
 
+// Calibrated Diamond Isometric Layout Coordinates (No Overlap)
+const DIAMOND_GRID_SLOTS = [
+  { col: 1, row: 0, x: 200, y: 72, depth: 1 },  // Slot 0: Top
+  { col: 2, row: 1, x: 295, y: 130, depth: 3 }, // Slot 1: Right
+  { col: 0, row: 1, x: 105, y: 130, depth: 1 }, // Slot 2: Left
+  { col: 1, row: 2, x: 200, y: 190, depth: 3 }, // Slot 3: Bottom / Center
+  { col: 2, row: 2, x: 295, y: 220, depth: 4 }, // Slot 4: Bottom Right
+  { col: 0, row: 2, x: 105, y: 220, depth: 2 }, // Slot 5: Bottom Left
+];
+
 export default function WorldRenderer({
   theme = 'cosmos',
   buildings,
-  height = 280,
+  height = 300,
   isMiniPreview = false,
+  isFullScreen = false,
   onSelectBuilding,
 }: WorldRendererProps) {
   const [activeTooltip, setActiveTooltip] = useState<WorldBuilding | null>(null);
@@ -122,50 +134,35 @@ export default function WorldRenderer({
   const activeThemeKey = theme in THEME_PALETTES ? theme : 'cosmos';
   const palette = THEME_PALETTES[activeThemeKey];
 
-  // Isometric Grid Layout: 3 columns x 2 rows
-  // Spacing calibrated to prevent building overlap
-  const tileW = 120;
-  const tileH = 60;
-  const originX = 260;
-  const originY = 95;
+  // Tile Dimensions
+  const tileW = 96;
+  const tileH = 48;
 
   const paddedBuildings: (WorldBuilding | null)[] = [...buildings];
   while (paddedBuildings.length < 6) {
     paddedBuildings.push(null);
   }
 
-  // Map each building slot to distinct isometric coordinates
-  // Sorted by isometric depth (row + col ascending) for proper painter's rendering
-  const slotsWithCoords = paddedBuildings.slice(0, 6).map((b, idx) => {
-    const row = Math.floor(idx / 3); // 0 or 1
-    const col = idx % 3;             // 0, 1, 2
-
-    // Distinct tile center coordinates
-    const x = originX + (col - row) * (tileW / 2);
-    const y = originY + (col + row) * (tileH / 2);
-    const depth = row * 3 + col;
-
+  // Map each building to its distinct diamond grid position
+  const slotsWithCoords = DIAMOND_GRID_SLOTS.map((slot, idx) => {
+    const bldg = paddedBuildings[idx];
     return {
-      building: b,
+      building: bldg,
       slotIndex: idx,
-      row,
-      col,
-      x,
-      y,
-      depth,
+      ...slot,
     };
   });
 
-  // Sort back-to-front
+  // Sort back-to-front by depth
   slotsWithCoords.sort((a, b) => a.depth - b.depth);
 
   return (
     <div
-      className="relative w-full rounded-[24px] overflow-hidden select-none border border-white/15 bg-black shadow-[0_20px_50px_rgba(0,0,0,0.8)]"
+      className="relative w-full h-full rounded-[24px] overflow-hidden select-none border border-white/15 bg-black shadow-[0_20px_50px_rgba(0,0,0,0.8)]"
       style={{ height: typeof height === 'number' ? `${height}px` : height }}
     >
       <svg
-        viewBox="0 0 520 290"
+        viewBox="0 0 400 300"
         className="w-full h-full block"
         preserveAspectRatio="xMidYMid meet"
       >
@@ -196,15 +193,15 @@ export default function WorldRenderer({
               @keyframes particleDrift {
                 0% { transform: translateY(0px); opacity: 0; }
                 50% { opacity: 0.85; }
-                100% { transform: translateY(-28px); opacity: 0; }
+                100% { transform: translateY(-24px); opacity: 0; }
               }
               @keyframes windowBlink {
                 0%, 100% { opacity: 0.8; }
                 50% { opacity: 1; }
               }
               @keyframes antennaPulse {
-                0%, 100% { fill: #FFFFFF; r: 3.5; }
-                50% { fill: ${palette.glowColor}; r: 4.5; }
+                0%, 100% { fill: #FFFFFF; r: 3; }
+                50% { fill: ${palette.glowColor}; r: 4; }
               }
               .building-complete {
                 transform-origin: center bottom;
@@ -229,19 +226,19 @@ export default function WorldRenderer({
         </defs>
 
         {/* LAYER 1: Background Sky */}
-        <rect width="520" height="290" fill={`url(#skyGrad_${activeThemeKey})`} />
+        <rect width="400" height="300" fill={`url(#skyGrad_${activeThemeKey})`} />
 
         {/* LAYER 2: Floating Particle Motes */}
         {!isMiniPreview && (
           <g className="particles-layer">
             {[
-              { cx: 70, cy: 60, delay: '0s', r: 2.2 },
-              { cx: 160, cy: 30, delay: '1.2s', r: 1.8 },
-              { cx: 280, cy: 45, delay: '2.4s', r: 2.5 },
-              { cx: 420, cy: 75, delay: '0.8s', r: 1.5 },
-              { cx: 480, cy: 120, delay: '1.9s', r: 2.0 },
-              { cx: 120, cy: 220, delay: '3.1s', r: 1.6 },
-              { cx: 390, cy: 240, delay: '2.7s', r: 2.3 },
+              { cx: 50, cy: 50, delay: '0s', r: 1.8 },
+              { cx: 130, cy: 30, delay: '1.2s', r: 1.5 },
+              { cx: 220, cy: 35, delay: '2.4s', r: 2.0 },
+              { cx: 340, cy: 60, delay: '0.8s', r: 1.4 },
+              { cx: 370, cy: 110, delay: '1.9s', r: 1.8 },
+              { cx: 90, cy: 220, delay: '3.1s', r: 1.5 },
+              { cx: 310, cy: 250, delay: '2.7s', r: 2.0 },
             ].map((p, pIdx) => (
               <circle
                 key={pIdx}
@@ -278,17 +275,21 @@ export default function WorldRenderer({
             const tileLeftPt = `${x - tileW / 2},${y}`;
             const tilePath = `M ${tileTopPt} L ${tileRightPt} L ${tileBottomPt} L ${tileLeftPt} Z`;
 
-            // SVG Building Dimensions
+            // SVG Geometric Building Dimensions
             const bldgW = 44;
-            const bldgH = state === 'complete' ? 52 : 30;
+            const bldgH = state === 'complete' ? 54 : 32;
             const bx = x;
             const by = y;
 
-            // AI Image Box (Centered on Tile, max 90px)
-            const imgBoxW = 90;
-            const imgBoxH = 90;
-            const imgX = x - imgBoxW / 2;
-            const imgY = y - imgBoxH + 18;
+            // AI Image Box (LARGE 120x120px, Centered on Tile, stands above tile)
+            const imgBoxW = 120;
+            const imgBoxH = 120;
+            const imgX = x - 60;
+            const imgY = y - 95;
+
+            // Label text length truncation
+            const displayLabel = conceptName.length > 14 ? `${conceptName.slice(0, 13)}…` : conceptName;
+            const labelWidth = Math.max(50, displayLabel.length * 6.5 + 14);
 
             return (
               <g
@@ -301,7 +302,7 @@ export default function WorldRenderer({
                   }
                 }}
               >
-                {/* 1. Ground Tile Base (Sides) */}
+                {/* 1. Ground Tile Base (Isometric Depth Faces) */}
                 <polygon
                   points={`${x - tileW / 2},${y} ${x},${y + tileH / 2} ${x},${y + tileH / 2 + 10} ${x - tileW / 2},${y + 10}`}
                   fill={palette.tileLeft}
@@ -325,16 +326,16 @@ export default function WorldRenderer({
                   <ellipse
                     cx={bx}
                     cy={by + 4}
-                    rx={24}
+                    rx={26}
                     ry={9}
-                    fill="rgba(0,0,0,0.55)"
+                    fill="rgba(0,0,0,0.6)"
                     filter="url(#shadowBlur)"
                   />
                 )}
 
-                {/* 2. RENDER ONLY ONE: IF IMAGE LOADED -> RENDER IMAGE ONLY; ELSE RENDER SVG */}
+                {/* 2. RENDER ONLY ONE: IF IMAGE LOADED -> RENDER LARGE IMAGE ONLY; ELSE SVG */}
                 {isImageLoaded && proxyImageUrl ? (
-                  /* --- AI IMAGE ONLY (Clean, Non-Overlapping) --- */
+                  /* --- LARGE AI IMAGE ONLY (120x120px, Screen Blend to remove dark box) --- */
                   <image
                     href={proxyImageUrl}
                     xlinkHref={proxyImageUrl}
@@ -344,10 +345,10 @@ export default function WorldRenderer({
                     height={imgBoxH}
                     preserveAspectRatio="xMidYMid meet"
                     style={{
-                      imageRendering: 'auto',
-                      filter: state === 'complete' ? `drop-shadow(0 8px 16px ${palette.glowColor}60)` : undefined,
+                      mixBlendMode: 'screen',
+                      filter: state === 'complete' ? `drop-shadow(0 8px 16px ${palette.glowColor}80)` : undefined,
                     }}
-                    className="pointer-events-none opacity-100"
+                    className="pointer-events-none"
                   />
                 ) : (
                   /* --- SVG GEOMETRIC FALLBACK ONLY --- */
@@ -471,7 +472,34 @@ export default function WorldRenderer({
                   </g>
                 )}
 
-                {/* Hidden Background Image Loader (Triggers state when ready) */}
+                {/* 3. BUILDING LABEL (Centered below tile with translucent backdrop) */}
+                {bldg && (
+                  <g className="pointer-events-none">
+                    <rect
+                      x={x - labelWidth / 2}
+                      y={y + tileH / 2 + 3}
+                      width={labelWidth}
+                      height={14}
+                      rx="7"
+                      fill="rgba(8, 5, 18, 0.85)"
+                      stroke="rgba(255, 255, 255, 0.15)"
+                      strokeWidth="0.6"
+                    />
+                    <text
+                      x={x}
+                      y={y + tileH / 2 + 13}
+                      textAnchor="middle"
+                      fill="#FFFFFF"
+                      fontSize="9"
+                      fontWeight="600"
+                      className="font-sans"
+                    >
+                      {displayLabel}
+                    </text>
+                  </g>
+                )}
+
+                {/* Hidden Background Image Loader */}
                 {proxyImageUrl && !isImageLoaded && !isFailed && (
                   <image
                     href={proxyImageUrl}
@@ -495,7 +523,7 @@ export default function WorldRenderer({
 
       {/* TAPPED BUILDING TOOLTIP OVERLAY */}
       {activeTooltip && !isMiniPreview && (
-        <div className="absolute top-3.5 left-3.5 right-3.5 bg-black/85 backdrop-blur-md border border-[#00F0FF]/40 p-3 rounded-2xl flex items-center justify-between gap-3 shadow-2xl animate-fadeIn">
+        <div className="absolute top-3.5 left-3.5 right-3.5 bg-black/85 backdrop-blur-md border border-[#00F0FF]/40 p-3 rounded-2xl flex items-center justify-between gap-3 shadow-2xl animate-fadeIn z-30">
           <div className="space-y-0.5 min-w-0">
             <div className="flex items-center gap-1.5 font-sans font-bold text-xs text-white">
               <Sparkles className="w-3.5 h-3.5 text-[#00F0FF] shrink-0" />
