@@ -91,9 +91,11 @@ export default function AppLayout({
     );
   }
 
+  const isWorldPage = pathname === '/world';
+
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-ink text-text selection:bg-violet selection:text-white relative">
-      <DashBackdrop src="/art/hero-left.jpg" />
+      {!isWorldPage && <DashBackdrop src="/art/hero-left.jpg" />}
 
       {/* Fixed Header */}
       <header className="flex-none h-14 border-b border-line/40 flex items-center z-50 bg-ink/90 backdrop-blur-md">
@@ -106,12 +108,18 @@ export default function AppLayout({
         </div>
       )}
 
-      {/* Scrollable Main Content Area (Only this moves) */}
-      <main className="flex-1 overflow-y-auto min-h-0 relative z-10 lg:pl-[240px]">
-        <div className="w-full max-w-[640px] lg:max-w-[1080px] mx-auto px-4 sm:px-6 pt-4 pb-6">
+      {/* Main Content Area */}
+      {isWorldPage ? (
+        <main className="flex-1 min-h-0 relative z-10 lg:pl-[240px] overflow-hidden w-full h-full">
           {children}
-        </div>
-      </main>
+        </main>
+      ) : (
+        <main className="flex-1 overflow-y-auto min-h-0 relative z-10 lg:pl-[240px]">
+          <div className="w-full max-w-[640px] lg:max-w-[1080px] mx-auto px-4 sm:px-6 pt-4 pb-6">
+            {children}
+          </div>
+        </main>
+      )}
 
       {/* Fixed Bottom Nav (Hidden on Desktop md:) */}
       <nav className="flex-none z-50 md:hidden">

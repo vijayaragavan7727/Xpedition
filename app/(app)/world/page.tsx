@@ -9,7 +9,7 @@ import { computeGameWorldData } from '@/lib/engine/gameWorldAdapter';
 const GameCanvas = dynamic(() => import('@/components/world3d/GameCanvas'), {
   ssr: false,
   loading: () => (
-    <div className="w-full h-full min-h-[500px] flex items-center justify-center bg-[#080512] font-mono text-xs text-[#00F0FF]">
+    <div className="w-full h-full flex items-center justify-center bg-[#0A071B] font-mono text-xs text-[#00F0FF]">
       <div className="flex flex-col items-center gap-3">
         <div className="w-10 h-10 border-2 border-[#00F0FF] border-t-transparent rounded-full animate-spin" />
         <span>Loading XPedition 3D World...</span>
@@ -28,7 +28,7 @@ export default function WorldPage() {
 
   if (!storeData || !gameWorldData) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#080512] font-mono text-xs text-[#00F0FF]">
+      <div className="w-full h-full flex items-center justify-center bg-[#0A071B] font-mono text-xs text-[#00F0FF]">
         <div className="flex flex-col items-center gap-3">
           <div className="w-10 h-10 border-2 border-[#00F0FF] border-t-transparent rounded-full animate-spin" />
           <span>Synchronizing Realm Data...</span>
@@ -38,8 +38,8 @@ export default function WorldPage() {
   }
 
   return (
-    <main className="fixed inset-0 top-[60px] pb-[64px] lg:pb-0 lg:left-[240px] z-10 select-none overflow-hidden bg-[#080512]">
+    <div className="w-full h-full relative select-none overflow-hidden bg-[#0A071B]">
       <GameCanvas worldData={gameWorldData} />
-    </main>
+    </div>
   );
 }
