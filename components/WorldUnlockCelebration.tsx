@@ -2,21 +2,17 @@
 
 import React, { useEffect, useState } from 'react';
 import { WorldBuilding } from '@/lib/worldEngine';
-import { WorldThemeId } from '@/lib/themes';
-import WorldRenderer from './WorldRenderer';
 import { Sparkles, Trophy, CheckCircle2 } from 'lucide-react';
 
 interface WorldUnlockCelebrationProps {
   unlockedBuilding: WorldBuilding | null;
-  allBuildings: WorldBuilding[];
-  theme?: WorldThemeId | string;
+  allBuildings?: WorldBuilding[];
+  theme?: string;
   onDismiss: () => void;
 }
 
 export default function WorldUnlockCelebration({
   unlockedBuilding,
-  allBuildings,
-  theme = 'cosmos',
   onDismiss,
 }: WorldUnlockCelebrationProps) {
   const [visible, setVisible] = useState<boolean>(false);
@@ -35,7 +31,7 @@ export default function WorldUnlockCelebration({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          text: 'Your world just grew. Keep going.',
+          text: 'Your 3D world just evolved. Keep building.',
           language: 'english',
           speaker: 'ratan',
         }),
@@ -62,49 +58,40 @@ export default function WorldUnlockCelebration({
   if (!visible || !unlockedBuilding) return null;
 
   return (
-    <div
-      onClick={() => {
-        setVisible(false);
-        onDismiss();
-      }}
-      className="fixed inset-0 z-50 bg-black/90 backdrop-blur-lg flex items-center justify-center p-4 select-none cursor-pointer animate-fadeIn font-sans"
-    >
-      <div className="max-w-md w-full text-center space-y-5 animate-scaleUp p-6 rounded-[28px] bg-[#120D28] border border-[#00F0FF]/50 shadow-[0_0_60px_rgba(0,240,255,0.4)]">
-        
-        {/* Celebration Header */}
-        <div className="space-y-1.5">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#00FF87]/20 border border-[#00FF87]/50 text-[#00FF87] font-mono text-xs font-bold animate-bounce">
-            <Trophy className="w-4 h-4" />
-            <span>WORLD EXPANSION</span>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-fadeIn select-none">
+      <div className="w-full max-w-sm bg-[#120E22] border border-[#00F0FF]/40 rounded-[24px] p-6 text-center space-y-4 shadow-[0_0_50px_rgba(0,240,255,0.4)] relative overflow-hidden">
+        {/* Ambient Top Glow */}
+        <div className="absolute -top-12 -right-12 w-32 h-32 rounded-full blur-[40px] pointer-events-none opacity-40 bg-[#00FF87]" />
+
+        {/* Celebration Icon */}
+        <div className="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-tr from-[#00F0FF] to-[#00FF87] flex items-center justify-center text-3xl shadow-lg animate-bounce">
+          🏛️
+        </div>
+
+        <div className="space-y-1">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#00FF87]/20 border border-[#00FF87]/40 text-[#00FF87] font-mono text-[11px] font-bold">
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>NEW 3D STRUCTURE CONSTRUCTED</span>
           </div>
-
-          <h2 className="text-2xl sm:text-3xl font-black text-white font-heading tracking-tight">
-            {unlockedBuilding.buildingName} Unlocked!
-          </h2>
-
-          <p className="font-sans text-xs text-cyan font-medium">
-            {unlockedBuilding.conceptName} &middot; {unlockedBuilding.state === 'complete' ? 'Fully Constructed' : 'Foundation Built'}
+          <h3 className="font-sans font-black text-xl text-white">
+            {unlockedBuilding.buildingName || unlockedBuilding.conceptName || 'Domain Structure'}
+          </h3>
+          <p className="font-mono text-xs text-slate-300">
+            {unlockedBuilding.conceptName} Mastered!
           </p>
         </div>
 
-        {/* Scaled Isometric World Preview */}
-        <div className="rounded-2xl overflow-hidden border border-white/15 shadow-xl">
-          <WorldRenderer
-            theme={theme}
-            buildings={allBuildings}
-            height={160}
-            isMiniPreview
-          />
-        </div>
-
-        {/* XYRA Message */}
-        <div className="p-3.5 rounded-2xl bg-black/50 border border-white/10 text-xs text-slate-200 font-sans italic">
-          &ldquo;Your world just grew. Keep going.&rdquo; &mdash; <span className="text-[#00F0FF] font-mono font-bold">XYRA</span>
-        </div>
-
-        <span className="font-mono text-[10px] text-slate-400 block">
-          Tap anywhere to continue
-        </span>
+        <button
+          type="button"
+          onClick={() => {
+            setVisible(false);
+            onDismiss();
+          }}
+          className="w-full h-11 rounded-xl bg-signature-gradient text-white font-mono font-bold text-xs flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition-all cursor-pointer shadow-lg"
+        >
+          <CheckCircle2 className="w-4 h-4" />
+          <span>Enter 3D Realm</span>
+        </button>
       </div>
     </div>
   );
