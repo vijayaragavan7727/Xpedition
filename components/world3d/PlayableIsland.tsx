@@ -10,11 +10,112 @@ interface PlayableIslandProps {
 }
 
 // ---------------------------------------------------------------------------
-// 1. DENSE PROCEDURAL PROPS: TREES, ROCKS, CRYSTALS, PROPS, FENCES, LIGHTS
+// 1. MODULAR DEFENSIVE STONE WALL SEGMENT
 // ---------------------------------------------------------------------------
+function StoneWall({
+  start,
+  end,
+}: {
+  start: [number, number, number];
+  end: [number, number, number];
+}) {
+  const dx = end[0] - start[0];
+  const dz = end[2] - start[2];
+  const len = Math.sqrt(dx * dx + dz * dz);
+  const angle = Math.atan2(dx, dz);
+  const midX = (start[0] + end[0]) / 2;
+  const midZ = (start[2] + end[2]) / 2;
 
-// Varied Low-Poly Tree (Pine, Oak, Autumn, Mystic)
-function DenseTree({
+  return (
+    <group position={[midX, 0, midZ]} rotation={[0, angle, 0]}>
+      {/* Wall Block Base */}
+      <mesh position={[0, 0.35, 0]} castShadow receiveShadow>
+        <boxGeometry args={[0.36, 0.7, len]} />
+        <meshStandardMaterial color="#64748B" roughness={0.8} />
+      </mesh>
+      {/* Wall Top Stone Trim */}
+      <mesh position={[0, 0.72, 0]} castShadow>
+        <boxGeometry args={[0.42, 0.1, len]} />
+        <meshStandardMaterial color="#94A3B8" roughness={0.7} />
+      </mesh>
+      {/* Battlements Posts along the wall */}
+      {[-len / 2.5, 0, len / 2.5].map((zOffset, i) => (
+        <mesh key={i} position={[0, 0.85, zOffset]} castShadow>
+          <boxGeometry args={[0.38, 0.2, 0.24]} />
+          <meshStandardMaterial color="#475569" roughness={0.8} />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
+// Wooden Palisade Fence Segment
+function WoodPalisade({
+  start,
+  end,
+}: {
+  start: [number, number, number];
+  end: [number, number, number];
+}) {
+  const dx = end[0] - start[0];
+  const dz = end[2] - start[2];
+  const len = Math.sqrt(dx * dx + dz * dz);
+  const angle = Math.atan2(dx, dz);
+  const midX = (start[0] + end[0]) / 2;
+  const midZ = (start[2] + end[2]) / 2;
+  const count = Math.max(2, Math.floor(len / 0.28));
+
+  return (
+    <group position={[midX, 0, midZ]} rotation={[0, angle, 0]}>
+      {Array.from({ length: count }).map((_, i) => {
+        const offset = -len / 2 + (i + 0.5) * (len / count);
+        return (
+          <group key={i} position={[0, 0, offset]}>
+            <mesh position={[0, 0.3, 0]} castShadow>
+              <cylinderGeometry args={[0.07, 0.09, 0.6, 6]} />
+              <meshStandardMaterial color="#78350F" roughness={0.9} />
+            </mesh>
+            <mesh position={[0, 0.68, 0]} castShadow>
+              <coneGeometry args={[0.08, 0.2, 6]} />
+              <meshStandardMaterial color="#92400E" roughness={0.8} />
+            </mesh>
+          </group>
+        );
+      })}
+    </group>
+  );
+}
+
+// Tactical Defense Cannon Turret
+function CannonTurret({ position }: { position: [number, number, number] }) {
+  const barrelRef = useRef<THREE.Mesh>(null);
+
+  useFrame(({ clock }) => {
+    if (barrelRef.current) {
+      barrelRef.current.rotation.y = Math.sin(clock.getElapsedTime() * 0.8) * 0.4;
+    }
+  });
+
+  return (
+    <group position={position}>
+      {/* Stone Base */}
+      <mesh position={[0, 0.15, 0]} castShadow receiveShadow>
+        <cylinderGeometry args={[0.5, 0.55, 0.3, 8]} />
+        <meshStandardMaterial color="#475569" />
+      </mesh>
+      {/* Rotating Cannon Barrel */}
+      <group ref={barrelRef} position={[0, 0.4, 0]}>
+        <mesh position={[0, 0.1, 0]} rotation={[0.2, 0, 0]} castShadow>
+          <cylinderGeometry args={[0.12, 0.18, 0.7, 8]} />
+          <meshStandardMaterial color="#1E293B" metalness={0.9} roughness={0.3} />
+        </mesh>
+      </group>
+    </group>
+  );
+}
+
+// Low-Poly Perimeter Forest Tree
+function StrategyTree({
   position,
   scale = 1,
   variant = 'green',
@@ -24,7 +125,7 @@ function DenseTree({
   variant?: 'green' | 'dark' | 'autumn' | 'mystic';
 }) {
   const treeRef = useRef<THREE.Group>(null);
-  const phase = position[0] * 1.7 + position[2] * 2.1;
+  const phase = position[0] * 1.5 + position[2];
 
   const colors = useMemo(() => {
     switch (variant) {
@@ -43,178 +144,60 @@ function DenseTree({
   useFrame(({ clock }) => {
     if (treeRef.current) {
       const t = clock.getElapsedTime();
-      treeRef.current.rotation.z = Math.sin(t * 1.5 + phase) * 0.035;
-      treeRef.current.rotation.x = Math.cos(t * 1.2 + phase) * 0.025;
+      treeRef.current.rotation.z = Math.sin(t * 1.5 + phase) * 0.03;
+      treeRef.current.rotation.x = Math.cos(t * 1.2 + phase) * 0.02;
     }
   });
 
   return (
     <group ref={treeRef} position={position} scale={scale}>
-      {/* Wood Trunk */}
       <mesh position={[0, 0.45, 0]} castShadow>
         <cylinderGeometry args={[0.1, 0.16, 0.9, 6]} />
         <meshStandardMaterial color="#78350F" roughness={0.9} />
       </mesh>
-      {/* Foliage Layers */}
       <mesh position={[0, 1.05, 0]} castShadow>
         <coneGeometry args={[0.65, 0.95, 6]} />
         <meshStandardMaterial color={colors[0]} roughness={0.7} />
       </mesh>
       <mesh position={[0, 1.55, 0]} castShadow>
-        <coneGeometry args={[0.5, 0.75, 6]} />
+        <coneGeometry args={[0.48, 0.75, 6]} />
         <meshStandardMaterial color={colors[1]} roughness={0.7} />
       </mesh>
-      <mesh position={[0, 1.95, 0]} castShadow>
-        <coneGeometry args={[0.35, 0.55, 6]} />
-        <meshStandardMaterial color={colors[1]} roughness={0.7} />
-      </mesh>
-    </group>
-  );
-}
-
-// Low-Poly Bush
-function Bush({ position, scale = 1, color = '#22C55E' }: { position: [number, number, number]; scale?: number; color?: string }) {
-  return (
-    <group position={position} scale={scale}>
-      <mesh position={[0, 0.25, 0]} castShadow>
-        <dodecahedronGeometry args={[0.3, 1]} />
-        <meshStandardMaterial color={color} roughness={0.8} />
-      </mesh>
-      <mesh position={[0.18, 0.2, 0.1]} castShadow>
-        <dodecahedronGeometry args={[0.22, 1]} />
-        <meshStandardMaterial color={color} roughness={0.8} />
-      </mesh>
-    </group>
-  );
-}
-
-// Glowing Crystal Geode
-function GlowingCrystalCluster({ position, color = '#00F0FF' }: { position: [number, number, number]; color?: string }) {
-  return (
-    <group position={position}>
-      <mesh position={[0, 0.35, 0]} rotation={[0.15, 0.3, 0.2]}>
-        <cylinderGeometry args={[0.08, 0.16, 0.7, 5]} />
-        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={2.5} roughness={0.1} metalness={0.9} />
-      </mesh>
-      <mesh position={[0.22, 0.25, 0.1]} rotation={[-0.2, 0.6, -0.3]}>
-        <cylinderGeometry args={[0.06, 0.12, 0.5, 5]} />
-        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={2.0} roughness={0.1} metalness={0.9} />
-      </mesh>
-      <pointLight color={color} intensity={1.8} distance={3.5} />
-    </group>
-  );
-}
-
-// Rock Boulder
-function RockBoulder({ position, scale = 1, rotation = [0, 0, 0] }: { position: [number, number, number]; scale?: number; rotation?: [number, number, number] }) {
-  return (
-    <mesh position={position} scale={scale} rotation={rotation} castShadow receiveShadow>
-      <dodecahedronGeometry args={[0.45, 0]} />
-      <meshStandardMaterial color="#475569" roughness={0.85} />
-    </mesh>
-  );
-}
-
-// Wooden Fence Segment
-function FenceSegment({ position, rotation = [0, 0, 0] }: { position: [number, number, number]; rotation?: [number, number, number] }) {
-  return (
-    <group position={position} rotation={rotation}>
-      {/* Posts */}
-      <mesh position={[-0.4, 0.3, 0]} castShadow>
-        <boxGeometry args={[0.08, 0.6, 0.08]} />
-        <meshStandardMaterial color="#92400E" roughness={0.8} />
-      </mesh>
-      <mesh position={[0.4, 0.3, 0]} castShadow>
-        <boxGeometry args={[0.08, 0.6, 0.08]} />
-        <meshStandardMaterial color="#92400E" roughness={0.8} />
-      </mesh>
-      {/* Rails */}
-      <mesh position={[0, 0.45, 0]} castShadow>
-        <boxGeometry args={[0.88, 0.06, 0.04]} />
-        <meshStandardMaterial color="#B45309" roughness={0.8} />
-      </mesh>
-      <mesh position={[0, 0.2, 0]} castShadow>
-        <boxGeometry args={[0.88, 0.06, 0.04]} />
-        <meshStandardMaterial color="#B45309" roughness={0.8} />
-      </mesh>
-    </group>
-  );
-}
-
-// Campfire with smoke
-function Campfire({ position }: { position: [number, number, number] }) {
-  const flameRef = useRef<THREE.Mesh>(null);
-
-  useFrame(({ clock }) => {
-    if (flameRef.current) {
-      const s = 0.9 + Math.sin(clock.getElapsedTime() * 10) * 0.15;
-      flameRef.current.scale.set(s, s * 1.2, s);
-    }
-  });
-
-  return (
-    <group position={position}>
-      {/* Log Ring */}
-      {[0, 1, 2, 3, 4, 5].map((i) => {
-        const angle = (i * Math.PI) / 3;
-        return (
-          <mesh
-            key={i}
-            position={[Math.cos(angle) * 0.35, 0.08, Math.sin(angle) * 0.35]}
-            rotation={[0, angle + Math.PI / 2, 0.2]}
-            castShadow
-          >
-            <cylinderGeometry args={[0.05, 0.07, 0.35, 6]} />
-            <meshStandardMaterial color="#451A03" />
-          </mesh>
-        );
-      })}
-      {/* Animated Flame */}
-      <mesh ref={flameRef} position={[0, 0.3, 0]}>
-        <coneGeometry args={[0.2, 0.45, 6]} />
-        <meshStandardMaterial color="#F97316" emissive="#EF4444" emissiveIntensity={3} />
-      </mesh>
-      <pointLight position={[0, 0.4, 0]} color="#F59E0B" intensity={2.5} distance={5} />
-    </group>
-  );
-}
-
-// Flower Bed Cluster
-function FlowerCluster({ position, color = '#F43F5E' }: { position: [number, number, number]; color?: string }) {
-  return (
-    <group position={position}>
-      {[-0.15, 0, 0.15].map((x, i) =>
-        [-0.15, 0, 0.15].map((z, j) => (
-          <mesh key={`${i}_${j}`} position={[x + (Math.random() * 0.08 - 0.04), 0.1, z + (Math.random() * 0.08 - 0.04)]}>
-            <sphereGeometry args={[0.05, 6, 6]} />
-            <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.8} />
-          </mesh>
-        ))
-      )}
     </group>
   );
 }
 
 // ---------------------------------------------------------------------------
-// 2. MAIN PLAYABLE STRATEGY ISLAND TERRAIN
+// 2. MAIN PLAYABLE STRATEGY BASE TERRAIN
 // ---------------------------------------------------------------------------
 export default function PlayableIsland({ onGroundClick, worldLevel }: PlayableIslandProps) {
-  const waterRef = useRef<THREE.Mesh>(null);
+  // Generate 14x14 Checkerboard Tactical Grass Grid
+  const gridTiles = useMemo(() => {
+    const tiles = [];
+    const size = 14;
+    const step = 0.95;
+    const half = (size * step) / 2;
 
-  useFrame(({ clock }) => {
-    if (waterRef.current) {
-      const mat = waterRef.current.material as THREE.MeshStandardMaterial;
-      mat.opacity = 0.88 + Math.sin(clock.getElapsedTime() * 2) * 0.06;
+    for (let r = 0; r < size; r++) {
+      for (let c = 0; c < size; c++) {
+        const x = c * step - half + step / 2;
+        const z = r * step - half + step / 2;
+        const isEven = (r + c) % 2 === 0;
+        tiles.push({
+          id: `tile_${r}_${c}`,
+          position: [x, 0.005, z] as [number, number, number],
+          color: isEven ? '#2D6A4F' : '#3B8E5C', // Signature Strategy Checkerboard Green
+        });
+      }
     }
-  });
+    return tiles;
+  }, []);
 
   return (
     <group>
       {/* =================================================================== */}
-      {/* 1. EXPANSIVE FULL-VIEWPORT LIVING ISLAND TERRAIN */}
+      {/* 1. SOLID EXPANSIVE BASE PLATE */}
       {/* =================================================================== */}
-      
-      {/* Main Ground Slab (Vibrant Lush Green Turf) */}
       <mesh
         position={[0, -0.25, 0]}
         receiveShadow
@@ -223,237 +206,125 @@ export default function PlayableIsland({ onGroundClick, worldLevel }: PlayableIs
           onGroundClick?.([e.point.x, 0, e.point.z]);
         }}
       >
-        {/* Large 22x22 unit hex/cylinder island filling strategy camera */}
-        <cylinderGeometry args={[11.5, 12.2, 0.5, 36]} />
-        <meshStandardMaterial color="#166534" roughness={0.75} />
+        <boxGeometry args={[16, 0.5, 16]} />
+        <meshStandardMaterial color="#1B4332" roughness={0.8} />
       </mesh>
 
-      {/* Layer 2: Inner Settlement Lawn Plateau */}
-      <mesh
-        position={[0, 0.005, 0]}
-        receiveShadow
-        onClick={(e) => {
-          e.stopPropagation();
-          onGroundClick?.([e.point.x, 0, e.point.z]);
-        }}
-      >
-        <cylinderGeometry args={[10.2, 10.8, 0.12, 32]} />
-        <meshStandardMaterial color="#15803D" roughness={0.8} />
-      </mesh>
-
-      {/* Island Underbed Cliff Rock Formations */}
-      <mesh position={[0, -1.1, 0]}>
-        <cylinderGeometry args={[11.8, 8.5, 1.2, 20]} />
-        <meshStandardMaterial color="#1E293B" roughness={0.9} />
-      </mesh>
-      <mesh position={[0, -2.4, 0]} rotation={[Math.PI, 0, 0]}>
-        <coneGeometry args={[8.5, 2.0, 16]} />
-        <meshStandardMaterial color="#0F172A" roughness={0.95} />
+      {/* Bedrock Cliff Foundation */}
+      <mesh position={[0, -1.2, 0]}>
+        <boxGeometry args={[16.6, 1.4, 16.6]} />
+        <meshStandardMaterial color="#1E293B" roughness={0.95} />
       </mesh>
 
       {/* =================================================================== */}
-      {/* 2. NATURAL COBBLESTONE ROADS & CENTRAL STRATEGY PLAZA */}
+      {/* 2. DUAL-TONE CHECKERBOARD TACTICAL GRASS GRID */}
       {/* =================================================================== */}
-      
-      {/* Central Town Plaza */}
-      <mesh
-        position={[0, 0.02, 0]}
-        rotation={[-Math.PI / 2, 0, 0]}
-        receiveShadow
-        onClick={(e) => {
-          e.stopPropagation();
-          onGroundClick?.([e.point.x, 0, e.point.z]);
-        }}
-      >
-        <circleGeometry args={[2.5, 32]} />
-        <meshStandardMaterial color="#E2E8F0" roughness={0.65} />
-      </mesh>
-
-      {/* Glowing Plaza Magic Rune Inscription */}
-      <mesh position={[0, 0.025, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[2.3, 2.48, 32]} />
-        <meshStandardMaterial color="#00F0FF" emissive="#00F0FF" emissiveIntensity={2.2} />
-      </mesh>
-      <mesh position={[0, 0.025, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[1.1, 1.2, 24]} />
-        <meshStandardMaterial color="#A855F7" emissive="#A855F7" emissiveIntensity={2.0} />
-      </mesh>
-
-      {/* Roads connecting to all District Buildings */}
-      {/* Road to HQ (North) */}
-      <mesh position={[0, 0.02, -2.0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <planeGeometry args={[1.3, 2.8]} />
-        <meshStandardMaterial color="#CBD5E1" roughness={0.7} />
-      </mesh>
-      {/* Road to Library (West Hill) */}
-      <mesh position={[-2.4, 0.02, 0.5]} rotation={[-Math.PI / 2, 0, Math.PI / 2]} receiveShadow>
-        <planeGeometry args={[1.2, 3.2]} />
-        <meshStandardMaterial color="#CBD5E1" roughness={0.7} />
-      </mesh>
-      {/* Road to Quest Board (East Market) */}
-      <mesh position={[2.4, 0.02, 0.5]} rotation={[-Math.PI / 2, 0, Math.PI / 2]} receiveShadow>
-        <planeGeometry args={[1.2, 3.2]} />
-        <meshStandardMaterial color="#CBD5E1" roughness={0.7} />
-      </mesh>
-      {/* Road to AI Lab (North-West) */}
-      <mesh position={[-2.2, 0.02, -2.2]} rotation={[-Math.PI / 2, 0, Math.PI / 4]} receiveShadow>
-        <planeGeometry args={[1.0, 2.8]} />
-        <meshStandardMaterial color="#CBD5E1" roughness={0.7} />
-      </mesh>
-      {/* Road to Mystic Expansion Zone (South-East) */}
-      <mesh position={[2.2, 0.02, 2.4]} rotation={[-Math.PI / 2, 0, Math.PI / 4]} receiveShadow>
-        <planeGeometry args={[1.0, 2.6]} />
-        <meshStandardMaterial color="#CBD5E1" roughness={0.7} />
-      </mesh>
-
-      {/* =================================================================== */}
-      {/* 3. SHIMMERING RIVER / WATER POND & WOODEN ARCH BRIDGE */}
-      {/* =================================================================== */}
-      <group position={[-4.5, 0.03, -3.8]}>
-        {/* River Pond Water */}
-        <mesh ref={waterRef} rotation={[-Math.PI / 2, 0, 0]}>
-          <circleGeometry args={[2.0, 32]} />
-          <meshStandardMaterial color="#06B6D4" roughness={0.1} metalness={0.8} transparent opacity={0.9} />
+      {gridTiles.map((tile) => (
+        <mesh
+          key={tile.id}
+          position={tile.position}
+          rotation={[-Math.PI / 2, 0, 0]}
+          receiveShadow
+          onClick={(e) => {
+            e.stopPropagation();
+            onGroundClick?.([e.point.x, 0, e.point.z]);
+          }}
+        >
+          <planeGeometry args={[0.92, 0.92]} />
+          <meshStandardMaterial color={tile.color} roughness={0.75} />
         </mesh>
-        {/* Stone Bank Rim */}
-        <mesh rotation={[-Math.PI / 2, 0, 0]}>
-          <ringGeometry args={[1.9, 2.2, 32]} />
-          <meshStandardMaterial color="#64748B" roughness={0.9} />
-        </mesh>
-        {/* River Pond Crystals */}
-        <GlowingCrystalCluster position={[1.1, 0, 0.8]} color="#38BDF8" />
-        <RockBoulder position={[-1.4, 0, -0.6]} scale={1.2} />
-      </group>
-
-      {/* Wooden Arch Bridge over stream */}
-      <group position={[-2.7, 0.18, -3.2]} rotation={[0, 0.4, 0]}>
-        <mesh castShadow receiveShadow>
-          <boxGeometry args={[1.4, 0.1, 0.7]} />
-          <meshStandardMaterial color="#92400E" roughness={0.8} />
-        </mesh>
-        {[-0.32, 0.32].map((z, i) => (
-          <mesh key={i} position={[0, 0.18, z]} castShadow>
-            <boxGeometry args={[1.4, 0.18, 0.05]} />
-            <meshStandardMaterial color="#78350F" />
-          </mesh>
-        ))}
-      </group>
+      ))}
 
       {/* =================================================================== */}
-      {/* 4. DENSE VEGETATION: 20+ TREES, BUSHES, FLOWER BEDS */}
+      {/* 3. MODULAR STONE WALLS & DEFENSIVE COMPARTMENTS */}
       {/* =================================================================== */}
-      {/* North Forest Grove (behind HQ) */}
-      <DenseTree position={[-2.2, 0, -6.5]} scale={1.2} variant="green" />
-      <DenseTree position={[0, 0, -6.8]} scale={1.3} variant="dark" />
-      <DenseTree position={[2.2, 0, -6.5]} scale={1.15} variant="green" />
-      <DenseTree position={[-4.0, 0, -5.8]} scale={1.0} variant="autumn" />
-      <DenseTree position={[4.0, 0, -5.8]} scale={1.05} variant="green" />
+      {/* Town Hall Inner Citadel Walls */}
+      <StoneWall start={[-2.4, 0, -3.2]} end={[2.4, 0, -3.2]} />
+      <StoneWall start={[-2.4, 0, -3.2]} end={[-2.4, 0, -0.4]} />
+      <StoneWall start={[2.4, 0, -3.2]} end={[2.4, 0, -0.4]} />
 
-      {/* West Forest (behind Library) */}
-      <DenseTree position={[-7.2, 0, -1.2]} scale={1.25} variant="green" />
-      <DenseTree position={[-7.5, 0, 0.8]} scale={1.1} variant="dark" />
-      <DenseTree position={[-6.8, 0, 2.6]} scale={1.2} variant="mystic" />
-      <DenseTree position={[-5.8, 0, 4.2]} scale={1.0} variant="autumn" />
+      {/* West Library & Vault Yard Walls */}
+      <StoneWall start={[-5.4, 0, -3.0]} end={[-2.6, 0, -3.0]} />
+      <StoneWall start={[-5.4, 0, -3.0]} end={[-5.4, 0, 1.2]} />
+      <StoneWall start={[-5.4, 0, 1.2]} end={[-2.6, 0, 1.2]} />
 
-      {/* East Grove (behind Quest Board) */}
-      <DenseTree position={[7.2, 0, -1.2]} scale={1.15} variant="green" />
-      <DenseTree position={[7.6, 0, 0.8]} scale={1.3} variant="autumn" />
-      <DenseTree position={[6.8, 0, 2.6]} scale={1.1} variant="green" />
-      <DenseTree position={[5.8, 0, 4.2]} scale={1.2} variant="dark" />
+      {/* East Quest & AI Lab Yard Walls */}
+      <StoneWall start={[2.6, 0, -3.0]} end={[5.4, 0, -3.0]} />
+      <StoneWall start={[5.4, 0, -3.0]} end={[5.4, 0, 1.2]} />
+      <StoneWall start={[5.4, 0, 1.2]} end={[2.6, 0, 1.2]} />
 
-      {/* South Border Trees */}
-      <DenseTree position={[-3.8, 0, 6.2]} scale={1.1} variant="green" />
-      <DenseTree position={[0, 0, 6.8]} scale={1.25} variant="green" />
-      <DenseTree position={[3.8, 0, 6.2]} scale={1.1} variant="mystic" />
+      {/* South Outer Wooden Palisade Enclosure */}
+      <WoodPalisade start={[-4.8, 0, 4.8]} end={[4.8, 0, 4.8]} />
+      <WoodPalisade start={[-4.8, 0, 1.8]} end={[-4.8, 0, 4.8]} />
+      <WoodPalisade start={[4.8, 0, 1.8]} end={[4.8, 0, 4.8]} />
 
-      {/* Scattered Bushes & Shrubs */}
-      <Bush position={[-1.2, 0, 2.2]} scale={1.1} />
-      <Bush position={[1.4, 0, 2.2]} scale={0.9} color="#16A34A" />
-      <Bush position={[-3.2, 0, -1.2]} scale={1.2} />
-      <Bush position={[3.2, 0, -1.2]} scale={1.0} />
-      <Bush position={[-0.8, 0, -3.8]} scale={1.1} />
-      <Bush position={[0.8, 0, -3.8]} scale={0.9} color="#16A34A" />
-
-      {/* Vibrant Flower Patches */}
-      <FlowerCluster position={[-1.6, 0, 1.8]} color="#F43F5E" />
-      <FlowerCluster position={[1.8, 0, 1.6]} color="#FBBF24" />
-      <FlowerCluster position={[-2.8, 0, 2.4]} color="#38BDF8" />
-      <FlowerCluster position={[2.8, 0, 2.4]} color="#A855F7" />
+      {/* Defense Cannons guarding wall corners */}
+      <CannonTurret position={[-2.5, 0, -3.3]} />
+      <CannonTurret position={[2.5, 0, -3.3]} />
+      <CannonTurret position={[-5.5, 0, 1.3]} />
+      <CannonTurret position={[5.5, 0, 1.3]} />
 
       {/* =================================================================== */}
-      {/* 5. SETTLEMENT DETAILS: FENCES, CAMPFIRE, CRATES, LANTERNS */}
+      {/* 4. STRATEGY PROPS: TIMBER LOGS, GRAVESTONES, BARRELS, TORCHES */}
       {/* =================================================================== */}
-      {/* Market Fences near Quest Board */}
-      <FenceSegment position={[4.6, 0, -1.2]} rotation={[0, 0.2, 0]} />
-      <FenceSegment position={[5.4, 0, -1.0]} rotation={[0, 0.3, 0]} />
-
-      {/* Library Garden Fences */}
-      <FenceSegment position={[-4.6, 0, -1.2]} rotation={[0, -0.2, 0]} />
-      <FenceSegment position={[-5.4, 0, -1.0]} rotation={[0, -0.3, 0]} />
-
-      {/* Adventurer Campfire near South Plaza */}
-      <Campfire position={[0, 0, 3.8]} />
-
-      {/* Market Wooden Crates & Barrels near Quest Board */}
-      <group position={[4.2, 0, 1.6]}>
-        <mesh position={[0, 0.2, 0]} castShadow>
-          <boxGeometry args={[0.4, 0.4, 0.4]} />
-          <meshStandardMaterial color="#92400E" roughness={0.8} />
-        </mesh>
-        <mesh position={[0.42, 0.16, 0.05]} castShadow>
-          <cylinderGeometry args={[0.18, 0.18, 0.35, 8]} />
+      {/* Scattered Timber Logs */}
+      <group position={[-1.2, 0, 1.4]} rotation={[0, 0.4, 0]}>
+        <mesh position={[0, 0.08, 0]} rotation={[0, 0, Math.PI / 2]} castShadow>
+          <cylinderGeometry args={[0.08, 0.08, 0.8, 6]} />
           <meshStandardMaterial color="#78350F" />
         </mesh>
-        <mesh position={[0.1, 0.52, 0.02]} castShadow>
-          <boxGeometry args={[0.32, 0.32, 0.32]} />
-          <meshStandardMaterial color="#B45309" roughness={0.8} />
+        <mesh position={[0.15, 0.08, 0.1]} rotation={[0, 0.3, Math.PI / 2]} castShadow>
+          <cylinderGeometry args={[0.07, 0.07, 0.7, 6]} />
+          <meshStandardMaterial color="#92400E" />
         </mesh>
       </group>
 
-      {/* =================================================================== */}
-      {/* 6. GLOWING CRYSTAL FORMATIONS & AMBIENT LANTERNS */}
-      {/* =================================================================== */}
-      <GlowingCrystalCluster position={[-6.2, 0, -2.8]} color="#00F0FF" />
-      <GlowingCrystalCluster position={[6.2, 0, -2.8]} color="#A855F7" />
-      <GlowingCrystalCluster position={[-4.8, 0, 3.8]} color="#00FF87" />
-      <GlowingCrystalCluster position={[4.8, 0, 3.8]} color="#F59E0B" />
+      {/* Rubble Stone Piles */}
+      <mesh position={[1.4, 0.12, 1.4]} castShadow>
+        <dodecahedronGeometry args={[0.22, 0]} />
+        <meshStandardMaterial color="#64748B" />
+      </mesh>
+      <mesh position={[1.6, 0.08, 1.2]} castShadow>
+        <dodecahedronGeometry args={[0.15, 0]} />
+        <meshStandardMaterial color="#475569" />
+      </mesh>
 
-      {/* Placed Rock Formations */}
-      <RockBoulder position={[-6.0, 0, -3.2]} scale={1.4} />
-      <RockBoulder position={[6.0, 0, -3.2]} scale={1.3} />
-      <RockBoulder position={[-5.2, 0, 2.8]} scale={1.1} />
-      <RockBoulder position={[5.2, 0, 2.8]} scale={1.2} />
-      <RockBoulder position={[-1.8, 0, 5.2]} scale={1.0} />
-      <RockBoulder position={[1.8, 0, 5.2]} scale={1.1} />
+      {/* Campfire in Central Courtyard */}
+      <group position={[0, 0, 1.5]}>
+        {[0, 1, 2, 3, 4].map((i) => {
+          const angle = (i * Math.PI * 2) / 5;
+          return (
+            <mesh key={i} position={[Math.cos(angle) * 0.3, 0.06, Math.sin(angle) * 0.3]} castShadow>
+              <cylinderGeometry args={[0.04, 0.06, 0.28, 6]} />
+              <meshStandardMaterial color="#451A03" />
+            </mesh>
+          );
+        })}
+        <mesh position={[0, 0.25, 0]}>
+          <coneGeometry args={[0.18, 0.38, 6]} />
+          <meshStandardMaterial color="#F97316" emissive="#EF4444" emissiveIntensity={3} />
+        </mesh>
+        <pointLight position={[0, 0.35, 0]} color="#F59E0B" intensity={2.2} distance={4.5} />
+      </group>
 
-      {/* Glowing Pathway Lanterns */}
-      {[-1.6, 1.6].map((x, i) => (
-        <group key={`lantern_n_${i}`} position={[x, 0, -1.8]}>
-          <mesh position={[0, 0.45, 0]} castShadow>
-            <cylinderGeometry args={[0.04, 0.06, 0.9, 6]} />
-            <meshStandardMaterial color="#334155" />
-          </mesh>
-          <mesh position={[0, 0.95, 0]}>
-            <octahedronGeometry args={[0.14, 0]} />
-            <meshStandardMaterial color="#F59E0B" emissive="#F59E0B" emissiveIntensity={3.0} />
-          </mesh>
-          <pointLight position={[0, 0.95, 0]} color="#F59E0B" intensity={1.5} distance={4} />
-        </group>
-      ))}
+      {/* Perimeter Forest Trees */}
+      <StrategyTree position={[-6.8, 0, -5.2]} scale={1.2} variant="green" />
+      <StrategyTree position={[-6.2, 0, -2.8]} scale={1.1} variant="dark" />
+      <StrategyTree position={[-6.8, 0, 0]} scale={1.25} variant="green" />
+      <StrategyTree position={[-6.5, 0, 3.2]} scale={1.05} variant="autumn" />
+      <StrategyTree position={[-6.2, 0, 5.8]} scale={1.15} variant="green" />
 
-      {[-1.6, 1.6].map((x, i) => (
-        <group key={`lantern_s_${i}`} position={[x, 0, 1.8]}>
-          <mesh position={[0, 0.45, 0]} castShadow>
-            <cylinderGeometry args={[0.04, 0.06, 0.9, 6]} />
-            <meshStandardMaterial color="#334155" />
-          </mesh>
-          <mesh position={[0, 0.95, 0]}>
-            <octahedronGeometry args={[0.14, 0]} />
-            <meshStandardMaterial color="#00F0FF" emissive="#00F0FF" emissiveIntensity={3.0} />
-          </mesh>
-          <pointLight position={[0, 0.95, 0]} color="#00F0FF" intensity={1.5} distance={4} />
-        </group>
-      ))}
+      <StrategyTree position={[6.8, 0, -5.2]} scale={1.2} variant="green" />
+      <StrategyTree position={[6.2, 0, -2.8]} scale={1.1} variant="autumn" />
+      <StrategyTree position={[6.8, 0, 0]} scale={1.25} variant="dark" />
+      <StrategyTree position={[6.5, 0, 3.2]} scale={1.05} variant="green" />
+      <StrategyTree position={[6.2, 0, 5.8]} scale={1.15} variant="mystic" />
+
+      <StrategyTree position={[-3.8, 0, -6.5]} scale={1.2} variant="green" />
+      <StrategyTree position={[0, 0, -6.8]} scale={1.3} variant="dark" />
+      <StrategyTree position={[3.8, 0, -6.5]} scale={1.2} variant="green" />
+      <StrategyTree position={[-2.4, 0, 6.6]} scale={1.1} variant="green" />
+      <StrategyTree position={[2.4, 0, 6.6]} scale={1.15} variant="autumn" />
     </group>
   );
 }
