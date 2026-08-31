@@ -114,7 +114,7 @@ function CannonTurret({ position }: { position: [number, number, number] }) {
   );
 }
 
-// Low-Poly Perimeter Forest Tree
+// Low-Poly Strategy Tree (Pines, Oaks, Autumn, Sakura)
 function StrategyTree({
   position,
   scale = 1,
@@ -164,6 +164,36 @@ function StrategyTree({
         <meshStandardMaterial color={colors[1]} roughness={0.7} />
       </mesh>
     </group>
+  );
+}
+
+// Ambient Floating Fireflies
+function AmbientFireflies() {
+  const pointsRef = useRef<THREE.Points>(null);
+  const { positions } = useMemo(() => {
+    const count = 30;
+    const pos = new Float32Array(count * 3);
+    for (let i = 0; i < count; i++) {
+      pos[i * 3] = (Math.random() - 0.5) * 14;
+      pos[i * 3 + 1] = 0.5 + Math.random() * 2.5;
+      pos[i * 3 + 2] = (Math.random() - 0.5) * 14;
+    }
+    return { positions: pos };
+  }, []);
+
+  useFrame(({ clock }) => {
+    if (pointsRef.current) {
+      pointsRef.current.rotation.y = clock.getElapsedTime() * 0.05;
+    }
+  });
+
+  return (
+    <points ref={pointsRef}>
+      <bufferGeometry>
+        <bufferAttribute attach="attributes-position" args={[positions, 3]} />
+      </bufferGeometry>
+      <pointsMaterial size={0.12} color="#00FF87" transparent opacity={0.75} blending={THREE.AdditiveBlending} />
+    </points>
   );
 }
 
@@ -267,7 +297,7 @@ export default function PlayableIsland({ onGroundClick, worldLevel }: PlayableIs
       {/* =================================================================== */}
       {/* 4. STRATEGY PROPS: TIMBER LOGS, GRAVESTONES, BARRELS, TORCHES */}
       {/* =================================================================== */}
-      {/* Scattered Timber Logs */}
+      {/* Lumber Depot with Stacked Logs & Axe */}
       <group position={[-1.2, 0, 1.4]} rotation={[0, 0.4, 0]}>
         <mesh position={[0, 0.08, 0]} rotation={[0, 0, Math.PI / 2]} castShadow>
           <cylinderGeometry args={[0.08, 0.08, 0.8, 6]} />
@@ -276,6 +306,22 @@ export default function PlayableIsland({ onGroundClick, worldLevel }: PlayableIs
         <mesh position={[0.15, 0.08, 0.1]} rotation={[0, 0.3, Math.PI / 2]} castShadow>
           <cylinderGeometry args={[0.07, 0.07, 0.7, 6]} />
           <meshStandardMaterial color="#92400E" />
+        </mesh>
+        <mesh position={[0.08, 0.22, 0.05]} rotation={[0, -0.2, Math.PI / 2]} castShadow>
+          <cylinderGeometry args={[0.07, 0.07, 0.7, 6]} />
+          <meshStandardMaterial color="#B45309" />
+        </mesh>
+      </group>
+
+      {/* Gold Ore Quarry Vein in West Yard */}
+      <group position={[-4.8, 0, 2.8]}>
+        <mesh position={[0, 0.2, 0]} castShadow>
+          <dodecahedronGeometry args={[0.35, 0]} />
+          <meshStandardMaterial color="#475569" roughness={0.8} />
+        </mesh>
+        <mesh position={[0.15, 0.35, 0.1]}>
+          <octahedronGeometry args={[0.12, 0]} />
+          <meshStandardMaterial color="#FACC15" emissive="#EAB308" emissiveIntensity={2.5} metalness={0.9} />
         </mesh>
       </group>
 
@@ -325,6 +371,9 @@ export default function PlayableIsland({ onGroundClick, worldLevel }: PlayableIs
       <StrategyTree position={[3.8, 0, -6.5]} scale={1.2} variant="green" />
       <StrategyTree position={[-2.4, 0, 6.6]} scale={1.1} variant="green" />
       <StrategyTree position={[2.4, 0, 6.6]} scale={1.15} variant="autumn" />
+
+      {/* Atmospheric Fireflies */}
+      <AmbientFireflies />
     </group>
   );
 }
