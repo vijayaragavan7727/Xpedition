@@ -15,9 +15,10 @@ import ElixirCondenserBuilding from './ElixirCondenserBuilding';
 import BuilderWorkshopBuilding from './BuilderWorkshopBuilding';
 import MentorNPC from './MentorNPC';
 import ArchivistNPC from './ArchivistNPC';
+import WorkerNPC from './WorkerNPC';
 import XPParticleEmitter from './XPParticleEmitter';
 import GameHUD from './GameHUD';
-import { PlayableGameWorldData } from '@/lib/engine/gameWorldAdapter';
+import { PlayableGameWorldData, GameBuildingState } from '@/lib/engine/gameWorldAdapter';
 
 interface GameCanvasProps {
   worldData: PlayableGameWorldData;
@@ -29,8 +30,9 @@ export default function GameCanvas({ worldData }: GameCanvasProps) {
   const [characterTarget, setCharacterTarget] = useState<[number, number, number]>([0, 0, 0]);
   
   // Pending target interaction triggered when character reaches the building
-  const [pendingModal, setPendingModal] = useState<'hq' | 'library' | 'quest_board' | 'ai_lab' | 'mentor' | 'archivist' | null>(null);
-  const [activeModal, setActiveModal] = useState<'hq' | 'library' | 'quest_board' | 'ai_lab' | 'mentor' | 'archivist' | null>(null);
+  const [pendingModal, setPendingModal] = useState<'building' | 'mentor' | 'archivist' | null>(null);
+  const [activeModal, setActiveModal] = useState<'building' | 'mentor' | 'archivist' | null>(null);
+  const [selectedBuilding, setSelectedBuilding] = useState<GameBuildingState | null>(null);
   
   // Dynamic HQ Building Level for 3D construction visual upgrades
   const [hqLevel, setHqLevel] = useState<number>(worldData.buildings.hq.level);
@@ -47,16 +49,25 @@ export default function GameCanvas({ worldData }: GameCanvasProps) {
     setPendingModal(null);
   }, []);
 
-  // 2. Click on Building or NPC -> Character walks to it, then opens modal
-  const handleSelectBuilding = useCallback((type: 'hq' | 'library' | 'quest_board' | 'ai_lab') => {
-    let target: [number, number, number] = [0, 0, -0.6]; // Town Hall courtyard entrance
-    if (type === 'library') target = [-2.8, 0, -1.2];
-    if (type === 'quest_board') target = [2.8, 0, -1.2];
-    if (type === 'ai_lab') target = [2.6, 0, 1.8];
+  // 2. Click on Building -> Character walks to it, then opens detailed building dialog
+  const handleSelectBuilding = useCallback(
+    (buildingKey: keyof PlayableGameWorldData['buildings']) => {
+      const bldg = worldData.buildings[buildingKey];
+      if (!bldg) return;
 
-    setCharacterTarget(target);
-    setPendingModal(type);
-  }, []);
+      setSelectedBuilding(bldg);
+
+      // Target position slightly in front of building
+      let target: [number, number, number] = [bldg.position[0], 0, bldg.position[2] + 1.2];
+      if (bldg.type === 'hq') target = [0, 0, -0.6];
+      if (bldg.type === 'library') target = [-2.6, 0, -1.2];
+      if (bldg.type === 'quest_board') target = [2.6, 0, -1.2];
+
+      setCharacterTarget(target);
+      setPendingModal('building');
+    },
+    [worldData.buildings]
+  );
 
   const handleMentorClick = useCallback(() => {
     setCharacterTarget([0.8, 0, 0.6]);
@@ -135,30 +146,30 @@ export default function GameCanvas({ worldData }: GameCanvasProps) {
           onReachedTarget={handleCharacterReached}
         />
 
-        {/* 3. Real 3D Tactical Base Buildings */}
-        {/* Town Hall / Sovereign Keep (North Center) */}
+        {/* 3. Real 3D Tactical Base Buildings (Mapped to Learner Skills) */}
+        {/* Town Hall (North Center) */}
         <LearningHQ
           level={hqLevel}
           position={[0, 0, -1.8]}
-          isSelected={activeModal === 'hq' || pendingModal === 'hq'}
+          isSelected={activeModal === 'building' && selectedBuilding?.type === 'hq'}
           onClick={() => handleSelectBuilding('hq')}
         />
 
-        {/* Grand Archives / Library (North-West Yard) */}
+        {/* Grand Archives / Library (North-West) */}
         <LibraryBuilding
           level={worldData.buildings.library.level}
           position={[-3.8, 0, -1.5]}
-          isSelected={activeModal === 'library' || pendingModal === 'library'}
+          isSelected={activeModal === 'building' && selectedBuilding?.type === 'library'}
           onClick={() => handleSelectBuilding('library')}
           masteredCount={worldData.masteredTopicsCount}
         />
 
-        {/* Quest Outpost (North-East Yard) */}
+        {/* Quest Outpost (North-East) */}
         <QuestBoardBuilding
           level={worldData.buildings.questBoard.level}
           position={[3.8, 0, -1.5]}
-          isSelected={activeModal === 'quest_board' || pendingModal === 'quest_board'}
-          onClick={() => handleSelectBuilding('quest_board')}
+          isSelected={activeModal === 'building' && selectedBuilding?.type === 'quest_board'}
+          onClick={() => handleSelectBuilding('questBoard')}
           availableQuestsCount={worldData.availableQuestsCount}
         />
 
@@ -166,34 +177,34 @@ export default function GameCanvas({ worldData }: GameCanvasProps) {
         <GoldVaultBuilding
           level={worldData.buildings.goldVault?.level || 1}
           position={[-3.6, 0, 2.2]}
-          isSelected={false}
-          onClick={() => handleGroundClick([-3.6, 0, 2.2])}
+          isSelected={activeModal === 'building' && selectedBuilding?.type === 'gold_vault'}
+          onClick={() => handleSelectBuilding('goldVault')}
           goldCount={worldData.resources.gold}
         />
 
         {/* AI Research Spire (East Courtyard) */}
         <AILabBuilding
           position={[3.6, 0, 2.2]}
-          isSelected={activeModal === 'ai_lab' || pendingModal === 'ai_lab'}
-          onClick={() => handleSelectBuilding('ai_lab')}
+          isSelected={activeModal === 'building' && selectedBuilding?.type === 'ai_lab'}
+          onClick={() => handleSelectBuilding('aiLab')}
           accuracyRate={worldData.accuracyRate}
         />
 
-        {/* Mana Condenser (South-West Yard) */}
+        {/* Mana Condenser (South-West) */}
         <ElixirCondenserBuilding
           level={worldData.buildings.elixirCondenser?.level || 1}
           position={[-1.8, 0, 3.6]}
-          isSelected={false}
-          onClick={() => handleGroundClick([-1.8, 0, 3.6])}
+          isSelected={activeModal === 'building' && selectedBuilding?.type === 'elixir_condenser'}
+          onClick={() => handleSelectBuilding('elixirCondenser')}
           crystalCount={worldData.resources.crystal}
         />
 
-        {/* Builder's Forge / Workshop (South-East Yard) */}
+        {/* Builder's Forge (South-East) */}
         <BuilderWorkshopBuilding
           level={worldData.buildings.workshop?.level || 1}
           position={[1.8, 0, 3.6]}
-          isSelected={false}
-          onClick={() => handleGroundClick([1.8, 0, 3.6])}
+          isSelected={activeModal === 'building' && selectedBuilding?.type === 'workshop'}
+          onClick={() => handleSelectBuilding('workshop')}
         />
 
         {/* 4. Interactive NPCs */}
@@ -211,10 +222,52 @@ export default function GameCanvas({ worldData }: GameCanvasProps) {
           masteredCount={worldData.masteredTopicsCount}
         />
 
-        {/* 5. XP Particle Emitter & Flying Orbs */}
+        {/* 5. Dynamic Base Workers Walking Around */}
+        {worldData.workerCount >= 2 && (
+          <WorkerNPC
+            id="worker_1"
+            startPos={[-3.0, 0, 2.2]}
+            endPos={[0, 0, -1.0]}
+            speed={1.1}
+            color="#38BDF8"
+            hasResource={true}
+          />
+        )}
+        {worldData.workerCount >= 3 && (
+          <WorkerNPC
+            id="worker_2"
+            startPos={[1.8, 0, 3.0]}
+            endPos={[3.0, 0, -1.0]}
+            speed={0.9}
+            color="#F59E0B"
+            hasResource={true}
+          />
+        )}
+        {worldData.workerCount >= 4 && (
+          <WorkerNPC
+            id="worker_3"
+            startPos={[-1.8, 0, 3.0]}
+            endPos={[-3.0, 0, -1.0]}
+            speed={1.3}
+            color="#A855F7"
+            hasResource={true}
+          />
+        )}
+        {worldData.workerCount >= 5 && (
+          <WorkerNPC
+            id="worker_4"
+            startPos={[3.0, 0, 1.8]}
+            endPos={[0, 0, 1.5]}
+            speed={1.0}
+            color="#10B981"
+            hasResource={false}
+          />
+        )}
+
+        {/* 6. XP Particle Emitter & Flying Orbs */}
         <XPParticleEmitter burstPosition={burstPos} activeOrbs={activeOrbs} />
 
-        {/* 6. Mobile & Desktop Strategy Controls */}
+        {/* 7. Mobile & Desktop Strategy Controls */}
         <OrbitControls
           enablePan={true}
           enableZoom={true}
@@ -228,8 +281,12 @@ export default function GameCanvas({ worldData }: GameCanvasProps) {
       {/* Strategy Game HUD Overlay */}
       <GameHUD
         worldData={worldData}
+        activeBuilding={selectedBuilding}
         activeModal={activeModal}
-        onCloseModal={() => setActiveModal(null)}
+        onCloseModal={() => {
+          setActiveModal(null);
+          setSelectedBuilding(null);
+        }}
         onUpgradeHQ={handleUpgradeHQ}
         onSelectBuilding={handleSelectBuilding}
       />
