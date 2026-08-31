@@ -1,8 +1,17 @@
-import { UserStoreData, getStoreData, saveStoreData } from './store';
+import { UserStoreData, getStoreData, calculateStreak } from './store';
 import { thetaToPercent } from './engine/mastery';
 import { WorldThemeId, getThemeConfig } from './themes';
 import { supabase, isSupabaseConfigured } from './supabase';
-import { generateBuildingPrompt } from './buildingImages';
+import { generateBuildingPrompt, getBuildingSeed } from './buildingImages';
+import { calculateLPS, LPSResult, LPSInput } from './engine/lps';
+import {
+  evolveWorld,
+  WorldBuilding3D,
+  WorldEnvironment,
+  Mission,
+  ConceptMastery,
+  BuildingStage,
+} from './engine/worldEvolution';
 
 export type BuildingState = 'empty' | 'partial' | 'complete';
 
@@ -26,24 +35,21 @@ export interface WorldState {
   tier: number; // 1 to 5
   tierName: string;
   buildings: WorldBuilding[];
+  // Phase 1 LPS & 3D Evolution Extensions
+  lps: LPSResult;
+  buildings3D: WorldBuilding3D[];
+  unlockedAreas: string[];
+  environment: WorldEnvironment;
+  resources: {
+    wood: number;
+    stone: number;
+    crystal: number;
+    gold: number;
+  };
+  activeMissions: Mission[];
+  lastEvolvedAt?: string;
   createdAt?: string;
   updatedAt?: string;
-}
-
-export const WORLD_TIER_NAMES: Record<number, string> = {
-  1: 'The Beginning',
-  2: 'Taking Shape',
-  3: 'Growing Strong',
-  4: 'Thriving',
-  5: 'Mastery Complete',
-};
-
-export function calculateWorldTier(masteryPercent: number): { tier: number; name: string } {
-  if (masteryPercent >= 81) return { tier: 5, name: WORLD_TIER_NAMES[5] };
-  if (masteryPercent >= 61) return { tier: 4, name: WORLD_TIER_NAMES[4] };
-  if (masteryPercent >= 41) return { tier: 3, name: WORLD_TIER_NAMES[3] };
-  if (masteryPercent >= 21) return { tier: 2, name: WORLD_TIER_NAMES[2] };
-  return { tier: 1, name: WORLD_TIER_NAMES[1] };
 }
 
 export function getBuildingState(masteryPercent: number): BuildingState {
@@ -91,37 +97,58 @@ export function computeWorldState(store: UserStoreData): WorldState {
   const activeTheme = (store.learnerProfile?.worldTheme as WorldThemeId) || 'cosmos';
   const concepts = store.concepts || [];
 
-  // Read existing cached building images from localStorage to prevent re-generating on refresh
-  const cachedImageMap: Record<string, string> = {};
-  if (typeof window !== 'undefined') {
-    try {
-      const cached = localStorage.getItem(`xpedition_world_${activeGraphId}`);
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        if (Array.isArray(parsed.buildings)) {
-          parsed.buildings.forEach((b: WorldBuilding) => {
-            if (b.imageUrl) {
-              cachedImageMap[`${b.buildingId}_${b.state}`] = b.imageUrl;
-            }
-          });
-        }
-      }
-    } catch (e) {}
-  }
-
+  // 1. Calculate Average Mastery & Concept Masteries
   let totalMasterySum = 0;
-  const buildings: WorldBuilding[] = concepts.map((c, idx) => {
+  const conceptMasteries: ConceptMastery[] = concepts.map((c) => {
     const masteryPct = c.thetaAssisted !== undefined ? thetaToPercent(c.thetaAssisted) : c.masteryPercentage || 0;
     totalMasterySum += masteryPct;
+    return {
+      id: c.id,
+      name: c.name,
+      masteryPercent: masteryPct,
+    };
+  });
+
+  const totalConcepts = concepts.length;
+  const avgMastery = totalConcepts > 0 ? Math.round(totalMasterySum / totalConcepts) : 0;
+
+  // 2. Compute LPS (Learning Power Score)
+  const streak = calculateStreak(store.attempts);
+  const totalSessions = Math.max(1, Math.floor((store.attempts?.length || 0) / 4));
+  const soloAttempts = store.attempts?.filter((a) => a.isSolo && !a.isVoid).length || 0;
+  const soloSessions = Math.max(0, Math.floor(soloAttempts / 6));
+
+  // Compute calibration / growth estimates
+  const thetaSoloAvg = concepts.reduce((acc, c) => acc + (c.thetaSolo ?? 0), 0) / (totalConcepts || 1);
+  const thetaAssistedAvg = concepts.reduce((acc, c) => acc + (c.thetaAssisted ?? 0), 0) / (totalConcepts || 1);
+  const growthRate = Math.max(0.05, Math.min(1.0, (store.attempts?.length || 0) * 0.04));
+
+  const lpsInput: LPSInput = {
+    avgMasteryPercent: avgMastery,
+    streak,
+    thetaGrowthRate: growthRate,
+    totalSessions,
+    soloSessionCount: soloSessions,
+    calibrationScore: (store as any).calibrationGap ?? 0.05,
+    thetaSolo: thetaSoloAvg,
+    thetaAssisted: thetaAssistedAvg,
+  };
+
+  const lps = calculateLPS(lpsInput);
+
+  // 3. Evolve 3D World State & Missions
+  const evolution = evolveWorld(lps, conceptMasteries);
+
+  // 4. Generate 2D fallback buildings
+  const buildings: WorldBuilding[] = concepts.map((c, idx) => {
+    const masteryPct = c.thetaAssisted !== undefined ? thetaToPercent(c.thetaAssisted) : c.masteryPercentage || 0;
     const state = getBuildingState(masteryPct);
     const buildingName = deriveBuildingName(c.name, idx);
     const buildingId = `bldg_${c.id}`;
 
-    // Persistent image URL resolution
     const prompt = generateBuildingPrompt(c.name, activeTheme, state);
-    const resolvedImageUrl =
-      cachedImageMap[`${buildingId}_${state}`] ||
-      `/api/worldimage?prompt=${encodeURIComponent(prompt)}`;
+    const seed = getBuildingSeed(c.name, activeTheme);
+    const resolvedImageUrl = `/api/worldimage?prompt=${encodeURIComponent(prompt)}&seed=${seed}`;
 
     return {
       buildingId,
@@ -135,17 +162,20 @@ export function computeWorldState(store: UserStoreData): WorldState {
     };
   });
 
-  const totalConcepts = concepts.length;
-  const avgMastery = totalConcepts > 0 ? Math.round(totalMasterySum / totalConcepts) : 0;
-  const tierInfo = calculateWorldTier(avgMastery);
-
   return {
     skillGraphId: activeGraphId,
     worldTheme: activeTheme,
     totalMasteryPercent: avgMastery,
-    tier: tierInfo.tier,
-    tierName: tierInfo.name,
+    tier: lps.tier,
+    tierName: lps.tierName,
     buildings,
+    lps,
+    buildings3D: evolution.buildings,
+    unlockedAreas: evolution.unlockedAreas,
+    environment: evolution.environment,
+    resources: evolution.resources,
+    activeMissions: evolution.missions,
+    lastEvolvedAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
 }
@@ -160,7 +190,7 @@ export async function syncWorldState(storeData: UserStoreData): Promise<WorldSta
     } catch (e) {}
   }
 
-  // Best-effort push to Supabase world_state table
+  // Push to Supabase world_state table
   if (isSupabaseConfigured && supabase) {
     try {
       const { data: userData } = await supabase.auth.getUser();
@@ -175,6 +205,13 @@ export async function syncWorldState(storeData: UserStoreData): Promise<WorldSta
             total_mastery_percent: world.totalMasteryPercent,
             tier: world.tier,
             buildings: world.buildings,
+            lps_score: world.lps.score,
+            lps_tier: world.lps.tier,
+            lps_profile: world.lps.profile,
+            unlocked_areas: world.unlockedAreas,
+            resources: world.resources,
+            active_missions: world.activeMissions,
+            last_evolved_at: world.lastEvolvedAt,
             updated_at: new Date().toISOString(),
           }, { onConflict: 'user_id,skill_graph_id' });
       }
