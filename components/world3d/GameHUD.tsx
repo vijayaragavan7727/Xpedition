@@ -20,10 +20,10 @@ import {
 
 interface GameHUDProps {
   worldData: PlayableGameWorldData;
-  activeModal: 'hq' | 'library' | 'quest_board' | 'mentor' | null;
+  activeModal: 'hq' | 'library' | 'quest_board' | 'ai_lab' | 'mentor' | 'archivist' | null;
   onCloseModal: () => void;
   onUpgradeHQ?: () => void;
-  onSelectBuilding?: (type: 'hq' | 'library' | 'quest_board') => void;
+  onSelectBuilding?: (type: 'hq' | 'library' | 'quest_board' | 'ai_lab') => void;
 }
 
 export default function GameHUD({
@@ -108,7 +108,7 @@ export default function GameHUD({
         <button
           type="button"
           onClick={() => onSelectBuilding?.('hq')}
-          className="flex-1 h-9 px-3 rounded-xl bg-[#120E22]/90 backdrop-blur-md border border-white/15 hover:border-[#00F0FF]/60 text-white font-mono text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all shadow-xl cursor-pointer"
+          className="flex-1 h-9 px-2.5 rounded-xl bg-[#120E22]/90 backdrop-blur-md border border-white/15 hover:border-[#00F0FF]/60 text-white font-mono text-[11px] font-bold flex items-center justify-center gap-1 transition-all shadow-xl cursor-pointer"
         >
           <span>🏠 HQ</span>
         </button>
@@ -116,7 +116,7 @@ export default function GameHUD({
         <button
           type="button"
           onClick={() => onSelectBuilding?.('library')}
-          className="flex-1 h-9 px-3 rounded-xl bg-[#120E22]/90 backdrop-blur-md border border-white/15 hover:border-[#C084FC]/60 text-white font-mono text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all shadow-xl cursor-pointer"
+          className="flex-1 h-9 px-2.5 rounded-xl bg-[#120E22]/90 backdrop-blur-md border border-white/15 hover:border-[#C084FC]/60 text-white font-mono text-[11px] font-bold flex items-center justify-center gap-1 transition-all shadow-xl cursor-pointer"
         >
           <span>📚 Library</span>
         </button>
@@ -124,9 +124,17 @@ export default function GameHUD({
         <button
           type="button"
           onClick={() => onSelectBuilding?.('quest_board')}
-          className="flex-1 h-9 px-3 rounded-xl bg-[#120E22]/90 backdrop-blur-md border border-white/15 hover:border-[#F59E0B]/60 text-white font-mono text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all shadow-xl cursor-pointer"
+          className="flex-1 h-9 px-2.5 rounded-xl bg-[#120E22]/90 backdrop-blur-md border border-white/15 hover:border-[#F59E0B]/60 text-white font-mono text-[11px] font-bold flex items-center justify-center gap-1 transition-all shadow-xl cursor-pointer"
         >
           <span>🎯 Quests</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => onSelectBuilding?.('ai_lab')}
+          className="flex-1 h-9 px-2.5 rounded-xl bg-[#120E22]/90 backdrop-blur-md border border-white/15 hover:border-[#00FF87]/60 text-white font-mono text-[11px] font-bold flex items-center justify-center gap-1 transition-all shadow-xl cursor-pointer"
+        >
+          <span>🤖 AI Lab</span>
         </button>
       </div>
 
@@ -134,7 +142,7 @@ export default function GameHUD({
       {/* 3. INTERACTIVE BUILDING / NPC MODALS */}
       {/* =================================================================== */}
       {activeModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md pointer-events-auto animate-fadeIn">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md pointer-events-auto animate-fadeIn">
           <div className="w-full max-w-md bg-[#120E22] border border-white/20 rounded-[24px] p-5 sm:p-6 space-y-4 shadow-[0_20px_60px_rgba(0,0,0,0.9)] relative overflow-hidden">
             
             {/* Ambient Background Glow */}
@@ -248,8 +256,7 @@ export default function GameHUD({
                   className="w-full h-11 rounded-xl bg-gradient-to-r from-[#7C3AED] to-[#C084FC] text-white font-mono font-bold text-xs flex items-center justify-center gap-1.5 hover:brightness-110 transition-all cursor-pointer shadow-lg"
                 >
                   <BookOpen className="w-4 h-4" />
-                  <span>Explore Concepts</span>
-                  <ChevronRight className="w-4 h-4" />
+                  <span>Explore Concepts &rarr;</span>
                 </Link>
               </div>
             )}
@@ -294,7 +301,46 @@ export default function GameHUD({
               </div>
             )}
 
-            {/* --- MODAL 4: MENTOR NPC (XYRA) --- */}
+            {/* --- MODAL 4: AI RESEARCH LAB --- */}
+            {activeModal === 'ai_lab' && (
+              <div className="space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#059669] to-[#00FF87] flex items-center justify-center text-2xl shadow-lg">
+                    🤖
+                  </div>
+                  <div>
+                    <h2 className="font-sans font-black text-lg text-white">
+                      AI Research Laboratory
+                    </h2>
+                    <p className="font-mono text-xs text-[#00FF87] font-semibold">
+                      Adaptive BKT Flow & Calibration
+                    </p>
+                  </div>
+                </div>
+
+                <div className="p-3.5 rounded-xl bg-black/40 border border-[#00FF87]/30 space-y-2 font-mono text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400">Quest Accuracy:</span>
+                    <span className="font-bold text-[#00FF87]">{worldData.accuracyRate}%</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400">Knowledge Retention:</span>
+                    <span className="font-bold text-cyan-300">Optimum (BKT 0.85)</span>
+                  </div>
+                </div>
+
+                <Link
+                  href="/passport"
+                  onClick={onCloseModal}
+                  className="w-full h-11 rounded-xl bg-gradient-to-r from-[#059669] to-[#00FF87] text-black font-mono font-black text-xs flex items-center justify-center gap-1.5 hover:brightness-110 transition-all cursor-pointer shadow-lg"
+                >
+                  <Zap className="w-4 h-4" />
+                  <span>Inspect Skill Passport &rarr;</span>
+                </Link>
+              </div>
+            )}
+
+            {/* --- MODAL 5: MENTOR NPC (XYRA) --- */}
             {activeModal === 'mentor' && (
               <div className="space-y-4">
                 <div className="flex items-center gap-3">
@@ -337,6 +383,39 @@ export default function GameHUD({
                   <Zap className="w-4 h-4 text-amber-300" />
                   <span>Accept Mentor Challenge</span>
                   <ChevronRight className="w-4 h-4" />
+                </Link>
+              </div>
+            )}
+
+            {/* --- MODAL 6: ARCHIVIST NPC (LEXI) --- */}
+            {activeModal === 'archivist' && (
+              <div className="space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#9333EA] to-[#C084FC] flex items-center justify-center text-2xl shadow-lg">
+                    📜
+                  </div>
+                  <div>
+                    <h2 className="font-sans font-black text-lg text-white">
+                      Lexi the Archivist
+                    </h2>
+                    <p className="font-mono text-xs text-[#C084FC] font-semibold">
+                      Keeper of Domain Chronicles
+                    </p>
+                  </div>
+                </div>
+
+                <div className="p-3.5 rounded-xl bg-black/40 border border-[#C084FC]/30 space-y-2">
+                  <p className="font-sans text-xs text-slate-200 leading-relaxed">
+                    &ldquo;Greetings Traveler! You have unlocked {worldData.masteredTopicsCount} out of {worldData.totalTopicsCount} core concepts in this world realm. Keep up your daily consistency!&rdquo;
+                  </p>
+                </div>
+
+                <Link
+                  href="/history"
+                  onClick={onCloseModal}
+                  className="w-full h-11 rounded-xl bg-gradient-to-r from-[#9333EA] to-[#C084FC] text-white font-mono font-bold text-xs flex items-center justify-center gap-1.5 hover:brightness-110 transition-all cursor-pointer shadow-lg"
+                >
+                  <span>Review Learning History &rarr;</span>
                 </Link>
               </div>
             )}

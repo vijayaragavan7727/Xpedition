@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
@@ -9,7 +9,9 @@ import PlayerCharacter from './PlayerCharacter';
 import LearningHQ from './LearningHQ';
 import LibraryBuilding from './LibraryBuilding';
 import QuestBoardBuilding from './QuestBoardBuilding';
+import AILabBuilding from './AILabBuilding';
 import MentorNPC from './MentorNPC';
+import ArchivistNPC from './ArchivistNPC';
 import XPParticleEmitter from './XPParticleEmitter';
 import GameHUD from './GameHUD';
 import { PlayableGameWorldData } from '@/lib/engine/gameWorldAdapter';
@@ -24,8 +26,8 @@ export default function GameCanvas({ worldData }: GameCanvasProps) {
   const [characterTarget, setCharacterTarget] = useState<[number, number, number]>([0, 0, 0]);
   
   // Pending target interaction triggered when character reaches the building
-  const [pendingModal, setPendingModal] = useState<'hq' | 'library' | 'quest_board' | 'mentor' | null>(null);
-  const [activeModal, setActiveModal] = useState<'hq' | 'library' | 'quest_board' | 'mentor' | null>(null);
+  const [pendingModal, setPendingModal] = useState<'hq' | 'library' | 'quest_board' | 'ai_lab' | 'mentor' | 'archivist' | null>(null);
+  const [activeModal, setActiveModal] = useState<'hq' | 'library' | 'quest_board' | 'ai_lab' | 'mentor' | 'archivist' | null>(null);
   
   // Dynamic HQ Building Level for 3D construction visual upgrades
   const [hqLevel, setHqLevel] = useState<number>(worldData.buildings.hq.level);
@@ -43,18 +45,24 @@ export default function GameCanvas({ worldData }: GameCanvasProps) {
   }, []);
 
   // 2. Click on Building or NPC -> Character walks to it, then opens modal
-  const handleSelectBuilding = useCallback((type: 'hq' | 'library' | 'quest_board') => {
+  const handleSelectBuilding = useCallback((type: 'hq' | 'library' | 'quest_board' | 'ai_lab') => {
     let target: [number, number, number] = [0, 0, -1.8]; // HQ entrance
-    if (type === 'library') target = [-2.2, 0, 0.5];
-    if (type === 'quest_board') target = [2.2, 0, 0.5];
+    if (type === 'library') target = [-2.4, 0, 0.5];
+    if (type === 'quest_board') target = [2.4, 0, 0.5];
+    if (type === 'ai_lab') target = [-2.6, 0, -2.2];
 
     setCharacterTarget(target);
     setPendingModal(type);
   }, []);
 
   const handleMentorClick = useCallback(() => {
-    setCharacterTarget([1.0, 0, 0.8]);
+    setCharacterTarget([1.0, 0, 0.9]);
     setPendingModal('mentor');
+  }, []);
+
+  const handleArchivistClick = useCallback(() => {
+    setCharacterTarget([-1.8, 0, 1.2]);
+    setPendingModal('archivist');
   }, []);
 
   // 3. Character reached target callback
@@ -91,29 +99,29 @@ export default function GameCanvas({ worldData }: GameCanvasProps) {
   }, [hqLevel, characterTarget]);
 
   return (
-    <div className="relative w-full h-full min-h-[500px] select-none overflow-hidden bg-[#080512]">
+    <div className="relative w-full h-full min-h-[500px] select-none overflow-hidden bg-[#0A071B]">
       {/* 3D WebGL Canvas */}
       <Canvas
-        camera={{ position: [8, 8, 9], fov: 45 }}
+        camera={{ position: [11.5, 12.5, 11.5], fov: 42 }}
         style={{ width: '100%', height: '100%', touchAction: 'none' }}
         shadows
       >
-        {/* Deep Atmosphere Sky Color */}
-        <color attach="background" args={['#080512']} />
+        {/* Atmosphere Sky Color */}
+        <color attach="background" args={['#0A071B']} />
 
         {/* Scene Lighting */}
-        <ambientLight intensity={0.75} />
+        <ambientLight intensity={0.8} />
         <directionalLight
-          position={[10, 16, 8]}
-          intensity={1.1}
-          color="#E0F2FE"
+          position={[12, 18, 10]}
+          intensity={1.2}
+          color="#F0F9FF"
           castShadow
           shadow-mapSize-width={1024}
           shadow-mapSize-height={1024}
         />
-        <pointLight position={[0, 4, 0]} color="#00F0FF" intensity={0.8} distance={10} />
+        <pointLight position={[0, 5, 0]} color="#00F0FF" intensity={0.9} distance={12} />
 
-        {/* 1. Playable Floating Island Terrain */}
+        {/* 1. Playable Dense Strategy Island Terrain */}
         <PlayableIsland onGroundClick={handleGroundClick} worldLevel={worldData.worldLevel} />
 
         {/* 2. Low-Poly Learner Avatar */}
@@ -128,43 +136,62 @@ export default function GameCanvas({ worldData }: GameCanvasProps) {
         {/* Learning HQ (North) */}
         <LearningHQ
           level={hqLevel}
+          position={[0, 0, -3.2]}
           isSelected={activeModal === 'hq' || pendingModal === 'hq'}
           onClick={() => handleSelectBuilding('hq')}
         />
 
-        {/* Library (West) */}
+        {/* Library (West Hill) */}
         <LibraryBuilding
           level={worldData.buildings.library.level}
+          position={[-3.6, 0, 0.6]}
           isSelected={activeModal === 'library' || pendingModal === 'library'}
           onClick={() => handleSelectBuilding('library')}
           masteredCount={worldData.masteredTopicsCount}
         />
 
-        {/* Quest Board (East) */}
+        {/* Quest Board (East Market) */}
         <QuestBoardBuilding
           level={worldData.buildings.questBoard.level}
+          position={[3.6, 0, 0.6]}
           isSelected={activeModal === 'quest_board' || pendingModal === 'quest_board'}
           onClick={() => handleSelectBuilding('quest_board')}
           availableQuestsCount={worldData.availableQuestsCount}
         />
 
-        {/* 4. Interactive Mentor NPC (XYRA) */}
+        {/* AI Research Lab (North-West) */}
+        <AILabBuilding
+          position={[-3.8, 0, -2.8]}
+          isSelected={activeModal === 'ai_lab' || pendingModal === 'ai_lab'}
+          onClick={() => handleSelectBuilding('ai_lab')}
+          accuracyRate={worldData.accuracyRate}
+        />
+
+        {/* 4. Interactive NPCs */}
+        {/* Mentor NPC (XYRA) */}
         <MentorNPC
-          position={[1.4, 0, 1.2]}
+          position={[1.5, 0, 1.1]}
           onClick={handleMentorClick}
           hasQuestAvailable={true}
+        />
+
+        {/* Archivist NPC (Lexi) */}
+        <ArchivistNPC
+          position={[-2.2, 0, 1.4]}
+          onClick={handleArchivistClick}
+          masteredCount={worldData.masteredTopicsCount}
         />
 
         {/* 5. XP Particle Emitter & Flying Orbs */}
         <XPParticleEmitter burstPosition={burstPos} activeOrbs={activeOrbs} />
 
-        {/* 6. Orbit Controls */}
+        {/* 6. Mobile & Desktop Orbit Controls */}
         <OrbitControls
           enablePan={true}
           enableZoom={true}
-          maxPolarAngle={Math.PI / 2.2}
-          minDistance={4.5}
-          maxDistance={22}
+          maxPolarAngle={Math.PI / 2.15}
+          minDistance={5}
+          maxDistance={25}
           makeDefault
         />
       </Canvas>
