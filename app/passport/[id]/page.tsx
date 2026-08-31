@@ -46,22 +46,21 @@ export default function PublicPassportPage({ params }: { params: { id: string } 
           </div>
         </div>
 
-        {/* Isometric SVG World Renderer */}
+        {/* Verified Concepts Grid */}
         <div className="space-y-2">
-          <WorldRenderer
-            theme={themeId}
-            buildings={demoBuildings}
-            height={280}
-          />
-
-          <div className="flex items-center justify-between px-4 py-2.5 rounded-2xl bg-[#120E24] border border-white/10 shadow-lg">
-            <div className="flex items-center gap-2 font-mono text-xs text-white font-bold">
-              <span>{theme.icon}</span>
-              <span>Tier {tierInfo.tierNumber} &middot; {tierInfo.name}</span>
-            </div>
-            <span className="font-mono text-xs font-bold text-[#00F0FF]">
-              {overallMastery}% Terraformed
-            </span>
+          <h2 className="font-mono text-xs text-slate-400 uppercase tracking-wider font-bold">
+            Verified Competencies ({demoBuildings.length} Concepts)
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {demoBuildings.map((b) => (
+              <div key={b.buildingId} className="p-3 rounded-xl bg-[#120E22] border border-white/10 flex items-center justify-between">
+                <div>
+                  <p className="font-sans font-bold text-xs text-white">{b.conceptName}</p>
+                  <p className="font-mono text-[10px] text-[#00FF87]">{b.masteryPercent}% Mastery</p>
+                </div>
+                <span className="w-2 h-2 rounded-full bg-[#00FF87] shadow-[0_0_8px_#00FF87]" />
+              </div>
+            ))}
           </div>
         </div>
 

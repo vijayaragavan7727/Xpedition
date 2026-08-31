@@ -21,6 +21,8 @@ export default function BuilderWorkshopBuilding({
   const [hovered, setHovered] = useState(false);
   const smokeRef1 = useRef<THREE.Mesh>(null);
   const smokeRef2 = useRef<THREE.Mesh>(null);
+  const hammerArmRef = useRef<THREE.Mesh>(null);
+  const sparkRef = useRef<THREE.Points>(null);
 
   useFrame(({ clock }) => {
     const t = clock.getElapsedTime();
@@ -31,6 +33,10 @@ export default function BuilderWorkshopBuilding({
     if (smokeRef2.current) {
       smokeRef2.current.position.y = 1.9 + (((t + 0.5) * 0.7) % 0.8);
       smokeRef2.current.scale.setScalar(0.12 + (((t + 0.5) * 0.7) % 0.8) * 0.2);
+    }
+    // Hammering animation
+    if (hammerArmRef.current) {
+      hammerArmRef.current.rotation.z = -0.3 + Math.abs(Math.sin(t * 7)) * 0.8;
     }
   });
 
@@ -57,8 +63,8 @@ export default function BuilderWorkshopBuilding({
               : 'bg-black/75 border-white/20 hover:border-[#F97316]/70'
           }`}
         >
-          <span>🔨</span>
-          <span>Forge</span>
+          <span>⚒️</span>
+          <span>Shader Forge</span>
           <span className="text-[#FDBA74] text-[9px]">Lv.{level}</span>
         </div>
       </Html>
@@ -112,7 +118,26 @@ export default function BuilderWorkshopBuilding({
         <meshStandardMaterial color="#1E293B" metalness={0.9} roughness={0.3} />
       </mesh>
 
-      <pointLight position={[0.55, 0.6, 0.35]} color="#F97316" intensity={1.5} distance={3} />
+      {/* Blacksmith Apprentice NPC actively hammering at the Anvil */}
+      <group position={[0.55, 0, 0.75]} rotation={[0, Math.PI, 0]}>
+        {/* Torso */}
+        <mesh position={[0, 0.4, 0]} castShadow>
+          <boxGeometry args={[0.22, 0.3, 0.16]} />
+          <meshStandardMaterial color="#B45309" />
+        </mesh>
+        {/* Head */}
+        <mesh position={[0, 0.65, 0]} castShadow>
+          <boxGeometry args={[0.18, 0.18, 0.18]} />
+          <meshStandardMaterial color="#FDBA74" />
+        </mesh>
+        {/* Hammering Arm & Tool */}
+        <mesh ref={hammerArmRef} position={[0.14, 0.45, 0.05]} castShadow>
+          <boxGeometry args={[0.08, 0.28, 0.08]} />
+          <meshStandardMaterial color="#78350F" />
+        </mesh>
+      </group>
+
+      <pointLight position={[0.55, 0.6, 0.35]} color="#F97316" intensity={1.8} distance={3.5} />
     </group>
   );
 }
