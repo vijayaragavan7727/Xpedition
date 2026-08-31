@@ -29,8 +29,8 @@ console.log('World Evolution Result:', JSON.stringify({
   lps: worldDelta.lps,
   unlockedAreas: worldDelta.unlockedAreas,
   buildingsCount: worldDelta.buildings.length,
-  buildings: worldDelta.buildings.map(b => ({ name: b.conceptName, type: b.type, stage: b.stage })),
+  buildings: worldDelta.buildings.map((b: any) => ({ name: b.conceptName, type: b.type, stage: b.stage })),
   missionsCount: worldDelta.missions.length,
-  missions: worldDelta.missions.map(m => ({ title: m.title, target: m.targetMastery })),
+  missions: worldDelta.missions.map((m: any) => ({ title: m.title, target: m.targetMastery })),
   resources: worldDelta.resources,
 }, null, 2));
