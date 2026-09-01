@@ -18,10 +18,17 @@ export default function AppLayout({
   const [storeData, setStoreData] = useState<UserStoreData | null>(null);
   const [step, setStep] = useState<OnboardingStep | null>(null);
   const [loopBrokenNotice, setLoopBrokenNotice] = useState<boolean>(false);
+  const isWorldPage = pathname === '/world';
 
   useEffect(() => {
     const data = getStoreData();
     setStoreData(data);
+
+    // Bypass gate for World page directly
+    if (pathname === '/world') {
+      setStep('ready');
+      return;
+    }
 
     // 1. Check Exit Override
     if (typeof window !== 'undefined') {
@@ -49,18 +56,18 @@ export default function AppLayout({
         return;
       }
 
-      if (nextStep === 'goal' && pathname !== '/onboarding') {
+      if (nextStep === 'goal' && pathname !== '/onboarding' && pathname !== '/world') {
         sessionStorage.setItem(redirectKey, String(count + 1));
         router.replace('/onboarding');
-      } else if (nextStep === 'calibrate' && pathname !== '/calibrate') {
+      } else if (nextStep === 'calibrate' && pathname !== '/calibrate' && pathname !== '/world') {
         sessionStorage.setItem(redirectKey, String(count + 1));
         router.replace('/calibrate');
       }
     }
   }, [pathname, router]);
 
-  // Render skeleton loader while resolving
-  if (!storeData || step === null || (step !== 'ready' && typeof window !== 'undefined' && sessionStorage.getItem('xpedition_exit_override') !== 'true' && !loopBrokenNotice)) {
+  // Render skeleton loader while resolving (bypassed for /world)
+  if (!isWorldPage && (!storeData || step === null || (step !== 'ready' && typeof window !== 'undefined' && sessionStorage.getItem('xpedition_exit_override') !== 'true' && !loopBrokenNotice))) {
     return (
       <div className="flex flex-col h-screen overflow-hidden bg-ink text-text relative">
         <DashBackdrop src="/art/hero-left.jpg" />
@@ -90,8 +97,6 @@ export default function AppLayout({
       </div>
     );
   }
-
-  const isWorldPage = pathname === '/world';
 
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-ink text-text selection:bg-violet selection:text-white relative">
