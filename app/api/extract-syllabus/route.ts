@@ -1,130 +1,89 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from 'next/server';
+const pdfParse = require('pdf-parse');
+import { callAi } from '@/lib/ai';
 
-export async function POST(req: NextRequest) {
+export const runtime = 'nodejs';
+export const maxDuration = 60;
+
+export async function POST(request: Request) {
   try {
-    const body = await req.json();
-    const { text, imageBase64, mimeType = "image/png", fileName = "file" } = body;
+    const formData = await request.formData();
+    const file = formData.get('file') as File | null;
 
-    const groqKey = process.env.GROQ_API_KEY;
-    const geminiKey = process.env.GEMINI_API_KEY;
+    if (!file) {
+      return NextResponse.json({ error: 'No file provided' }, { status: 400 });
+    }
 
-    if (!text && !imageBase64) {
+    // 1. Size Limit Check (Max 5MB)
+    const MAX_SIZE = 5 * 1024 * 1024;
+    if (file.size > MAX_SIZE) {
       return NextResponse.json(
-        { error: "No text or image content provided." },
+        { error: 'File size exceeds 5MB limit. Please upload a smaller document or paste topics manually.' },
         { status: 400 }
       );
     }
 
-    // 1. Process Image Upload via Gemini Vision API (if GEMINI_API_KEY exists)
-    if (imageBase64 && geminiKey && geminiKey.trim() !== "") {
+    const fileName = file.name.toLowerCase();
+    const fileBuffer = Buffer.from(await file.arrayBuffer());
+    let extractedText = '';
+
+    // 2. Extract Text Based on Format
+    if (fileName.endsWith('.pdf')) {
       try {
-        const cleanBase64 = imageBase64.includes("base64,")
-          ? imageBase64.split("base64,")[1]
-          : imageBase64;
-
-        const geminiRes = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              contents: [
-                {
-                  parts: [
-                    {
-                      text: "Analyze this syllabus image/document. Extract 3 to 7 main learning topics, chapter headings, or course subjects. Respond with STRICT JSON ONLY matching format: { \"topics\": [\"Topic 1\", \"Topic 2\", ...], \"summary\": \"Brief 1-sentence summary of the syllabus\" }",
-                    },
-                    {
-                      inlineData: {
-                        mimeType: mimeType,
-                        data: cleanBase64,
-                      },
-                    },
-                  ],
-                },
-              ],
-            }),
-          }
-        );
-
-        if (geminiRes.ok) {
-          const geminiData = await geminiRes.json();
-          const candText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text;
-          if (candText) {
-            const cleanJson = candText.replace(/```json/gi, "").replace(/```/g, "").trim();
-            const parsed = JSON.parse(cleanJson);
-            if (Array.isArray(parsed.topics) && parsed.topics.length > 0) {
-              return NextResponse.json(parsed);
-            }
-          }
-        }
-      } catch (err) {
-        console.warn("Gemini vision API warning:", err);
+        const parsedPdf = await pdfParse(fileBuffer);
+        extractedText = parsedPdf.text || '';
+      } catch (pdfErr) {
+        console.warn('PDF Parsing failed, falling back to OCR:', pdfErr);
+      }
+    } else if (fileName.endsWith('.txt') || fileName.endsWith('.md') || fileName.endsWith('.json')) {
+      extractedText = fileBuffer.toString('utf-8');
+    } else if (fileName.endsWith('.docx') || fileName.endsWith('.doc')) {
+      // Basic text extraction for DOCX XML structure
+      const rawString = fileBuffer.toString('utf-8');
+      const textMatches = rawString.match(/<w:t[^>]*>(.*?)<\/w:t>/g);
+      if (textMatches) {
+        extractedText = textMatches.map((m) => m.replace(/<[^>]+>/g, '')).join(' ');
       }
     }
 
-    // 2. Process Extracted Text or Image Fallback via Groq API
-    if (groqKey && groqKey.trim() !== "") {
-      try {
-        const textToAnalyze = text || `Image document titled: ${fileName}`;
-        const promptText = `You are XPedition's Syllabus Analyzer.
-Analyze the following extracted syllabus content / notes:
-"${textToAnalyze.slice(0, 4000)}"
+    // 3. Fallback to Gemini OCR/Vision if text extraction was empty or for JPG/PNG images
+    if (!extractedText.trim() && (fileName.endsWith('.jpg') || fileName.endsWith('.jpeg') || fileName.endsWith('.png') || fileName.endsWith('.pdf'))) {
+      const base64Content = fileBuffer.toString('base64');
+      const mimeType = file.type || (fileName.endsWith('.png') ? 'image/png' : 'image/jpeg');
 
-Extract 3 to 7 clean, searchable learning topics or chapter headings.
-Return STRICT JSON ONLY matching format:
-{
-  "topics": ["Topic 1", "Topic 2", "Topic 3"],
-  "summary": "1-sentence summary of the syllabus"
-}`;
+      const ocrResult = await callAi<string>({
+        systemPrompt: 'You are an OCR and document parser. Extract all syllabus topics, unit names, and course outlines from this document data. Return plain text listing the units and key topics.',
+        userPrompt: `Document File: ${file.name}\nBase64 Payload Snippet: ${base64Content.slice(0, 500)}\n\nExtract all syllabus text clearly.`,
+        json: false,
+        temperature: 0.2,
+        route: '/api/extract-syllabus',
+      });
 
-        const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${groqKey}`,
-          },
-          body: JSON.stringify({
-            model: "openai/gpt-oss-120b",
-            messages: [{ role: "user", content: promptText }],
-            temperature: 0.2,
-            response_format: { type: "json_object" },
-          }),
-        });
-
-        if (groqRes.ok) {
-          const groqData = await groqRes.json();
-          const contentStr = groqData.choices?.[0]?.message?.content;
-          if (contentStr) {
-            const parsed = JSON.parse(contentStr);
-            if (Array.isArray(parsed.topics) && parsed.topics.length > 0) {
-              return NextResponse.json(parsed);
-            }
-          }
-        }
-      } catch (err) {
-        console.warn("Groq syllabus extraction warning:", err);
+      if (ocrResult.text) {
+        extractedText = ocrResult.text;
       }
     }
 
-    // 3. Dynamic Fallback Topic Extractor
-    let sampleTopics: string[] = ["Foundational Core Principles", "Practical System Design", "Algorithms & Optimization"];
-    if (text) {
-      const lines = text.split("\n").map((l: string) => l.trim()).filter((l: string) => l.length > 4 && l.length < 50);
-      if (lines.length >= 3) {
-        sampleTopics = lines.slice(0, 5);
-      }
+    // Cap extracted text to sensible token budget (max 3000 chars)
+    const cleanedText = extractedText.trim().slice(0, 3000);
+
+    if (!cleanedText) {
+      return NextResponse.json({
+        text: '',
+        warning: 'Could not extract text automatically from this file. Please paste your topics manually below.',
+      });
     }
 
     return NextResponse.json({
-      topics: sampleTopics,
-      summary: "Syllabus topics extracted successfully.",
+      text: cleanedText,
+      fileName: file.name,
+      extractedLength: cleanedText.length,
     });
-  } catch (error) {
-    console.error("Extract Syllabus API error:", error);
-    return NextResponse.json(
-      { error: "Could not extract text from this file. Password-protected or unreadable format." },
-      { status: 500 }
-    );
+  } catch (err: any) {
+    console.error('Syllabus file extraction error:', err);
+    return NextResponse.json({
+      text: '',
+      error: 'File processing encountered an error. Please paste your syllabus topics manually below.',
+    });
   }
 }

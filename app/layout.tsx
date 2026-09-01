@@ -1,31 +1,20 @@
-import type { Metadata } from "next";
-import { Inter, Outfit, Caveat } from "next/font/google";
-import "./globals.css";
-import { QuestProvider } from "@/lib/QuestContext";
-import ErrorBoundary from "@/components/ErrorBoundary";
-import AccessibilityWrapper from "@/components/AccessibilityWrapper";
+import type { Metadata } from 'next';
+import { Inter, Orbitron, JetBrains_Mono, Caveat, Kalam } from 'next/font/google';
+import './globals.css';
 
-const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-inter",
-});
-
-const outfit = Outfit({
-  subsets: ["latin"],
-  weight: ["500", "600", "700", "800", "900"],
-  variable: "--font-heading",
-});
-
-const caveat = Caveat({
-  subsets: ["latin"],
-  weight: ["400", "600", "700"],
-  variable: "--font-chalk",
-});
+const inter = Inter({ subsets: ['latin'], variable: '--font-inter', display: 'swap' });
+const orbitron = Orbitron({ subsets: ['latin'], variable: '--font-orbitron', display: 'swap' });
+const jetbrainsMono = JetBrains_Mono({ subsets: ['latin'], variable: '--font-jetbrains-mono', display: 'swap' });
+const caveat = Caveat({ subsets: ['latin'], variable: '--font-caveat', display: 'swap' });
+const kalam = Kalam({ weight: ['400', '700'], subsets: ['latin'], variable: '--font-kalam', display: 'swap' });
 
 export const metadata: Metadata = {
-  title: "XPedition — Adaptive Learning Game",
-  description: "AI-powered gamified learning journeys tailored to your exact goal.",
-  manifest: "/manifest.json",
+  title: 'XPEDITION — Adaptive Learning',
+  description: 'XPedition — adaptive learning that measures what you know without AI assistance. Your solo score vs your assisted score.',
+  icons: {
+    icon: '/favicon.ico',
+    apple: '/apple-touch-icon.png',
+  },
 };
 
 export default function RootLayout({
@@ -34,16 +23,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="en"
-      className={`${inter.variable} ${outfit.variable} ${caveat.variable} h-full antialiased dark`}
-    >
-      <body className="min-h-full flex flex-col bg-[#0A0A1A] text-slate-100 font-sans selection:bg-[#7C3AED] selection:text-white">
-        <QuestProvider>
-          <ErrorBoundary>
-            <AccessibilityWrapper>{children}</AccessibilityWrapper>
-          </ErrorBoundary>
-        </QuestProvider>
+    <html lang="en" className={`${inter.variable} ${orbitron.variable} ${jetbrainsMono.variable} ${caveat.variable} ${kalam.variable}`}>
+      <head>
+        <link rel="preload" href="/art/hero-left.jpg" as="image" />
+      </head>
+      <body className="bg-ink text-text selection:bg-violet selection:text-white antialiased min-h-screen">
+        {children}
       </body>
     </html>
   );
