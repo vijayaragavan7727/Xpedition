@@ -1,7 +1,7 @@
 /**
  * Game World Progression & State Adapter
  * Connects learner XP, streak, accuracy, BKT mastery, and concept skills
- * directly to the 3D continuous strategy world.
+ * directly to the top-down continuous learning strategy world.
  */
 
 import { UserStoreData, calculateStreak } from '../store';
@@ -9,13 +9,29 @@ import { thetaToPercent } from './mastery';
 
 export type WorldTierLevel = 1 | 2 | 3 | 4 | 5;
 
+export type GameLocationType =
+  | 'knowledge_core'
+  | 'course_academy'
+  | 'skill_lab'
+  | 'challenge_arena'
+  | 'reward_vault'
+  | 'practice_grounds'
+  | 'career_hub'
+  | 'hq'
+  | 'library'
+  | 'quest_board'
+  | 'ai_lab'
+  | 'gold_vault'
+  | 'elixir_condenser'
+  | 'workshop';
+
 export interface GameBuildingState {
   id: string;
   name: string;
   conceptId?: string;
   conceptName: string;
-  type: 'hq' | 'library' | 'quest_board' | 'ai_lab' | 'gold_vault' | 'elixir_condenser' | 'workshop';
-  level: number; // 1 to 3
+  type: GameLocationType;
+  level: number; // 1 to 5
   isUpgrading: boolean;
   masteryPercent: number;
   upgradeProgress: number; // 0 to 100
@@ -25,6 +41,9 @@ export interface GameBuildingState {
   questsCompleted: number;
   actionText: string;
   actionUrl: string;
+  status: 'unlocked' | 'in_progress' | 'completed' | 'locked';
+  gridX: number; // 0 to 100% on continuous map
+  gridY: number; // 0 to 100% on continuous map
   position: [number, number, number];
 }
 
@@ -51,6 +70,8 @@ export interface PlayableGameWorldData {
   streakDays: number;
   accuracyRate: number; // 0 to 100
   workerCount: number;
+  totalWorkers: number;
+  shieldHoursRemaining: number;
   masteredTopicsCount: number;
   totalTopicsCount: number;
   availableQuestsCount: number;
@@ -61,6 +82,14 @@ export interface PlayableGameWorldData {
     gold: number;
   };
   buildings: {
+    knowledgeCore: GameBuildingState;
+    courseAcademy: GameBuildingState;
+    skillLab: GameBuildingState;
+    challengeArena: GameBuildingState;
+    rewardVault: GameBuildingState;
+    practiceGrounds: GameBuildingState;
+    careerHub: GameBuildingState;
+    // Backwards compatibility aliases
     hq: GameBuildingState;
     library: GameBuildingState;
     questBoard: GameBuildingState;
@@ -120,44 +149,195 @@ export function computeGameWorldData(store: UserStoreData, fallbackXp: number = 
   const learnerLevel = Math.max(1, Math.floor(Math.pow(totalXp / 100, 1 / 1.5)) + 1);
 
   // Dynamic Workers: More active days & streaks = more workers in the world
-  const workerCount = Math.min(6, Math.max(2, Math.floor(streak / 2) + 2));
+  const workerCount = Math.min(5, Math.max(2, Math.floor(streak / 2) + 2));
+  const totalWorkers = 5;
 
   // Resources generated from real activity
-  const wood = Math.floor(totalXp * 0.8 + attempts.length * 10 + 65);
-  const stone = Math.floor(totalXp * 0.5 + correctAttempts * 12 + 45);
-  const crystal = Math.floor(masteredCount * 40 + currentTierInfo.tier * 25 + 20);
-  const gold = Math.floor(streak * 35 + (store.rewardsCount || 0) * 50 + totalXp * 0.45);
+  const wood = Math.floor(totalXp * 0.8 + attempts.length * 10 + 120);
+  const stone = Math.floor(totalXp * 0.5 + correctAttempts * 12 + 80);
+  const crystal = Math.floor(masteredCount * 40 + currentTierInfo.tier * 25 + 45);
+  const gold = Math.floor(streak * 35 + (store.rewardsCount || 0) * 50 + totalXp * 0.45 + 250);
 
   // Concept mapping for individual domain buildings
-  const c0 = concepts[0] || { id: 'c0', name: 'Foundational Syntax', masteryPercentage: 80 };
-  const c1 = concepts[1] || { id: 'c1', name: 'Object Architecture', masteryPercentage: 65 };
-  const c2 = concepts[2] || { id: 'c2', name: 'Algorithmic Logic', masteryPercentage: 45 };
-  const c3 = concepts[3] || { id: 'c3', name: 'System Optimization', masteryPercentage: 30 };
+  const c0 = concepts[0] || { id: 'c0', name: 'Core Foundations & Syntax', masteryPercentage: 80 };
+  const c1 = concepts[1] || { id: 'c1', name: 'Object Architecture & Data', masteryPercentage: 65 };
+  const c2 = concepts[2] || { id: 'c2', name: 'Algorithmic Problem Solving', masteryPercentage: 45 };
+  const c3 = concepts[3] || { id: 'c3', name: 'System Optimization & AI', masteryPercentage: 30 };
 
   const getPct = (c: any) => (c.thetaAssisted !== undefined ? thetaToPercent(c.thetaAssisted) : c.masteryPercentage || 50);
 
-  // Building Upgrade Levels based on metrics
-  const hqLevel = currentTierInfo.tier >= 4 ? 3 : currentTierInfo.tier >= 2 ? 2 : 1;
-  const libraryLevel = getPct(c1) >= 80 ? 3 : getPct(c1) >= 40 ? 2 : 1;
-  const questBoardLevel = attempts.length >= 15 ? 3 : attempts.length >= 5 ? 2 : 1;
-  const aiLabLevel = accuracyRate >= 80 ? 3 : accuracyRate >= 60 ? 2 : 1;
-  const goldVaultLevel = totalXp >= 1500 ? 3 : totalXp >= 500 ? 2 : 1;
-  const elixirLevel = getPct(c2) >= 80 ? 3 : getPct(c2) >= 40 ? 2 : 1;
-  const workshopLevel = getPct(c0) >= 80 ? 3 : getPct(c0) >= 40 ? 2 : 1;
+  // Building Upgrade Levels based on real progression
+  const hqLevel = currentTierInfo.tier >= 4 ? 4 : currentTierInfo.tier >= 2 ? 3 : 2;
+  const academyLevel = getPct(c1) >= 80 ? 3 : getPct(c1) >= 40 ? 2 : 1;
+  const skillLabLevel = getPct(c2) >= 80 ? 3 : getPct(c2) >= 40 ? 2 : 1;
+  const arenaLevel = attempts.length >= 15 ? 3 : attempts.length >= 5 ? 2 : 1;
+  const vaultLevel = totalXp >= 1500 ? 3 : totalXp >= 500 ? 2 : 1;
+  const practiceLevel = getPct(c0) >= 80 ? 3 : getPct(c0) >= 40 ? 2 : 1;
+  const careerLevel = 1;
 
   // Weakest Concept for Mentor Recommendations
   const sortedConcepts = [...concepts].sort((a: any, b: any) => getPct(a) - getPct(b));
   const weakestConcept = sortedConcepts[0] || c0;
 
   const mentorDialogue: GameMentorDialogue = {
-    npcName: 'XYRA (Mentor)',
+    npcName: 'XYRA (Commander)',
     avatarIcon: '🤖',
-    greeting: `Commander ${store.handle}! Your world is thriving with ${workerCount} active workers. Let's strengthen ${weakestConcept.name}.`,
+    greeting: `Commander ${store.handle || 'Learner'}! Your village has ${workerCount} active builders. Recommended target: ${weakestConcept.name}.`,
     recommendedConceptId: weakestConcept.id,
     recommendedConceptName: weakestConcept.name,
-    challengeTitle: `Adaptive Challenge: ${weakestConcept.name}`,
-    difficultyLabel: accuracyRate > 80 ? 'Elite Mastery' : 'Target Practice',
+    challengeTitle: `Adaptive Quest: ${weakestConcept.name}`,
+    difficultyLabel: accuracyRate > 80 ? 'Mastery Raid' : 'Target Practice',
     actionUrl: `/quest?concept=${encodeURIComponent(weakestConcept.id)}`,
+  };
+
+  const knowledgeCore: GameBuildingState = {
+    id: 'loc_knowledge_core',
+    name: 'Knowledge Core',
+    conceptName: 'Sovereign Domain Citadel',
+    type: 'knowledge_core',
+    level: hqLevel,
+    isUpgrading: false,
+    masteryPercent: avgMastery,
+    upgradeProgress: worldProgressPercent,
+    title: `Knowledge Core (Lv.${hqLevel})`,
+    subtitle: `${currentTierInfo.name}`,
+    statsLabel: `${totalXp} Total XP · ${streak} Day Streak`,
+    questsCompleted: attempts.length,
+    actionText: worldProgressPercent >= 100 ? 'Ascend Citadel' : 'Continue Learning',
+    actionUrl: '/home',
+    status: avgMastery >= 90 ? 'completed' : 'unlocked',
+    gridX: 50,
+    gridY: 46,
+    position: [0, 0, -1.8],
+  };
+
+  const courseAcademy: GameBuildingState = {
+    id: 'loc_course_academy',
+    name: 'Course Academy',
+    conceptId: c1.id,
+    conceptName: c1.name,
+    type: 'course_academy',
+    level: academyLevel,
+    isUpgrading: false,
+    masteryPercent: getPct(c1),
+    upgradeProgress: getPct(c1),
+    title: `Academy: ${c1.name}`,
+    subtitle: `Level ${academyLevel} · ${getPct(c1)}% Mastered`,
+    statsLabel: `${masteredCount}/${concepts.length || 5} Concepts Mastered`,
+    questsCompleted: Math.floor(attempts.length * 0.35),
+    actionText: 'Study Modules',
+    actionUrl: `/quest?concept=${encodeURIComponent(c1.id)}`,
+    status: getPct(c1) >= 80 ? 'completed' : 'in_progress',
+    gridX: 26,
+    gridY: 30,
+    position: [-3.8, 0, -1.5],
+  };
+
+  const skillLab: GameBuildingState = {
+    id: 'loc_skill_lab',
+    name: 'Skill Lab',
+    conceptId: c2.id,
+    conceptName: c2.name,
+    type: 'skill_lab',
+    level: skillLabLevel,
+    isUpgrading: false,
+    masteryPercent: getPct(c2),
+    upgradeProgress: getPct(c2),
+    title: `Skill Lab: ${c2.name}`,
+    subtitle: `Level ${skillLabLevel} · ${getPct(c2)}% Synthesized`,
+    statsLabel: `Synthesizing ${crystal} Mana Crystals`,
+    questsCompleted: Math.floor(attempts.length * 0.25),
+    actionText: 'Synthesize Skill',
+    actionUrl: `/quest?concept=${encodeURIComponent(c2.id)}`,
+    status: getPct(c2) >= 80 ? 'completed' : 'in_progress',
+    gridX: 25,
+    gridY: 62,
+    position: [-1.8, 0, 3.6],
+  };
+
+  const challengeArena: GameBuildingState = {
+    id: 'loc_challenge_arena',
+    name: 'Challenge Arena',
+    conceptName: 'PvP & Solo Mastery Colosseum',
+    type: 'challenge_arena',
+    level: arenaLevel,
+    isUpgrading: false,
+    masteryPercent: accuracyRate,
+    upgradeProgress: Math.min(100, (attempts.length / 20) * 100),
+    title: `Challenge Arena (Lv.${arenaLevel})`,
+    subtitle: `${attempts.length} Battles Fought (${accuracyRate}% Win Rate)`,
+    statsLabel: `${Math.max(3, concepts.length)} Active Raids Available`,
+    questsCompleted: attempts.length,
+    actionText: 'Enter Arena',
+    actionUrl: '/arena',
+    status: 'unlocked',
+    gridX: 74,
+    gridY: 30,
+    position: [3.8, 0, -1.5],
+  };
+
+  const rewardVault: GameBuildingState = {
+    id: 'loc_reward_vault',
+    name: 'Reward Vault',
+    conceptName: 'Treasury & Gold Reserves',
+    type: 'reward_vault',
+    level: vaultLevel,
+    isUpgrading: false,
+    masteryPercent: 88,
+    upgradeProgress: 88,
+    title: `Reward Vault (Lv.${vaultLevel})`,
+    subtitle: `${gold} Gold Ingot Reserves`,
+    statsLabel: `Capacity: ${Math.max(2000, totalXp * 3)} Gold`,
+    questsCompleted: attempts.length,
+    actionText: 'Claim Rewards',
+    actionUrl: '/history',
+    status: 'unlocked',
+    gridX: 75,
+    gridY: 62,
+    position: [-3.6, 0, 2.2],
+  };
+
+  const practiceGrounds: GameBuildingState = {
+    id: 'loc_practice_grounds',
+    name: 'Practice Grounds',
+    conceptId: c0.id,
+    conceptName: c0.name,
+    type: 'practice_grounds',
+    level: practiceLevel,
+    isUpgrading: false,
+    masteryPercent: getPct(c0),
+    upgradeProgress: getPct(c0),
+    title: `Forge: ${c0.name}`,
+    subtitle: `Level ${practiceLevel} · ${getPct(c0)}% Mastery`,
+    statsLabel: `${wood} Wood · ${stone} Stone Available`,
+    questsCompleted: Math.floor(attempts.length * 0.4),
+    actionText: 'Craft Mastery',
+    actionUrl: `/quest?concept=${encodeURIComponent(c0.id)}`,
+    status: getPct(c0) >= 80 ? 'completed' : 'in_progress',
+    gridX: 50,
+    gridY: 22,
+    position: [1.8, 0, 3.6],
+  };
+
+  const careerHub: GameBuildingState = {
+    id: 'loc_career_hub',
+    name: 'Career Hub',
+    conceptName: 'Industry Learning Hub',
+    type: 'career_hub',
+    level: careerLevel,
+    isUpgrading: false,
+    masteryPercent: 0,
+    upgradeProgress: 0,
+    title: 'Career Hub',
+    subtitle: 'Industry Learning · Unlocks at Tier 3',
+    statsLabel: 'Professional Skill Pathways',
+    questsCompleted: 0,
+    actionText: 'Explore Careers',
+    actionUrl: '/career',
+    status: currentTierInfo.tier >= 3 ? 'unlocked' : 'locked',
+    gridX: 50,
+    gridY: 76,
+    position: [3.6, 0, 2.2],
   };
 
   return {
@@ -172,8 +352,10 @@ export function computeGameWorldData(store: UserStoreData, fallbackXp: number = 
     streakDays: streak,
     accuracyRate,
     workerCount,
+    totalWorkers,
+    shieldHoursRemaining: 14,
     masteredTopicsCount: masteredCount,
-    totalTopicsCount: concepts.length || 5,
+    totalTopicsCount: concepts.length || 6,
     availableQuestsCount: Math.max(3, concepts.length),
     resources: {
       wood,
@@ -182,129 +364,21 @@ export function computeGameWorldData(store: UserStoreData, fallbackXp: number = 
       gold,
     },
     buildings: {
-      hq: {
-        id: 'bldg_hq',
-        name: 'Town Hall',
-        conceptName: 'Overall Domain Sovereignty',
-        type: 'hq',
-        level: hqLevel,
-        isUpgrading: false,
-        masteryPercent: avgMastery,
-        upgradeProgress: worldProgressPercent,
-        title: `Town Hall (Lv.${hqLevel})`,
-        subtitle: `${currentTierInfo.name}`,
-        statsLabel: `${totalXp} Total XP · ${streak} Day Streak`,
-        questsCompleted: attempts.length,
-        actionText: worldProgressPercent >= 100 ? 'Ascend Town Hall' : 'Upgrade Realm',
-        actionUrl: '/home',
-        position: [0, 0, -1.8],
-      },
-      library: {
-        id: 'bldg_library',
-        name: 'Grand Archives',
-        conceptId: c1.id,
-        conceptName: c1.name,
-        type: 'library',
-        level: libraryLevel,
-        isUpgrading: false,
-        masteryPercent: getPct(c1),
-        upgradeProgress: getPct(c1),
-        title: `Archives: ${c1.name}`,
-        subtitle: `Level ${libraryLevel} · ${getPct(c1)}% Mastered`,
-        statsLabel: `${masteredCount}/${concepts.length || 5} Domain Topics Mastered`,
-        questsCompleted: Math.floor(attempts.length * 0.3),
-        actionText: 'Explore Knowledge',
-        actionUrl: `/quest?concept=${encodeURIComponent(c1.id)}`,
-        position: [-3.8, 0, -1.5],
-      },
-      questBoard: {
-        id: 'bldg_quest_board',
-        name: 'Quest Outpost',
-        conceptName: 'Adaptive Quests & Bounties',
-        type: 'quest_board',
-        level: questBoardLevel,
-        isUpgrading: false,
-        masteryPercent: accuracyRate,
-        upgradeProgress: Math.min(100, (attempts.length / 20) * 100),
-        title: `Quest Outpost (Lv.${questBoardLevel})`,
-        subtitle: `${attempts.length} Quests Solved (${accuracyRate}% Accuracy)`,
-        statsLabel: `${Math.max(3, concepts.length)} Active Bounties Available`,
-        questsCompleted: attempts.length,
-        actionText: 'View Bounties',
-        actionUrl: mentorDialogue.actionUrl,
-        position: [3.8, 0, -1.5],
-      },
-      aiLab: {
-        id: 'bldg_ai_lab',
-        name: 'AI Research Spire',
-        conceptId: c3.id,
-        conceptName: c3.name,
-        type: 'ai_lab',
-        level: aiLabLevel,
-        isUpgrading: false,
-        masteryPercent: getPct(c3),
-        upgradeProgress: accuracyRate,
-        title: `AI Spire: ${c3.name}`,
-        subtitle: `Level ${aiLabLevel} · ${getPct(c3)}% Calibration`,
-        statsLabel: 'Bayesian Knowledge Tracing Active',
-        questsCompleted: Math.floor(attempts.length * 0.25),
-        actionText: 'Calibrate Skill',
-        actionUrl: `/quest?concept=${encodeURIComponent(c3.id)}`,
-        position: [3.6, 0, 2.2],
-      },
-      goldVault: {
-        id: 'bldg_gold_vault',
-        name: 'Gold Vault',
-        conceptName: 'Treasury & XP Bank',
-        type: 'gold_vault',
-        level: goldVaultLevel,
-        isUpgrading: false,
-        masteryPercent: 85,
-        upgradeProgress: 85,
-        title: `Gold Vault (Lv.${goldVaultLevel})`,
-        subtitle: `${gold} Gold Stored`,
-        statsLabel: `Capacity: ${Math.max(1000, totalXp * 2)} Gold`,
-        questsCompleted: attempts.length,
-        actionText: 'Collect Gold',
-        actionUrl: '/history',
-        position: [-3.6, 0, 2.2],
-      },
-      elixirCondenser: {
-        id: 'bldg_elixir',
-        name: 'Mana Condenser',
-        conceptId: c2.id,
-        conceptName: c2.name,
-        type: 'elixir_condenser',
-        level: elixirLevel,
-        isUpgrading: false,
-        masteryPercent: getPct(c2),
-        upgradeProgress: getPct(c2),
-        title: `Mana Vat: ${c2.name}`,
-        subtitle: `Level ${elixirLevel} · ${getPct(c2)}% Mana Charge`,
-        statsLabel: `Synthesizing ${masteredCount} Domain Crystals`,
-        questsCompleted: Math.floor(attempts.length * 0.35),
-        actionText: 'Harvest Crystals',
-        actionUrl: `/quest?concept=${encodeURIComponent(c2.id)}`,
-        position: [-1.8, 0, 3.6],
-      },
-      workshop: {
-        id: 'bldg_workshop',
-        name: "Builder's Forge",
-        conceptId: c0.id,
-        conceptName: c0.name,
-        type: 'workshop',
-        level: workshopLevel,
-        isUpgrading: false,
-        masteryPercent: getPct(c0),
-        upgradeProgress: getPct(c0),
-        title: `Forge: ${c0.name}`,
-        subtitle: `Level ${workshopLevel} · ${getPct(c0)}% Mastery`,
-        statsLabel: `${wood} Wood · ${stone} Stone Available`,
-        questsCompleted: Math.floor(attempts.length * 0.4),
-        actionText: 'Craft Mastery',
-        actionUrl: `/quest?concept=${encodeURIComponent(c0.id)}`,
-        position: [1.8, 0, 3.6],
-      },
+      knowledgeCore,
+      courseAcademy,
+      skillLab,
+      challengeArena,
+      rewardVault,
+      practiceGrounds,
+      careerHub,
+      // Compatibility aliases
+      hq: knowledgeCore,
+      library: courseAcademy,
+      questBoard: challengeArena,
+      aiLab: skillLab,
+      goldVault: rewardVault,
+      elixirCondenser: skillLab,
+      workshop: practiceGrounds,
     },
     mentor: mentorDialogue,
   };
